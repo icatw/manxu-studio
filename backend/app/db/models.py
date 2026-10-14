@@ -23,7 +23,9 @@ class ProjectRecord(Base):
     __tablename__ = "projects"
 
     id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
-    owner_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True), ForeignKey("accounts.id"))
+    owner_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("accounts.id"), nullable=False
+    )
     title: Mapped[str] = mapped_column(String(120), nullable=False)
     synopsis: Mapped[str] = mapped_column(Text, nullable=False)
     genre: Mapped[str] = mapped_column(String(80), nullable=False)
@@ -132,6 +134,9 @@ class GenerationTaskRecord(Base):
     __table_args__ = (Index("generation_tasks_created_idx", "created_at"),)
 
     id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    owner_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("accounts.id", ondelete="CASCADE"), nullable=False
+    )
     project_id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), nullable=False
     )
@@ -172,8 +177,8 @@ class AccountRecord(Base):
     __tablename__ = "accounts"
 
     id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
-    github_id: Mapped[int] = mapped_column(Integer, unique=True, nullable=False)
-    github_login: Mapped[str] = mapped_column(String(120), nullable=False)
+    github_id: Mapped[int | None] = mapped_column(Integer, unique=True)
+    github_login: Mapped[str | None] = mapped_column(String(120))
     display_name: Mapped[str | None] = mapped_column(String(80))
     avatar_url: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
@@ -191,6 +196,8 @@ class OAuthStateRecord(Base):
     __tablename__ = "oauth_states"
 
     state_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    provider: Mapped[str] = mapped_column(String(24), nullable=False, default="github")
+    intent: Mapped[str] = mapped_column(String(24), nullable=False, default="login")
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
@@ -203,6 +210,43 @@ class AccountSessionRecord(Base):
     )
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class AuthIdentityRecord(Base):
+    __tablename__ = "auth_identities"
+    __table_args__ = (
+        Index("auth_identities_provider_subject_idx", "provider", "provider_subject", unique=True),
+        Index("auth_identities_account_idx", "account_id"),
+    )
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    account_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("accounts.id", ondelete="CASCADE"), nullable=False
+    )
+    provider: Mapped[str] = mapped_column(String(24), nullable=False)
+    provider_subject: Mapped[str] = mapped_column(String(240), nullable=False)
+    email_original: Mapped[str | None] = mapped_column(String(320))
+    email_normalized: Mapped[str | None] = mapped_column(String(320))
+    email_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class EmailLoginChallengeRecord(Base):
+    __tablename__ = "email_login_challenges"
+    __table_args__ = (
+        Index("email_challenges_email_created_idx", "email_normalized", "created_at"),
+    )
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    email_normalized: Mapped[str] = mapped_column(String(320), nullable=False)
+    code_digest: Mapped[str] = mapped_column(String(128), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    attempt_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    last_sent_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
 
 
 class AccountModelConfigRecord(Base):

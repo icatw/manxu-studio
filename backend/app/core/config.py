@@ -31,6 +31,18 @@ class Settings(BaseSettings):
     image_model_api_key: str = ""
     image_model_concurrency: int = 2
     image_model_negative_prompt: str = "text, watermark, signature, extra fingers, deformed hands"
+    redis_url: str = "redis://localhost:56379/0"
+    email_code_pepper: str = ""
+    email_code_ttl_seconds: int = 600
+    email_code_resend_seconds: int = 60
+    email_code_max_attempts: int = 5
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_username: str = ""
+    smtp_password: str = ""
+    smtp_from: str = ""
+    smtp_starttls: bool = True
+    rate_limit_per_minute: int = 30
 
     model_config = SettingsConfigDict(env_file="../.env", extra="ignore")
 

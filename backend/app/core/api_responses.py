@@ -81,9 +81,7 @@ def register_exception_handlers(app: FastAPI) -> None:
         )
 
     @app.exception_handler(StarletteHTTPException)
-    async def handle_http_error(
-        request: Request, error: StarletteHTTPException
-    ) -> JSONResponse:
+    async def handle_http_error(request: Request, error: StarletteHTTPException) -> JSONResponse:
         status_code = error.status_code
         message = str(error.detail) if status_code < 500 else "服务暂时不可用，请稍后重试。"
         return _error_response(
@@ -147,9 +145,4 @@ def success_envelope(data: Any, request_id: str) -> dict[str, Any]:
 
 
 def is_success_envelope(value: Any) -> bool:
-    return (
-        isinstance(value, dict)
-        and {"code", "message", "data", "request_id"}.issubset(value)
-    )
-
-
+    return isinstance(value, dict) and {"code", "message", "data", "request_id"}.issubset(value)

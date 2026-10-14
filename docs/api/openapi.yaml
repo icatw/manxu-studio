@@ -12,7 +12,7 @@ servers:
     description: Versioned API base path
 tags:
   - name: Authentication
-    description: GitHub OAuth and account session
+    description: Email, GitHub OAuth, and account session
   - name: ModelSettings
     description: User-owned text and image model settings
   - name: System
@@ -33,6 +33,7 @@ tags:
     description: Storyboard and production material exports
 security:
   - SessionCookie: []
+  - BearerSession: []
 paths:
   /health:
     get:
@@ -113,8 +114,53 @@ paths:
           headers:
             Location:
               schema: { type: string, format: uri }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
         default:
           $ref: '#/components/responses/UnexpectedError'
+  /auth/email/code:
+    post:
+      security: []
+      tags: [Authentication]
+      operationId: requestEmailCode
+      summary: Send an email login code
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/EmailCodeRequest' }
+      responses:
+        '202':
+          description: Code accepted for delivery
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiSuccessEmailCodeAccepted' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /auth/email/verify:
+    post:
+      security: []
+      tags: [Authentication]
+      operationId: verifyEmailCode
+      summary: Verify an email login code and create a session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/EmailVerifyRequest' }
+      responses:
+        '200':
+          description: Signed-in account
+          headers:
+            Set-Cookie: { schema: { type: string } }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiSuccessAccount' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+        '422': { $ref: '#/components/responses/ValidationError' }
   /auth/github/callback:
     get:
       security: []
@@ -143,6 +189,8 @@ paths:
               schema: { type: string, format: uri }
             Set-Cookie:
               schema: { type: string }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
         default:
           $ref: '#/components/responses/UnexpectedError'
   /auth/me:
@@ -186,6 +234,33 @@ paths:
       responses:
         '204': { description: Session ended }
         '401': { $ref: '#/components/responses/Unauthorized' }
+  /auth/identities:
+    get:
+      tags: [Authentication]
+      operationId: listAuthIdentities
+      summary: List login identities for the current account
+      responses:
+        '200':
+          description: Login identity summaries
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiSuccessIdentityList' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /auth/identities/{identity_id}:
+    delete:
+      tags: [Authentication]
+      operationId: deleteAuthIdentity
+      summary: Remove a login identity
+      parameters:
+        - name: identity_id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '204': { description: Login identity removed }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
   /model-config:
     get:
       tags: [ModelSettings]
@@ -889,6 +964,10 @@ components:
       type: apiKey
       in: cookie
       name: manxu_session
+    BearerSession:
+      type: http
+      scheme: bearer
+      description: Opaque account session token for non-browser API clients.
   parameters:
     ProjectId:
       name: project_id
@@ -959,6 +1038,16 @@ components:
       content:
         application/json:
           schema: { $ref: '#/components/schemas/ApiErrorEnvelope' }
+    RateLimited:
+      description: Rate limit exceeded
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiErrorEnvelope' }
+    ServiceUnavailable:
+      description: Required service is unavailable
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiErrorEnvelope' }
   schemas:
     ApiSuccessEnvelope:
       type: object
@@ -1012,6 +1101,24 @@ components:
         - $ref: '#/components/schemas/ApiSuccessEnvelope'
         - type: object
           properties: { data: { $ref: '#/components/schemas/Account' } }
+    ApiSuccessEmailCodeAccepted:
+      allOf:
+        - $ref: '#/components/schemas/ApiSuccessEnvelope'
+        - type: object
+          properties:
+            data:
+              type: object
+              additionalProperties: false
+              required: [message]
+              properties: { message: { type: string } }
+    ApiSuccessIdentityList:
+      allOf:
+        - $ref: '#/components/schemas/ApiSuccessEnvelope'
+        - type: object
+          properties:
+            data:
+              type: array
+              items: { $ref: '#/components/schemas/AuthIdentity' }
     ApiSuccessModelConfig:
       allOf:
         - $ref: '#/components/schemas/ApiSuccessEnvelope'
@@ -1123,6 +1230,28 @@ components:
       required: [display_name]
       properties:
         display_name: { type: string, minLength: 1, maxLength: 80 }
+    EmailCodeRequest:
+      type: object
+      additionalProperties: false
+      required: [email]
+      properties:
+        email: { type: string, format: email, maxLength: 320 }
+    EmailVerifyRequest:
+      type: object
+      additionalProperties: false
+      required: [email, code]
+      properties:
+        email: { type: string, format: email, maxLength: 320 }
+        code: { type: string, pattern: '^\\d{6}$' }
+    AuthIdentity:
+      type: object
+      additionalProperties: false
+      required: [id, provider, email, verified]
+      properties:
+        id: { type: string, format: uuid }
+        provider: { type: string, enum: [email, github] }
+        email: { type: [string, 'null'], format: email }
+        verified: { type: boolean }
     ModelConfigUpdate:
       type: object
       additionalProperties: false

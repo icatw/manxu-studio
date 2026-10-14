@@ -8,6 +8,8 @@ vi.mock("./lib/api/client", () => ({
   api: {
     GET: vi.fn((path: string) => Promise.resolve(path === "/auth/me"
       ? { data: { id: "acct-1", github_login: "creator", display_name: "creator", avatar_url: null } }
+      : path === "/auth/identities"
+        ? { data: [{ id: "identity-1", provider: "github", email: null, verified: true }] }
       : path === "/model-config"
         ? { data: {
             text_provider: "openai-compatible", text_model: "qwen-plus", text_base_url: "https://example.com/v1",

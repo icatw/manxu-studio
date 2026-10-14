@@ -18,8 +18,17 @@ export function SettingsPage() {
       return data
     },
   })
+  const identities = useQuery({
+    queryKey: ['auth-identities'],
+    queryFn: async () => {
+      const { data, error } = await api.GET('/auth/identities')
+      if (error || !data) throw new Error('无法读取登录方式')
+      return data
+    },
+  })
   const [displayName, setDisplayName] = useState('')
   const [notice, setNotice] = useState<string | null>(null)
+  const identityItems = Array.isArray(identities.data) ? identities.data : []
 
   useEffect(() => {
     if (account.data) setDisplayName(account.data.display_name)
@@ -68,8 +77,19 @@ export function SettingsPage() {
                 <Input required minLength={1} maxLength={80} value={displayName} onChange={(event) => setDisplayName(event.target.value)} />
               </label>
               <label className="grid gap-1.5 text-xs font-medium">GitHub 账户
-                <Input value={account.data.github_login} readOnly aria-readonly="true" />
+                <Input value={account.data.github_login || '未绑定'} readOnly aria-readonly="true" />
               </label>
+              <div className="grid gap-1.5 text-xs font-medium sm:col-span-2">登录方式
+                <div className="flex flex-wrap gap-2 text-sm font-normal">
+                  {identityItems.map((identity) => (
+                    <span key={identity.id} className="border px-2.5 py-1.5">
+                      {identity.provider === 'email' ? identity.email : 'GitHub'}{identity.provider === 'email' && identity.verified ? ' · 已验证' : ''}
+                    </span>
+                  ))}
+                  {!identities.isPending && !identities.isError && identityItems.length === 0 && <span className="text-muted-foreground">暂无登录方式信息</span>}
+                  {identities.isError && <span className="text-destructive">{identities.error.message}</span>}
+                </div>
+              </div>
               <div className="flex flex-wrap items-center gap-3 sm:col-span-2">
                 <Button type="submit" size="sm" disabled={!displayName.trim() || saveProfile.isPending || displayName.trim() === account.data.display_name}>
                   {saveProfile.isPending ? <LoaderCircle className="animate-spin" /> : <Save />}保存昵称
