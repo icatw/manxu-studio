@@ -51,10 +51,12 @@ describe("application shell", () => {
       </QueryClientProvider>,
     );
 
+    expect(await screen.findByRole("heading", { name: "个人资料" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /模型配置/ }));
     const imageUrl = await screen.findByLabelText("图像服务 Base URL") as HTMLInputElement;
     expect(imageUrl.value).toBe("https://dashscope.aliyuncs.com/api/v1");
     fireEvent.change(imageUrl, { target: { value: "https://workspace.example.com/api/v1" } });
     expect(imageUrl.value).toBe("https://workspace.example.com/api/v1");
-    expect(screen.getByRole("heading", { name: "个人资料" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "模型配置" })).toBeInTheDocument();
   });
 });
