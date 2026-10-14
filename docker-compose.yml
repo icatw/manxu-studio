@@ -45,9 +45,11 @@ services:
       APP_ENV: development
       DATABASE_URL: postgresql+asyncpg://manxu:manxu@postgres:5432/manxu_dev
       REDIS_URL: redis://redis:6379/0
-      SMTP_HOST: mailpit
-      SMTP_PORT: 1025
-      SMTP_STARTTLS: "false"
+      SMTP_HOST: ${SMTP_HOST:-mailpit}
+      SMTP_PORT: ${SMTP_PORT:-1025}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_STARTTLS: ${SMTP_STARTTLS:-false}
       SMTP_FROM: ${SMTP_FROM:-noreply@manxu.local}
       IMAGE_STORAGE_DIR: /app/var/images
     ports:
@@ -77,9 +79,11 @@ services:
       APP_ENV: development
       DATABASE_URL: postgresql+asyncpg://manxu:manxu@postgres:5432/manxu_dev
       REDIS_URL: redis://redis:6379/0
-      SMTP_HOST: mailpit
-      SMTP_PORT: 1025
-      SMTP_STARTTLS: "false"
+      SMTP_HOST: ${SMTP_HOST:-mailpit}
+      SMTP_PORT: ${SMTP_PORT:-1025}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_STARTTLS: ${SMTP_STARTTLS:-false}
       SMTP_FROM: ${SMTP_FROM:-noreply@manxu.local}
       IMAGE_STORAGE_DIR: /app/var/images
     volumes:
