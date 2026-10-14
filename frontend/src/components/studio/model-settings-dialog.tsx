@@ -1,10 +1,16 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Check, ImageIcon, KeyRound, LoaderCircle, Save, ScrollText, Wifi } from 'lucide-react'
+import { Check, ImageIcon, KeyRound, LoaderCircle, Save, ScrollText, Sparkles, Wifi } from 'lucide-react'
 import { useEffect, useState, type FormEvent } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { api } from '@/lib/api/client'
 import type { components } from '@/lib/api/schema'
+
+const SYSTEM_PRESET = {
+  textModel: 'Qwen3.8-Flash',
+  baseUrl: 'https://llm-8imv8mzcp1c7g52w.cn-beijing.maas.aliyuncs.com/compatible-mode/v1',
+  imageModel: 'qwen-image-3.0-pro',
+}
 
 export function ModelSettingsPanel() {
   const queryClient = useQueryClient()
@@ -100,6 +106,14 @@ export function ModelSettingsPanel() {
     saveMutation.mutate()
   }
 
+  function applySystemPreset() {
+    setTextModel(SYSTEM_PRESET.textModel)
+    setTextBaseUrl(SYSTEM_PRESET.baseUrl)
+    setImageModel(SYSTEM_PRESET.imageModel)
+    setImageBaseUrl(SYSTEM_PRESET.baseUrl)
+    setNotice({ success: true, message: '已填入系统推荐值，请补充密钥后保存' })
+  }
+
   const config = query.data
   return (
     <form onSubmit={submit} className="space-y-6">
@@ -108,7 +122,7 @@ export function ModelSettingsPanel() {
       {config && (
         <>
           <section className="space-y-4">
-            <h3 className="flex items-center gap-2 text-sm font-semibold"><ScrollText className="size-4" aria-hidden />文本模型 · OpenAI 兼容</h3>
+            <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="flex items-center gap-2 text-sm font-semibold"><ScrollText className="size-4" aria-hidden />文本模型 · OpenAI 兼容</h3><Button type="button" variant="ghost" size="sm" onClick={applySystemPreset}><Sparkles />填入系统推荐</Button></div>
             <div className="grid gap-3 sm:grid-cols-2">
               <Field label="Base URL">
                 <Input required type="url" placeholder="https://api.example.com/v1" value={textBaseUrl} onChange={(event) => setTextBaseUrl(event.target.value)} />
