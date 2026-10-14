@@ -26,9 +26,7 @@ export interface ImageGenerationResult {
 }
 
 /**
- * A real implementation (e.g. Alibaba Tongyi Wanxiang) should POST to a
- * server route that holds the API key, submit an async task, and poll for
- * the result while reporting progress through `onProgress`.
+ * The provider API key remains server-side; the browser only polls task state.
  */
 export interface ImageGenerationService {
   readonly isDemo: boolean
@@ -112,16 +110,14 @@ export class DemoImageGenerationService implements ImageGenerationService {
 export const imageGenerationService: ImageGenerationService = new DemoImageGenerationService()
 
 /**
- * Submits an async Tongyi Wanxiang task through `/api/images` (which holds
- * DASHSCOPE_API_KEY) and polls `/api/images/:taskId`. DashScope does not
- * report real progress, so progress is estimated from elapsed time.
+ * Submits an async Qwen Image task and polls the persisted FastAPI task.
  */
-export class WanxImageGenerationService implements ImageGenerationService {
+export class QwenImageGenerationService implements ImageGenerationService {
   readonly isDemo = false
   readonly providerName: string
 
   constructor() {
-    this.providerName = '服务端演示生成'
+    this.providerName = 'Qwen Image'
   }
 
   async generate({ panelId, prompt, signal, onProgress }: ImageGenerationRequest): Promise<ImageGenerationResult> {
@@ -144,7 +140,7 @@ export class WanxImageGenerationService implements ImageGenerationService {
     onProgress?.(100)
     return {
       imageUrl: version.image_url,
-      source: 'demo',
+      source: 'ai',
       providerName: this.providerName,
       generatedAt: version.created_at,
     }
@@ -157,5 +153,5 @@ export function createImageGenerationService(settings: {
   negativePrompt: string
 }): ImageGenerationService {
   void settings
-  return new WanxImageGenerationService()
+  return new QwenImageGenerationService()
 }

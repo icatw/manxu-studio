@@ -10,7 +10,6 @@ import { waitForTask } from '@/services/workspace-api'
 import { useStudio } from './studio-provider'
 import { WithTooltip } from './shared'
 import { RegenerateConfirmDialog } from './regenerate-confirm-dialog'
-import { ModelSettingsDialog } from './model-settings-dialog'
 
 function formatTime(date: Date) {
   return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
@@ -47,7 +46,6 @@ export function TopToolbar() {
   const navigate = useNavigate()
   const [exporting, setExporting] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
-  const [modelSettingsOpen, setModelSettingsOpen] = useState(false)
 
   const hasPanels = project.panels.length > 0
   const hasWork = project.panels.some((p) => p.imageUrl || p.dialogue)
@@ -135,8 +133,8 @@ export function TopToolbar() {
             <Redo2 />
           </Button>
         </WithTooltip>
-        <WithTooltip label="模型设置">
-          <Button variant="ghost" size="icon-sm" onClick={() => setModelSettingsOpen(true)} aria-label="模型设置">
+        <WithTooltip label="设置">
+          <Button variant="ghost" size="icon-sm" onClick={() => navigate('/settings')} aria-label="设置">
             <Settings2 />
           </Button>
         </WithTooltip>
@@ -163,7 +161,6 @@ export function TopToolbar() {
           void generateFromStory({ regenerateCharacters: false })
         }}
       />
-      <ModelSettingsDialog open={modelSettingsOpen} onOpenChange={setModelSettingsOpen} />
     </header>
   )
 }

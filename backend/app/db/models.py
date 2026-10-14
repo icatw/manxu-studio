@@ -1,7 +1,17 @@
 from datetime import datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import DateTime, ForeignKey, Index, Integer, LargeBinary, String, Text, func
+from sqlalchemy import (
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    LargeBinary,
+    String,
+    Text,
+    func,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
@@ -13,6 +23,7 @@ class ProjectRecord(Base):
     __tablename__ = "projects"
 
     id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    owner_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True), ForeignKey("accounts.id"))
     title: Mapped[str] = mapped_column(String(120), nullable=False)
     synopsis: Mapped[str] = mapped_column(Text, nullable=False)
     genre: Mapped[str] = mapped_column(String(80), nullable=False)
@@ -155,3 +166,63 @@ class ExportRecord(Base):
     content_type: Mapped[str] = mapped_column(String(100), nullable=False)
     content: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class AccountRecord(Base):
+    __tablename__ = "accounts"
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    github_id: Mapped[int] = mapped_column(Integer, unique=True, nullable=False)
+    github_login: Mapped[str] = mapped_column(String(120), nullable=False)
+    display_name: Mapped[str | None] = mapped_column(String(80))
+    avatar_url: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class AccountRegistryRecord(Base):
+    __tablename__ = "account_registry"
+    __table_args__ = (CheckConstraint("id = 1", name="account_registry_singleton"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    account_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True), ForeignKey("accounts.id"))
+
+
+class OAuthStateRecord(Base):
+    __tablename__ = "oauth_states"
+
+    state_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class AccountSessionRecord(Base):
+    __tablename__ = "account_sessions"
+
+    token_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    account_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("accounts.id", ondelete="CASCADE"), nullable=False
+    )
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class AccountModelConfigRecord(Base):
+    __tablename__ = "account_model_configs"
+
+    account_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("accounts.id", ondelete="CASCADE"), primary_key=True
+    )
+    text_model: Mapped[str] = mapped_column(String(160), nullable=False, default="")
+    text_base_url: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    text_api_key_encrypted: Mapped[bytes | None] = mapped_column(LargeBinary)
+    image_model: Mapped[str] = mapped_column(
+        String(80), nullable=False, default="qwen-image-3.0-pro"
+    )
+    image_base_url: Mapped[str] = mapped_column(
+        Text, nullable=False, default="https://dashscope.aliyuncs.com/api/v1"
+    )
+    image_api_key_encrypted: Mapped[bytes | None] = mapped_column(LargeBinary)
+    text_status: Mapped[str] = mapped_column(String(24), nullable=False, default="not_configured")
+    image_status: Mapped[str] = mapped_column(String(24), nullable=False, default="not_configured")
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )

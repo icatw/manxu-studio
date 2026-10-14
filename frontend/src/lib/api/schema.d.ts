@@ -56,6 +56,75 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/github/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Start GitHub OAuth login */
+        get: operations["startGitHubLogin"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/github/callback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Complete GitHub OAuth and establish a session */
+        get: operations["completeGitHubLogin"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get the signed-in account */
+        get: operations["getCurrentAccount"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update the current account's editable profile */
+        patch: operations["updateCurrentAccount"];
+        trace?: never;
+    };
+    "/auth/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** End the current account session */
+        post: operations["logout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/model-config": {
         parameters: {
             query?: never;
@@ -63,8 +132,45 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get server-side model configuration without secrets */
+        /** Read the current account's model settings without secrets */
         get: operations["getModelConfig"];
+        /** Update the current account's model settings */
+        put: operations["updateModelConfig"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/model-config/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Test the configured text model connection */
+        post: operations["testTextModelConnection"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/assets/{asset_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                asset_id: string;
+            };
+            cookie?: never;
+        };
+        /** Read a generated image from private persistent storage */
+        get: operations["getImageAsset"];
         put?: never;
         post?: never;
         delete?: never;
@@ -470,13 +576,45 @@ export interface components {
         VersionInfo: {
             version: string;
         };
+        Account: {
+            /** Format: uuid */
+            id: string;
+            github_login: string;
+            display_name: string;
+            /** Format: uri */
+            avatar_url: string | null;
+        };
+        AccountProfileUpdate: {
+            display_name: string;
+        };
+        ModelConfigUpdate: {
+            text_model: string;
+            /** Format: uri */
+            text_base_url: string;
+            /** @description Omit to keep the existing key, null to clear it, or provide a replacement. */
+            text_api_key?: string | null;
+            /** @enum {string} */
+            image_model: "qwen-image-3.0-pro" | "qwen-image-3.0" | "qwen-image-2.1-pro" | "qwen-image-2.1-turbo";
+            /**
+             * Format: uri
+             * @description Omit or set null to keep the existing address, or provide a Qwen Image API base URL.
+             */
+            image_base_url?: string | null;
+            /** @description Omit to keep the existing key, null to clear it, or provide a replacement. */
+            image_api_key?: string | null;
+        };
+        ModelConnectionTest: {
+            success: boolean;
+            message: string;
+            latency_ms?: number | null;
+        };
         ModelConfig: {
             text_provider: string;
             text_model: string;
             text_base_url: string;
             text_api_key_configured: boolean;
             /** @enum {string} */
-            text_status: "demo" | "not_connected";
+            text_status: "not_configured" | "configured" | "connected" | "error";
             image_provider: string;
             image_model: string;
             image_base_url: string;
@@ -484,7 +622,8 @@ export interface components {
             image_concurrency: number;
             image_negative_prompt: string;
             /** @enum {string} */
-            image_status: "demo" | "not_connected";
+            image_status: "not_configured" | "configured" | "connected" | "error";
+            image_models: string[];
         };
         ProjectCreate: {
             title: string;
@@ -756,6 +895,15 @@ export interface components {
         };
     };
     responses: {
+        /** @description Authentication is required */
+        Unauthorized: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["Problem"];
+            };
+        };
         /** @description Resource not found */
         NotFound: {
             headers: {
@@ -897,6 +1045,117 @@ export interface operations {
             default: components["responses"]["UnexpectedError"];
         };
     };
+    startGitHubLogin: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Redirect to GitHub authorization */
+            302: {
+                headers: {
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            default: components["responses"]["UnexpectedError"];
+        };
+    };
+    completeGitHubLogin: {
+        parameters: {
+            query?: {
+                code?: string;
+                state?: string;
+                error?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Redirect to the app after login or a user-visible OAuth error */
+            302: {
+                headers: {
+                    Location?: string;
+                    "Set-Cookie"?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            default: components["responses"]["UnexpectedError"];
+        };
+    };
+    getCurrentAccount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Current account */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Account"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    updateCurrentAccount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AccountProfileUpdate"];
+            };
+        };
+        responses: {
+            /** @description Updated current account */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Account"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            422: components["responses"]["ValidationError"];
+        };
+    };
+    logout: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Session ended */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
     getModelConfig: {
         parameters: {
             query?: never;
@@ -916,6 +1175,77 @@ export interface operations {
                 };
             };
             default: components["responses"]["UnexpectedError"];
+        };
+    };
+    updateModelConfig: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModelConfigUpdate"];
+            };
+        };
+        responses: {
+            /** @description Updated settings without secret values */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelConfig"];
+                };
+            };
+            422: components["responses"]["ValidationError"];
+        };
+    };
+    testTextModelConnection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Connection test result */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelConnectionTest"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    getImageAsset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                asset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Generated image bytes */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/png": string;
+                    "image/jpeg": string;
+                    "image/webp": string;
+                };
+            };
+            404: components["responses"]["NotFound"];
         };
     };
     getProject: {
