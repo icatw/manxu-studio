@@ -90,6 +90,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/csrf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Refresh the browser CSRF token */
+        get: operations["getCsrfToken"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/email/verify": {
         parameters: {
             query?: never;
@@ -670,6 +687,9 @@ export interface components {
         };
         ApiSuccessAccount: components["schemas"]["ApiSuccessEnvelope"] & {
             data?: components["schemas"]["Account"];
+        };
+        CsrfToken: {
+            token: string;
         };
         ApiSuccessEmailCodeAccepted: components["schemas"]["ApiSuccessEnvelope"] & {
             data?: {
@@ -1283,6 +1303,31 @@ export interface operations {
             422: components["responses"]["ValidationError"];
             429: components["responses"]["RateLimited"];
             503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    getCsrfToken: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description CSRF token refreshed in a cookie */
+            200: {
+                headers: {
+                    "Set-Cookie"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiSuccessEnvelope"] & {
+                        data?: components["schemas"]["CsrfToken"];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            default: components["responses"]["UnexpectedError"];
         };
     };
     verifyEmailCode: {

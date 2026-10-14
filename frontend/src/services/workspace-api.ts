@@ -1,4 +1,4 @@
-import { api } from "@/lib/api/client";
+import { api, toApiError } from "@/lib/api/client";
 import type { components } from "@/lib/api/schema";
 import type { Character } from "@/types/character";
 import type { SceneAsset } from "@/types/story";
@@ -20,15 +20,7 @@ export type WorkspaceData = {
 };
 
 function failure(error: unknown) {
-  if (error instanceof Error) return error;
-  if (typeof error === "object" && error !== null && "detail" in error) {
-    const detail = (error as { detail?: unknown }).detail;
-    if (typeof detail === "string") return new Error(detail);
-    if (typeof detail === "object" && detail && "detail" in detail) {
-      return new Error(String((detail as { detail: unknown }).detail));
-    }
-  }
-  return new Error("请求失败，请检查 API 服务后重试");
+  return toApiError(error, "请求失败，请检查 API 服务后重试");
 }
 
 function required<T>(data: T | undefined, error: unknown): T {
@@ -121,7 +113,7 @@ async function getPanelVersions(panelId: string) {
 
 export function toComicProject(workspace: WorkspaceData): ComicProject {
   const { project, episode, characters, scenes, panels, versions } = workspace;
-  const characterAssets: Character[] = characters.map((character, index) => ({
+  const characterAssets: Character[] = characters.map((character) => ({
     id: character.id,
     name: character.name,
     role: "故事角色",
@@ -130,17 +122,17 @@ export function toComicProject(workspace: WorkspaceData): ComicProject {
     clothing: character.profile.outfit,
     signatureTraits: character.profile.visual_traits.join("、"),
     personality: character.profile.personality,
-    referenceImageUrl: index % 2 === 0 ? "/samples/character-rider.png" : "/samples/character-elder.png",
-    referenceImageSource: "example",
+    referenceImageUrl: "",
+    referenceImageSource: "ai",
     confirmed: character.status === "approved",
   }));
-  const sceneAssets: SceneAsset[] = scenes.map((scene, index) => ({
+  const sceneAssets: SceneAsset[] = scenes.map((scene) => ({
     id: scene.id,
     name: scene.name,
     description: scene.profile.description,
     mood: [scene.profile.lighting, scene.profile.palette].filter(Boolean).join("、"),
-    imageUrl: index % 2 === 0 ? "/samples/scene-sect.png" : "/samples/panel-2.png",
-    imageSource: "example",
+    imageUrl: "",
+    imageSource: "ai",
     confirmed: scene.status === "approved",
   }));
   const panelAssets: StoryboardPanel[] = panels.map((panel, index) => {
@@ -168,8 +160,7 @@ export function toComicProject(workspace: WorkspaceData): ComicProject {
       sceneId: panel.scene_id ?? null,
       aspectRatio: "4:3",
       imageUrl: currentVersion?.image_url ?? null,
-      imageSource: currentVersion ? "demo" : null,
-      demoAssetUrl: `/samples/panel-${(index % 4) + 1}.png`,
+      imageSource: currentVersion ? "ai" : null,
       status: currentVersion ? "completed" : "draft",
       progress: currentVersion ? 100 : 0,
       errorMessage: null,

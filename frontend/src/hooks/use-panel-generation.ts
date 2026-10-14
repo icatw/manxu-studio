@@ -3,11 +3,7 @@
 import { useCallback, useEffect, useRef, useState, type Dispatch, type RefObject } from 'react'
 import { toast } from 'sonner'
 import type { ProjectAction } from '@/lib/project-store'
-import {
-  imageGenerationService,
-  isAbortError,
-  type ImageGenerationService,
-} from '@/services/image-generation-service'
+import { imageGenerationService, isAbortError, type ImageGenerationService } from '@/services/image-generation-service'
 import type { ComicProject } from '@/types/storyboard'
 
 interface Options {
@@ -28,11 +24,7 @@ export function usePanelGeneration({
   onGenerated,
 }: Options) {
   const controllers = useRef(new Map<string, AbortController>())
-  const failedOnce = useRef(new Set<string>())
-  const [simulateFailure, setSimulateFailure] = useState(true)
-  const simulateRef = useRef(simulateFailure)
-  simulateRef.current = simulateFailure && service.isDemo
-  const doneSuffix = service.isDemo ? '（演示占位）' : ''
+  const doneSuffix = ''
   const [batchRunning, setBatchRunning] = useState(false)
   const batchCancelled = useRef(false)
   const concurrencyRef = useRef(concurrency)
@@ -44,7 +36,7 @@ export function usePanelGeneration({
   }, [])
 
   const generatePanel = useCallback(
-    async (panelId: string, { failCandidate = false } = {}): Promise<GenerationOutcome> => {
+    async (panelId: string): Promise<GenerationOutcome> => {
       if (controllers.current.has(panelId)) return 'skipped'
       const panel = projectRef.current.panels.find((p) => p.id === panelId)
       if (!panel) return 'skipped'
@@ -52,10 +44,6 @@ export function usePanelGeneration({
       const controller = new AbortController()
       controllers.current.set(panelId, controller)
       const previous = { imageUrl: panel.imageUrl, hadImage: Boolean(panel.imageUrl) }
-
-      const shouldFail =
-        simulateRef.current && failCandidate && !failedOnce.current.has(panelId)
-      if (shouldFail) failedOnce.current.add(panelId)
 
       dispatch({
         type: 'panelRuntime',
@@ -74,8 +62,6 @@ export function usePanelGeneration({
           aspectRatio: panel.aspectRatio,
           referenceImageUrls,
           signal: controller.signal,
-          demoAssetUrl: panel.demoAssetUrl,
-          simulateFailure: shouldFail,
           onProgress: (progress) =>
             dispatch({ type: 'panelRuntime', id: panelId, patch: { progress } }),
         })
@@ -137,7 +123,7 @@ export function usePanelGeneration({
     if (batchRunning) return
     const queue = projectRef.current.panels
       .filter((p) => !controllers.current.has(p.id))
-      .map((p, index) => ({ id: p.id, failCandidate: index === 2 }))
+      .map((p) => ({ id: p.id }))
     if (queue.length === 0) return
 
     setBatchRunning(true)
@@ -147,7 +133,7 @@ export function usePanelGeneration({
     const worker = async () => {
       while (queue.length && !batchCancelled.current) {
         const next = queue.shift()!
-        outcomes.push(await generatePanel(next.id, { failCandidate: next.failCandidate }))
+        outcomes.push(await generatePanel(next.id))
       }
     }
     await Promise.all(Array.from({ length: concurrencyRef.current }, worker))
@@ -173,9 +159,6 @@ export function usePanelGeneration({
 
   return {
     providerName: service.providerName,
-    isDemo: service.isDemo,
-    simulateFailure,
-    setSimulateFailure,
     batchRunning,
     generateOne,
     generateAll,

@@ -1,6 +1,6 @@
 import type { Character } from '@/types/character'
 import type { SceneAsset, StoryIdea } from '@/types/story'
-import { SHOT_TYPES, ASPECT_RATIOS, type ComicProject, type StoryboardPanel } from '@/types/storyboard'
+import type { ComicProject, StoryboardPanel } from '@/types/storyboard'
 
 export type ProjectAction =
   | { type: 'hydrate'; project: ComicProject }
@@ -30,7 +30,6 @@ export interface HistoryState {
   lastTime: number
   revision: number
 }
-
 const HISTORY_LIMIT = 60
 const COALESCE_MS = 1000
 
@@ -44,7 +43,6 @@ function patchPanel(project: ComicProject, id: string, patch: Partial<Storyboard
     panels: project.panels.map((p) => (p.id === id ? { ...p, ...patch } : p)),
   }
 }
-
 function settleRuntime(project: ComicProject): ComicProject {
   return {
     ...project,
@@ -186,85 +184,5 @@ export function historyReducer(state: HistoryState, action: ProjectAction): Hist
         revision: state.revision + 1,
       }
     }
-  }
-}
-
-/* ---------- Persistence ---------- */
-
-export const STORAGE_KEY = 'manxu-studio:project:v1'
-
-const isString = (v: unknown): v is string => typeof v === 'string'
-const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null
-
-function sanitizePanel(raw: unknown): StoryboardPanel | null {
-  if (!isObject(raw)) return null
-  const required = ['id', 'scene', 'action', 'emotion', 'dialogue', 'imagePrompt', 'demoAssetUrl']
-  if (!required.every((k) => isString(raw[k]))) return null
-  const shotType = SHOT_TYPES.includes(raw.shotType as never) ? (raw.shotType as StoryboardPanel['shotType']) : 'medium'
-  const aspectRatio = ASPECT_RATIOS.includes(raw.aspectRatio as never)
-    ? (raw.aspectRatio as StoryboardPanel['aspectRatio'])
-    : '4:3'
-  const imageUrl = isString(raw.imageUrl) ? raw.imageUrl : null
-  const rawStatus = raw.status
-  const status: StoryboardPanel['status'] =
-    rawStatus === 'completed' || rawStatus === 'failed' || rawStatus === 'draft'
-      ? rawStatus
-      : imageUrl
-        ? 'completed'
-        : 'draft'
-  const imageSource =
-    raw.imageSource === 'example' || raw.imageSource === 'demo' || raw.imageSource === 'ai'
-      ? raw.imageSource
-      : null
-  return {
-    id: raw.id as string,
-    panelNumber: 0,
-    shotType,
-    scene: raw.scene as string,
-    action: raw.action as string,
-    emotion: raw.emotion as string,
-    dialogue: raw.dialogue as string,
-    imagePrompt: raw.imagePrompt as string,
-    characterIds: Array.isArray(raw.characterIds) ? raw.characterIds.filter(isString) : [],
-    aspectRatio,
-    imageUrl,
-    imageSource: imageUrl ? imageSource : null,
-    demoAssetUrl: raw.demoAssetUrl as string,
-    status: status === 'completed' && !imageUrl ? 'draft' : status,
-    progress: status === 'completed' ? 100 : 0,
-    errorMessage: isString(raw.errorMessage) ? raw.errorMessage : null,
-    generatedAt: isString(raw.generatedAt) ? raw.generatedAt : null,
-  }
-}
-
-export function parseStoredProject(json: string | null, fallback: ComicProject): ComicProject | null {
-  if (!json) return null
-  try {
-    const raw: unknown = JSON.parse(json)
-    if (!isObject(raw) || !isString(raw.id) || !isString(raw.title)) return null
-    if (!isObject(raw.story) || !Array.isArray(raw.panels) || !Array.isArray(raw.characters)) return null
-
-    const story = { ...fallback.story, ...(raw.story as Partial<StoryIdea>) }
-    const characters = (raw.characters as unknown[])
-      .filter((c): c is Character => isObject(c) && isString(c.id) && isString(c.name))
-      .map((c) => ({ ...fallback.characters[0], ...c }))
-    const scenes = Array.isArray(raw.scenes)
-      ? (raw.scenes as unknown[]).filter((s): s is SceneAsset => isObject(s) && isString(s.id) && isString(s.imageUrl))
-      : fallback.scenes
-    const panels = renumber(
-      (raw.panels as unknown[]).map(sanitizePanel).filter((p): p is StoryboardPanel => p !== null),
-    )
-
-    return {
-      id: raw.id,
-      title: raw.title,
-      story,
-      characters: characters.length ? characters : fallback.characters,
-      scenes,
-      panels,
-      updatedAt: isString(raw.updatedAt) ? raw.updatedAt : new Date().toISOString(),
-    }
-  } catch {
-    return null
   }
 }

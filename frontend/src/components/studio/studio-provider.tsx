@@ -308,7 +308,7 @@ export function StudioProvider({
     dispatch({
       type: "panelGenerated",
       id: panelId,
-      patch: { imageUrl: data.image_url, status: "completed", progress: 100, imageSource: "demo" },
+      patch: { imageUrl: data.image_url, status: "completed", progress: 100, imageSource: "ai" },
     });
     await queryClient.invalidateQueries({ queryKey: ["workspace", workspace.project.id] });
   }, [queryClient, workspace.project.id]);
@@ -327,7 +327,6 @@ export function StudioProvider({
       aspectRatio: projectRef.current.story.aspectRatio === "1:1" ? "1:1" : "4:3",
       imageUrl: null,
       imageSource: null,
-      demoAssetUrl: "/samples/panel-1.png",
       status: "draft",
       progress: 0,
       errorMessage: null,

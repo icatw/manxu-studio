@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.core.redis import require_rate_limit
-from app.core.security import check_csrf, current_account
+from app.core.security import check_csrf, current_account, require_project_owner_dependency
 from app.db.models import (
     CharacterRecord,
     EpisodeRecord,
@@ -56,6 +56,7 @@ SessionDep = Annotated[AsyncSession, Depends(get_session)]
 async def require_workspace_account(request: Request, session: SessionDep) -> None:
     account = await current_account(request, session)
     request.state.account_id = account.id
+    request.state.account = account
     params = request.path_params
     project_id = params.get("project_id")
     if project_id is None and params.get("episode_id") is not None:
@@ -197,7 +198,12 @@ async def create_project(body: ProjectCreate, request: Request, session: Session
     return Project.model_validate(record)
 
 
-@router.get("/projects/{project_id}", operation_id="getProject", response_model=Project)
+@router.get(
+    "/projects/{project_id}",
+    operation_id="getProject",
+    response_model=Project,
+    dependencies=[Depends(require_project_owner_dependency)],
+)
 async def get_project(project_id: UUID, session: SessionDep) -> Project:
     record = await session.get(ProjectRecord, project_id)
     if record is None:
@@ -205,7 +211,12 @@ async def get_project(project_id: UUID, session: SessionDep) -> Project:
     return Project.model_validate(record)
 
 
-@router.patch("/projects/{project_id}", operation_id="updateProject", response_model=Project)
+@router.patch(
+    "/projects/{project_id}",
+    operation_id="updateProject",
+    response_model=Project,
+    dependencies=[Depends(require_project_owner_dependency)],
+)
 async def update_project(project_id: UUID, body: ProjectPatch, session: SessionDep) -> Project:
     record = await session.get(ProjectRecord, project_id)
     if record is None:
@@ -218,7 +229,12 @@ async def update_project(project_id: UUID, body: ProjectPatch, session: SessionD
     return Project.model_validate(record)
 
 
-@router.delete("/projects/{project_id}", operation_id="deleteProject", status_code=204)
+@router.delete(
+    "/projects/{project_id}",
+    operation_id="deleteProject",
+    status_code=204,
+    dependencies=[Depends(require_project_owner_dependency)],
+)
 async def delete_project(project_id: UUID, session: SessionDep) -> Response:
     record = await session.get(ProjectRecord, project_id)
     if record is None:
