@@ -41,10 +41,15 @@ export function AccountGate({ children }: { children: React.ReactNode }) {
   }, [resendIn])
 
   async function requestCode() {
+    const normalizedEmail = email.trim()
+    if (!normalizedEmail || !normalizedEmail.includes("@")) {
+      setNotice("请输入有效的邮箱地址")
+      return
+    }
     setBusy(true)
     setNotice("")
     try {
-      const result = await api.POST("/auth/email/code", { body: { email } })
+      const result = await api.POST("/auth/email/code", { body: { email: normalizedEmail } })
       if (result.error || !result.data) {
         setNotice(readErrorMessage(result.error, "验证码发送失败，请稍后重试"))
         return
@@ -60,10 +65,15 @@ export function AccountGate({ children }: { children: React.ReactNode }) {
   }
 
   async function verifyCode() {
+    const normalizedEmail = email.trim()
+    if (!normalizedEmail || code.length !== 6) {
+      setNotice("请输入邮箱和 6 位验证码")
+      return
+    }
     setBusy(true)
     setNotice("")
     try {
-      const result = await api.POST("/auth/email/verify", { body: { email, code } })
+      const result = await api.POST("/auth/email/verify", { body: { email: normalizedEmail, code } })
       if (result.error || !result.data) {
         setNotice(readErrorMessage(result.error, "验证码无效或已过期"))
         return
