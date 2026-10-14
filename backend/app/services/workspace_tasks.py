@@ -9,6 +9,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
+from app.core.logging import api_logger
 from app.core.security import decrypt_secret
 from app.db.models import (
     AccountModelConfigRecord,
@@ -74,15 +75,32 @@ async def run_generation_task(task_id: UUID) -> None:
                     task.error = None
                     task.updated_at = datetime.now(UTC)
                     await session.commit()
-            except Exception as error:
+            except Exception:
+                failure_id = str(uuid4())
+                api_logger.exception(
+                    "generation_task_failed",
+                    extra={
+                        "event": "generation_task_failed",
+                        "task_id": str(task_id),
+                        "failure_id": failure_id,
+                        "task_type": task.task_type if task is not None else "unknown",
+                    },
+                )
                 async with SessionFactory() as session:
                     task = await session.get(GenerationTaskRecord, task_id)
                     if task is not None:
+                        task_type = task.task_type
                         task.status = "failed"
                         task.error = {
-                            "title": "生成任务失败",
-                            "detail": str(error)[:500],
-                            "status": 500,
+                            "code": (
+                                "PROVIDER_ERROR"
+                                if task_type.startswith("panel_image")
+                                else "TASK_FAILED"
+                            ),
+                            "message": "图像生成失败，请检查模型配置后重试"
+                            if task_type.startswith("panel_image")
+                            else "任务执行失败，请稍后重试",
+                            "failure_id": failure_id,
                         }
                         task.updated_at = datetime.now(UTC)
                         await session.commit()
@@ -256,13 +274,18 @@ async def _generate_panel_image(
         ]
         if item
     )
+    api_key = decrypt_secret(config.image_api_key_encrypted)
+    image_model = config.image_model
+    image_base_url = config.image_base_url
     asset_id = uuid4()
+    # Release the transaction and database connection before waiting on Qwen.
+    await session.commit()
     image_url = await generate_qwen_image(
-        api_key=decrypt_secret(config.image_api_key_encrypted),
-        model=config.image_model,
+        api_key=api_key,
+        model=image_model,
         prompt=prompt,
         asset_id=asset_id,
-        base_url=config.image_base_url,
+        base_url=image_base_url,
     )
     version = ImageVersionRecord(panel_id=panel.id, asset_id=asset_id, image_url=image_url)
     session.add(version)

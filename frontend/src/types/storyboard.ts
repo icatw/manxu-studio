@@ -43,8 +43,6 @@ export interface StoryboardPanel {
   aspectRatio: AspectRatio
   imageUrl: string | null
   imageSource: AssetSource | null
-  /** Bundled asset the local demo service returns for this panel. */
-  demoAssetUrl: string
   status: PanelStatus
   progress: number
   errorMessage: string | null

@@ -77,6 +77,10 @@ class IdentityView(BaseModel):
     verified: bool
 
 
+class CsrfTokenView(BaseModel):
+    token: str
+
+
 def normalize_email(value: str) -> str:
     return value.strip().lower()
 
@@ -148,6 +152,25 @@ async def establish_session(
         path="/",
     )
     return response
+
+
+@router.get("/csrf", operation_id="getCsrfToken", response_model=CsrfTokenView)
+async def get_csrf_token(
+    request: Request, response: Response, session: AsyncSession = SessionDep
+) -> CsrfTokenView:
+    await current_account(request, session)
+    token = secrets.token_urlsafe(32)
+    settings = get_settings()
+    response.set_cookie(
+        "manxu_csrf",
+        token,
+        max_age=settings.session_ttl_days * 86400,
+        httponly=False,
+        secure=settings.session_cookie_secure,
+        samesite="lax",
+        path="/",
+    )
+    return CsrfTokenView(token=token)
 
 
 @router.post(

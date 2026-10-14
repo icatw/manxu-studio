@@ -138,6 +138,26 @@ paths:
         '429': { $ref: '#/components/responses/RateLimited' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
         '422': { $ref: '#/components/responses/ValidationError' }
+  /auth/csrf:
+    get:
+      tags: [Authentication]
+      operationId: getCsrfToken
+      summary: Refresh the browser CSRF token
+      responses:
+        '200':
+          description: CSRF token refreshed in a cookie
+          headers:
+            Set-Cookie: { schema: { type: string } }
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/CsrfToken' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        default: { $ref: '#/components/responses/UnexpectedError' }
   /auth/email/verify:
     post:
       security: []
@@ -1101,6 +1121,12 @@ components:
         - $ref: '#/components/schemas/ApiSuccessEnvelope'
         - type: object
           properties: { data: { $ref: '#/components/schemas/Account' } }
+    CsrfToken:
+      type: object
+      additionalProperties: false
+      required: [token]
+      properties:
+        token: { type: string }
     ApiSuccessEmailCodeAccepted:
       allOf:
         - $ref: '#/components/schemas/ApiSuccessEnvelope'

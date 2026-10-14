@@ -12,10 +12,6 @@ export interface ImageGenerationRequest {
   /** Folder used when the result is persisted to Blob storage. */
   kind?: 'panels' | 'characters' | 'scenes'
   onProgress?: (progress: number) => void
-  /** Bundled asset returned by the demo implementation. Ignored by real providers. */
-  demoAssetUrl?: string
-  /** Demo-only switch used to exercise the failure + retry UI. */
-  simulateFailure?: boolean
 }
 
 export interface ImageGenerationResult {
@@ -29,7 +25,6 @@ export interface ImageGenerationResult {
  * The provider API key remains server-side; the browser only polls task state.
  */
 export interface ImageGenerationService {
-  readonly isDemo: boolean
   readonly providerName: string
   generate(request: ImageGenerationRequest): Promise<ImageGenerationResult>
 }
@@ -49,71 +44,9 @@ export function isAbortError(error: unknown) {
 }
 
 /**
- * Simulates an async task with progress. It does NOT generate anything:
- * it returns the bundled example asset and labels it as a demo placeholder.
- */
-export class DemoImageGenerationService implements ImageGenerationService {
-  readonly isDemo = true
-  readonly providerName = '前端演示（未连接图像模型）'
-
-  generate({
-    prompt,
-    signal,
-    onProgress,
-    demoAssetUrl,
-    simulateFailure,
-  }: ImageGenerationRequest): Promise<ImageGenerationResult> {
-    return new Promise((resolve, reject) => {
-      if (signal.aborted) return reject(new DOMException('Aborted', 'AbortError'))
-      if (!prompt.trim()) return reject(new ImageGenerationError('提示词为空，无法提交生成任务', false))
-
-      const totalMs = 2200 + Math.random() * 1800
-      const failAt = 0.55 + Math.random() * 0.2
-      const start = performance.now()
-
-      const interval = setInterval(() => {
-        const ratio = Math.min(1, (performance.now() - start) / totalMs)
-        onProgress?.(Math.round(ratio * 100))
-
-        if (simulateFailure && ratio >= failAt) {
-          clearInterval(interval)
-          reject(new ImageGenerationError('演示：模拟的服务超时（504），请重试'))
-          return
-        }
-        if (ratio >= 1) {
-          clearInterval(interval)
-          if (!demoAssetUrl) {
-            reject(new ImageGenerationError('演示模式下此格没有可用的示例素材', false))
-            return
-          }
-          resolve({
-            imageUrl: demoAssetUrl,
-            source: 'demo',
-            providerName: this.providerName,
-            generatedAt: new Date().toISOString(),
-          })
-        }
-      }, 120)
-
-      signal.addEventListener(
-        'abort',
-        () => {
-          clearInterval(interval)
-          reject(new DOMException('Aborted', 'AbortError'))
-        },
-        { once: true },
-      )
-    })
-  }
-}
-
-export const imageGenerationService: ImageGenerationService = new DemoImageGenerationService()
-
-/**
  * Submits an async Qwen Image task and polls the persisted FastAPI task.
  */
 export class QwenImageGenerationService implements ImageGenerationService {
-  readonly isDemo = false
   readonly providerName: string
 
   constructor() {
@@ -155,3 +88,5 @@ export function createImageGenerationService(settings: {
   void settings
   return new QwenImageGenerationService()
 }
+
+export const imageGenerationService: ImageGenerationService = new QwenImageGenerationService()

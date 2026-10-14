@@ -4,17 +4,32 @@ import hashlib
 import hmac
 import ipaddress
 import socket
+from typing import Annotated
 from urllib.parse import urlsplit
 from uuid import UUID
 
 from cryptography.fernet import Fernet
-from fastapi import HTTPException, Request
+from fastapi import Depends, HTTPException, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.api_responses import ApiError
 from app.core.config import get_settings
-from app.db.models import AccountRecord, AccountSessionRecord, ProjectRecord
+from app.db.models import (
+    AccountRecord,
+    AccountSessionRecord,
+    CharacterRecord,
+    EpisodeRecord,
+    ExportRecord,
+    GenerationTaskRecord,
+    ImageVersionRecord,
+    PanelRecord,
+    ProjectRecord,
+    SceneRecord,
+)
+from app.db.session import get_session
+
+SessionDep = Annotated[AsyncSession, Depends(get_session)]
 
 
 def token_hash(token: str) -> str:
@@ -63,6 +78,18 @@ async def current_account(request: Request, session: AsyncSession) -> AccountRec
     return account
 
 
+async def current_account_dependency(
+    request: Request, session: SessionDep
+) -> AccountRecord:
+    existing = getattr(request.state, "account", None)
+    if isinstance(existing, AccountRecord):
+        return existing
+    account = await current_account(request, session)
+    request.state.account_id = account.id
+    request.state.account = account
+    return account
+
+
 async def require_project_owner(
     project_id: UUID,
     account: AccountRecord,
@@ -72,6 +99,119 @@ async def require_project_owner(
     if project is None or project.owner_id != account.id:
         raise HTTPException(404, "项目不存在")
     return project
+
+
+async def require_project_owner_dependency(
+    project_id: UUID,
+    account: Annotated[AccountRecord, Depends(current_account_dependency)],
+    session: SessionDep,
+) -> ProjectRecord:
+    return await require_project_owner(project_id, account, session)
+
+
+async def _owned_project(
+    project: ProjectRecord | None, account: AccountRecord
+) -> ProjectRecord:
+    if project is None or project.owner_id != account.id:
+        raise HTTPException(404, "资源不存在")
+    return project
+
+
+async def require_episode_owner(
+    episode_id: UUID,
+    account: Annotated[AccountRecord, Depends(current_account_dependency)],
+    session: SessionDep,
+) -> EpisodeRecord:
+    episode = await session.get(EpisodeRecord, episode_id)
+    if episode is None:
+        raise HTTPException(404, "资源不存在")
+    project = await session.get(ProjectRecord, episode.project_id)
+    await _owned_project(project, account)
+    return episode
+
+
+async def require_panel_owner(
+    panel_id: UUID,
+    account: Annotated[AccountRecord, Depends(current_account_dependency)],
+    session: SessionDep,
+) -> PanelRecord:
+    panel = await session.get(PanelRecord, panel_id)
+    if panel is None:
+        raise HTTPException(404, "资源不存在")
+    episode = await session.get(EpisodeRecord, panel.episode_id)
+    if episode is None:
+        raise HTTPException(404, "资源不存在")
+    project = await session.get(ProjectRecord, episode.project_id)
+    await _owned_project(project, account)
+    return panel
+
+
+async def require_task_owner(
+    task_id: UUID,
+    account: Annotated[AccountRecord, Depends(current_account_dependency)],
+    session: SessionDep,
+) -> GenerationTaskRecord:
+    task = await session.get(GenerationTaskRecord, task_id)
+    if task is None:
+        raise HTTPException(404, "资源不存在")
+    project = await session.get(ProjectRecord, task.project_id)
+    await _owned_project(project, account)
+    return task
+
+
+async def require_asset_owner(
+    asset_id: UUID,
+    account: Annotated[AccountRecord, Depends(current_account_dependency)],
+    session: SessionDep,
+) -> UUID:
+    export = await session.get(ExportRecord, asset_id)
+    if export:
+        episode = await session.get(EpisodeRecord, export.episode_id)
+        if episode is None:
+            raise HTTPException(404, "资源不存在")
+        project = await session.get(ProjectRecord, episode.project_id)
+        await _owned_project(project, account)
+        return asset_id
+    version = await session.scalar(
+        select(ImageVersionRecord).where(ImageVersionRecord.asset_id == asset_id)
+    )
+    if version is None:
+        raise HTTPException(404, "资源不存在")
+    panel = await session.get(PanelRecord, version.panel_id)
+    if panel is None:
+        raise HTTPException(404, "资源不存在")
+    episode = await session.get(EpisodeRecord, panel.episode_id)
+    if episode is None:
+        raise HTTPException(404, "资源不存在")
+    project = await session.get(ProjectRecord, episode.project_id)
+    await _owned_project(project, account)
+    return asset_id
+
+
+async def require_character_owner(
+    character_id: UUID,
+    account: Annotated[AccountRecord, Depends(current_account_dependency)],
+    session: SessionDep,
+) -> CharacterRecord:
+    character = await session.get(CharacterRecord, character_id)
+    if character is None:
+        raise HTTPException(404, "资源不存在")
+    project = await session.get(ProjectRecord, character.project_id)
+    await _owned_project(project, account)
+    return character
+
+
+async def require_scene_owner(
+    scene_id: UUID,
+    account: Annotated[AccountRecord, Depends(current_account_dependency)],
+    session: SessionDep,
+) -> SceneRecord:
+    scene = await session.get(SceneRecord, scene_id)
+    if scene is None:
+        raise HTTPException(404, "资源不存在")
+    project = await session.get(ProjectRecord, scene.project_id)
+    await _owned_project(project, account)
+    return scene
 
 
 def check_csrf(request: Request) -> None:

@@ -116,7 +116,7 @@ export function ProjectLibrary() {
               创建并进入工作区
             </Button>
           </form>
-          <p className="mt-4 text-xs leading-relaxed text-muted-foreground">当前生成服务为演示实现，返回结构化草稿与样例图。</p>
+          <p className="mt-4 text-xs leading-relaxed text-muted-foreground">完成模型配置后，可在工作区提交真实图像生成任务。</p>
         </aside>
       </div>
     </main>
