@@ -111,14 +111,14 @@ def _config_view(config: AccountModelConfigRecord) -> ModelConfig:
         text_model=config.text_model,
         text_base_url=config.text_base_url,
         text_api_key_configured=bool(config.text_api_key_encrypted),
-        text_status=config.text_status,  # type: ignore[arg-type]
+        text_status=config.text_status,
         image_provider="qwen",
         image_model=config.image_model,
         image_base_url=config.image_base_url or settings.qwen_image_base_url,
         image_api_key_configured=bool(config.image_api_key_encrypted),
         image_concurrency=settings.image_model_concurrency,
         image_negative_prompt=settings.image_model_negative_prompt,
-        image_status=config.image_status,  # type: ignore[arg-type]
+        image_status=config.image_status,
         image_models=IMAGE_MODELS,
     )
 

@@ -1,10 +1,14 @@
 from functools import lru_cache
+from pathlib import Path
+from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
     app_name: str = "Manxu Studio API"
+    app_env: Literal["development", "production"] = "development"
+    log_dir: Path = Path(".data/logs")
     database_url: str = "postgresql+asyncpg://manxu:manxu@localhost:55442/manxu_dev"
     cors_origins: str = "http://localhost:5173"
     github_client_id: str = ""
