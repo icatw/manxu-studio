@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, LoaderCircle, Save, UserRound } from 'lucide-react'
+import { ArrowLeft, LoaderCircle, LogOut, Save, UserRound } from 'lucide-react'
 import { useEffect, useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router'
 import { Button } from '@/components/ui/button'
@@ -29,6 +29,14 @@ export function SettingsPage() {
   const [displayName, setDisplayName] = useState('')
   const [notice, setNotice] = useState<string | null>(null)
   const identityItems = Array.isArray(identities.data) ? identities.data : []
+  const logout = useMutation({
+    mutationFn: async () => {
+      const { error } = await api.POST('/auth/logout')
+      if (error) throw new Error('退出登录失败，请稍后重试')
+    },
+    onSuccess: () => window.location.assign('/'),
+    onError: (error) => setNotice(error.message),
+  })
 
   useEffect(() => {
     if (account.data) setDisplayName(account.data.display_name)
@@ -61,6 +69,15 @@ export function SettingsPage() {
           <span className="grid size-7 place-items-center rounded-md bg-primary text-primary-foreground">漫</span>漫序 Studio
         </a>
         <span className="border-l pl-3 text-sm text-muted-foreground">设置</span>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="ml-auto text-muted-foreground"
+          disabled={logout.isPending}
+          onClick={() => logout.mutate()}
+        >
+          <LogOut aria-hidden />退出登录
+        </Button>
       </header>
       <div className="mx-auto max-w-4xl px-5 py-8 sm:px-8">
         <h1 className="text-xl font-semibold">设置</h1>

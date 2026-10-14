@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
-import { ArrowUpRight, FolderPlus, Loader2, Settings, Trash2 } from "lucide-react";
+import { ArrowUpRight, FolderPlus, Loader2, LogOut, Settings, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,6 +16,14 @@ export function ProjectLibrary() {
   const [synopsis, setSynopsis] = useState("");
   const projects = useQuery({ queryKey: ["projects"], queryFn: listProjects });
   const account = useQuery({ queryKey: ["current-account"], queryFn: async () => (await api.GET("/auth/me")).data ?? null, retry: false });
+  const logout = useMutation({
+    mutationFn: async () => {
+      const { error } = await api.POST("/auth/logout");
+      if (error) throw new Error("退出登录失败，请稍后重试");
+    },
+    onSuccess: () => window.location.assign("/"),
+    onError: (error) => toast.error("退出登录失败", { description: error.message }),
+  });
   const create = useMutation({
     mutationFn: async () => {
       const project = await createProject({
@@ -62,6 +70,16 @@ export function ProjectLibrary() {
         <Button variant="ghost" size="sm" className="ml-2" onClick={() => navigate("/settings")}>
           {account.data?.avatar_url ? <img src={account.data.avatar_url} alt="" className="size-5 rounded-full" /> : <Settings />}
           <span className="hidden sm:inline">设置</span>
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="text-muted-foreground"
+          disabled={logout.isPending}
+          onClick={() => logout.mutate()}
+        >
+          <LogOut aria-hidden />
+          <span className="hidden sm:inline">退出登录</span>
         </Button>
       </header>
       <div className="mx-auto grid w-full max-w-6xl gap-10 px-5 py-8 lg:grid-cols-[minmax(0,1fr)_320px]">
