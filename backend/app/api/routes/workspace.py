@@ -1,14 +1,19 @@
+import asyncio
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated
 from urllib.parse import quote
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Response
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, Response
+from fastapi.responses import FileResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import get_settings
+from app.core.security import check_csrf, current_account
 from app.db.models import (
+    AccountRegistryRecord,
     CharacterRecord,
     EpisodeRecord,
     ExportRecord,
@@ -45,10 +50,17 @@ from app.schemas.workspace import (
 )
 from app.services.workspace_tasks import run_generation_task
 
-router = APIRouter(
-    tags=["Projects", "Episodes", "Characters", "Scenes", "Storyboards", "Generations", "Exports"]
-)
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
+
+
+async def require_workspace_account(request: Request, session: SessionDep) -> None:
+    await current_account(request, session)
+
+
+router = APIRouter(
+    tags=["Projects", "Episodes", "Characters", "Scenes", "Storyboards", "Generations", "Exports"],
+    dependencies=[Depends(require_workspace_account), Depends(check_csrf)],
+)
 
 
 def _not_found(resource: str) -> HTTPException:
@@ -116,8 +128,12 @@ async def list_projects(
     limit: int = Query(default=20, ge=1, le=100),
     cursor: UUID | None = None,
 ) -> ProjectPage:
+    registry = await session.get(AccountRegistryRecord, 1)
+    if registry is None or registry.account_id is None:
+        return ProjectPage(items=[], next_cursor=None)
     query = (
         select(ProjectRecord)
+        .where(ProjectRecord.owner_id == registry.account_id)
         .order_by(ProjectRecord.created_at.desc(), ProjectRecord.id.desc())
         .limit(limit + 1)
     )
@@ -125,12 +141,17 @@ async def list_projects(
         query = query.where(ProjectRecord.id < cursor)
     rows = list((await session.scalars(query)).all())
     next_cursor = str(rows[limit - 1].id) if len(rows) > limit else None
-    return ProjectPage(items=rows[:limit], next_cursor=next_cursor)
+    return ProjectPage(
+        items=[Project.model_validate(row) for row in rows[:limit]], next_cursor=next_cursor
+    )
 
 
 @router.post("/projects", operation_id="createProject", response_model=Project, status_code=201)
 async def create_project(body: ProjectCreate, session: SessionDep) -> Project:
-    record = ProjectRecord(**body.model_dump())
+    registry = await session.get(AccountRegistryRecord, 1)
+    if registry is None or registry.account_id is None:
+        raise HTTPException(401, "账户尚未完成初始化")
+    record = ProjectRecord(**body.model_dump(), owner_id=registry.account_id)
     session.add(record)
     await session.commit()
     await session.refresh(record)
@@ -646,3 +667,22 @@ async def download_export(asset_id: UUID, session: SessionDep) -> Response:
             "Content-Disposition": content_disposition,
         },
     )
+
+
+@router.get("/assets/{asset_id}", operation_id="getImageAsset")
+async def get_image_asset(asset_id: UUID) -> FileResponse:
+    storage = await asyncio.to_thread(Path(get_settings().image_storage_dir).resolve)
+    for suffix, media_type in (
+        (".png", "image/png"),
+        (".jpg", "image/jpeg"),
+        (".webp", "image/webp"),
+    ):
+        path = storage / f"{asset_id}{suffix}"
+        if await asyncio.to_thread(path.is_file):
+            return FileResponse(
+                path,
+                media_type=media_type,
+                filename=f"{asset_id}{suffix}",
+                headers={"Cache-Control": "private, no-store"},
+            )
+    raise _not_found("图片资源")

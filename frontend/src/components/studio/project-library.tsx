@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
-import { ArrowUpRight, FolderPlus, Loader2, Trash2 } from "lucide-react";
+import { ArrowUpRight, FolderPlus, Loader2, Settings, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,6 +15,7 @@ export function ProjectLibrary() {
   const [title, setTitle] = useState("");
   const [synopsis, setSynopsis] = useState("");
   const projects = useQuery({ queryKey: ["projects"], queryFn: listProjects });
+  const account = useQuery({ queryKey: ["current-account"], queryFn: async () => (await api.GET("/auth/me")).data ?? null, retry: false });
   const create = useMutation({
     mutationFn: async () => {
       const project = await createProject({
@@ -58,6 +59,10 @@ export function ProjectLibrary() {
         <div className="ml-auto flex items-center gap-2 text-xs text-muted-foreground" role="status">
           <span className="size-1.5 rounded-full bg-success" />API 驱动的预制作工作区
         </div>
+        <Button variant="ghost" size="sm" className="ml-2" onClick={() => navigate("/settings")}>
+          {account.data?.avatar_url ? <img src={account.data.avatar_url} alt="" className="size-5 rounded-full" /> : <Settings />}
+          <span className="hidden sm:inline">设置</span>
+        </Button>
       </header>
       <div className="mx-auto grid w-full max-w-6xl gap-10 px-5 py-8 lg:grid-cols-[minmax(0,1fr)_320px]">
         <section>

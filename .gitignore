@@ -2,6 +2,7 @@
 .env
 .playwright-cli/
 output/
+var/images/
 .venv/
 __pycache__/
 *.py[cod]

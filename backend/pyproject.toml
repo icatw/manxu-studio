@@ -11,6 +11,8 @@ dependencies = [
     "pillow>=11.3.0,<13.0.0",
     "pyyaml>=6.0.3,<7.0.0",
     "sqlalchemy[asyncio]>=2.0.44,<3.0.0",
+    "httpx>=0.28.1,<1.0.0",
+    "cryptography>=45.0.0,<47.0.0",
 ]
 
 [dependency-groups]

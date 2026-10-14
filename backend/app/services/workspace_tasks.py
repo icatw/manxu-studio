@@ -8,7 +8,10 @@ from PIL import Image, ImageDraw, ImageFont, ImageOps
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import get_settings
+from app.core.security import decrypt_secret
 from app.db.models import (
+    AccountModelConfigRecord,
     CharacterRecord,
     EpisodeRecord,
     ExportRecord,
@@ -19,6 +22,7 @@ from app.db.models import (
     SceneRecord,
 )
 from app.db.session import SessionFactory
+from app.services.qwen_image import generate_qwen_image
 
 SAMPLE_DIR = Path(__file__).parents[1] / "static" / "samples"
 SAMPLE_IMAGES = ["panel-1.png", "panel-2.png", "panel-3.png", "panel-4.png"]
@@ -208,8 +212,35 @@ async def _generate_panel_image(
     panel = await session.get(PanelRecord, task.panel_id)
     if panel is None:
         raise ValueError("分镜不存在")
+    project = await session.get(ProjectRecord, task.project_id)
+    if project is None or project.owner_id is None:
+        raise ValueError("项目账户归属缺失")
+    config = await session.get(AccountModelConfigRecord, project.owner_id)
+    if config is None or not config.image_api_key_encrypted:
+        raise ValueError("请先在模型设置中配置 Qwen Image API Key")
+    instruction = str(task.request_data.get("instruction", "")).strip()
+    prompt = "\n".join(
+        item
+        for item in [
+            project.art_style,
+            panel.scene_description,
+            panel.shot,
+            panel.composition,
+            panel.character_actions,
+            panel.emotion,
+            instruction,
+            "无文字、无水印，保持漫画分镜构图",
+        ]
+        if item
+    )
     asset_id = uuid4()
-    image_url = f"/samples/{SAMPLE_IMAGES[panel.position % len(SAMPLE_IMAGES)]}"
+    image_url = await generate_qwen_image(
+        api_key=decrypt_secret(config.image_api_key_encrypted),
+        model=config.image_model,
+        prompt=prompt,
+        asset_id=asset_id,
+        base_url=config.image_base_url,
+    )
     version = ImageVersionRecord(panel_id=panel.id, asset_id=asset_id, image_url=image_url)
     session.add(version)
     panel.current_image_asset_id = asset_id
@@ -325,8 +356,20 @@ def _render_png(title: str, panels: list[PanelRecord]) -> bytes:
     for index, panel in enumerate(panels):
         x = margin + (index % columns) * (cell_width + gutter)
         y = margin + header_height + (index // columns) * (cell_height + gutter)
-        image_name = Path(panel.current_image_url or "").name
-        source = SAMPLE_DIR / image_name
+        asset_id = panel.current_image_asset_id
+        source = None
+        if asset_id:
+            source = next(
+                (
+                    Path(get_settings().image_storage_dir) / f"{asset_id}{suffix}"
+                    for suffix in (".png", ".jpg", ".webp")
+                    if (Path(get_settings().image_storage_dir) / f"{asset_id}{suffix}").is_file()
+                ),
+                None,
+            )
+        if source is None:
+            image_name = Path(panel.current_image_url or "").name
+            source = SAMPLE_DIR / image_name
         if source.is_file():
             with Image.open(source) as image:
                 canvas.paste(ImageOps.fit(image.convert("RGB"), (cell_width, cell_height)), (x, y))

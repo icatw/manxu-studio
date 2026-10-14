@@ -11,6 +11,10 @@ servers:
   - url: /api/v1
     description: Versioned API base path
 tags:
+  - name: Authentication
+    description: GitHub OAuth and account session
+  - name: ModelSettings
+    description: User-owned text and image model settings
   - name: System
     description: Service metadata and operational checks
   - name: Projects
@@ -27,9 +31,12 @@ tags:
     description: Asynchronous text and image generation tasks
   - name: Exports
     description: Storyboard and production material exports
+security:
+  - SessionCookie: []
 paths:
   /health:
     get:
+      security: []
       tags: [System]
       operationId: getHealth
       summary: Check API process health
@@ -42,6 +49,7 @@ paths:
                 $ref: '#/components/schemas/HealthStatus'
   /version:
     get:
+      security: []
       tags: [System]
       operationId: getVersion
       summary: Get API version
@@ -92,11 +100,98 @@ paths:
           $ref: '#/components/responses/ValidationError'
         default:
           $ref: '#/components/responses/UnexpectedError'
+  /auth/github/start:
+    get:
+      security: []
+      tags: [Authentication]
+      operationId: startGitHubLogin
+      summary: Start GitHub OAuth login
+      x-requirement-ids: [AUTH-01]
+      responses:
+        '302':
+          description: Redirect to GitHub authorization
+          headers:
+            Location:
+              schema: { type: string, format: uri }
+        default:
+          $ref: '#/components/responses/UnexpectedError'
+  /auth/github/callback:
+    get:
+      security: []
+      tags: [Authentication]
+      operationId: completeGitHubLogin
+      summary: Complete GitHub OAuth and establish a session
+      x-requirement-ids: [AUTH-01, AUTH-02]
+      parameters:
+        - name: code
+          in: query
+          required: false
+          schema: { type: string }
+        - name: state
+          in: query
+          required: false
+          schema: { type: string }
+        - name: error
+          in: query
+          required: false
+          schema: { type: string }
+      responses:
+        '302':
+          description: Redirect to the app after login or a user-visible OAuth error
+          headers:
+            Location:
+              schema: { type: string, format: uri }
+            Set-Cookie:
+              schema: { type: string }
+        default:
+          $ref: '#/components/responses/UnexpectedError'
+  /auth/me:
+    get:
+      tags: [Authentication]
+      operationId: getCurrentAccount
+      summary: Get the signed-in account
+      x-requirement-ids: [AUTH-01]
+      responses:
+        '200':
+          description: Current account
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Account' }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    patch:
+      tags: [Authentication]
+      operationId: updateCurrentAccount
+      summary: Update the current account's editable profile
+      x-requirement-ids: [AUTH-03]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AccountProfileUpdate' }
+      responses:
+        '200':
+          description: Updated current account
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Account' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /auth/logout:
+    post:
+      tags: [Authentication]
+      operationId: logout
+      summary: End the current account session
+      x-requirement-ids: [AUTH-01]
+      responses:
+        '204': { description: Session ended }
+        '401': { $ref: '#/components/responses/Unauthorized' }
   /model-config:
     get:
-      tags: [System]
+      tags: [ModelSettings]
       operationId: getModelConfig
-      summary: Get server-side model configuration without secrets
+      summary: Read the current account's model settings without secrets
+      x-requirement-ids: [MODEL-01, MODEL-02, MODEL-03]
       responses:
         '200':
           description: Configured models and integration status
@@ -106,6 +201,55 @@ paths:
                 $ref: '#/components/schemas/ModelConfig'
         default:
           $ref: '#/components/responses/UnexpectedError'
+    put:
+      tags: [ModelSettings]
+      operationId: updateModelConfig
+      summary: Update the current account's model settings
+      x-requirement-ids: [MODEL-01, MODEL-02, MODEL-03]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ModelConfigUpdate' }
+      responses:
+        '200':
+          description: Updated settings without secret values
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ModelConfig' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /model-config/test:
+    post:
+      tags: [ModelSettings]
+      operationId: testTextModelConnection
+      summary: Test the configured text model connection
+      x-requirement-ids: [MODEL-01]
+      responses:
+        '200':
+          description: Connection test result
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ModelConnectionTest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /assets/{asset_id}:
+    parameters:
+      - name: asset_id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Generations]
+      operationId: getImageAsset
+      summary: Read a generated image from private persistent storage
+      x-requirement-ids: [MODEL-02, GEN-02]
+      responses:
+        '200':
+          description: Generated image bytes
+          content:
+            image/png: { schema: { type: string, format: binary } }
+            image/jpeg: { schema: { type: string, format: binary } }
+            image/webp: { schema: { type: string, format: binary } }
+        '404': { $ref: '#/components/responses/NotFound' }
 
   /projects/{project_id}:
     parameters:
@@ -755,6 +899,11 @@ paths:
           $ref: '#/components/responses/UnexpectedError'
 
 components:
+  securitySchemes:
+    SessionCookie:
+      type: apiKey
+      in: cookie
+      name: manxu_session
   parameters:
     ProjectId:
       name: project_id
@@ -800,6 +949,11 @@ components:
         maximum: 100
         default: 20
   responses:
+    Unauthorized:
+      description: Authentication is required
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
     NotFound:
       description: Resource not found
       content:
@@ -841,23 +995,75 @@ components:
         version:
           type: string
           minLength: 1
+    Account:
+      type: object
+      additionalProperties: false
+      required: [id, github_login, display_name, avatar_url]
+      properties:
+        id: { type: string, format: uuid }
+        github_login: { type: string }
+        display_name: { type: string, minLength: 1, maxLength: 80 }
+        avatar_url: { type: [string, 'null'], format: uri }
+    AccountProfileUpdate:
+      type: object
+      additionalProperties: false
+      required: [display_name]
+      properties:
+        display_name: { type: string, minLength: 1, maxLength: 80 }
+    ModelConfigUpdate:
+      type: object
+      additionalProperties: false
+      required: [text_model, text_base_url, image_model]
+      properties:
+        text_model: { type: string, minLength: 1, maxLength: 160 }
+        text_base_url: { type: string, format: uri, pattern: '^https://' }
+        text_api_key:
+          type: [string, 'null']
+          minLength: 1
+          maxLength: 4096
+          description: Omit to keep the existing key, null to clear it, or provide a replacement.
+        image_model:
+          type: string
+          enum: [qwen-image-3.0-pro, qwen-image-3.0, qwen-image-2.1-pro, qwen-image-2.1-turbo]
+        image_base_url:
+          type: [string, 'null']
+          format: uri
+          pattern: '^https://'
+          maxLength: 2048
+          description: Omit or set null to keep the existing address, or provide a Qwen Image API base URL.
+        image_api_key:
+          type: [string, 'null']
+          minLength: 1
+          maxLength: 4096
+          description: Omit to keep the existing key, null to clear it, or provide a replacement.
+    ModelConnectionTest:
+      type: object
+      additionalProperties: false
+      required: [success, message]
+      properties:
+        success: { type: boolean }
+        message: { type: string }
+        latency_ms: { type: [integer, 'null'], minimum: 0 }
     ModelConfig:
       type: object
       additionalProperties: false
-      required: [text_provider, text_model, text_base_url, text_api_key_configured, text_status, image_provider, image_model, image_base_url, image_api_key_configured, image_concurrency, image_negative_prompt, image_status]
+      required: [text_provider, text_model, text_base_url, text_api_key_configured, text_status, image_provider, image_model, image_base_url, image_api_key_configured, image_concurrency, image_negative_prompt, image_status, image_models]
       properties:
         text_provider: { type: string }
         text_model: { type: string }
         text_base_url: { type: string }
         text_api_key_configured: { type: boolean }
-        text_status: { type: string, enum: [demo, not_connected] }
+        text_status: { type: string, enum: [not_configured, configured, connected, error] }
         image_provider: { type: string }
         image_model: { type: string }
         image_base_url: { type: string }
         image_api_key_configured: { type: boolean }
         image_concurrency: { type: integer, minimum: 1, maximum: 16 }
         image_negative_prompt: { type: string }
-        image_status: { type: string, enum: [demo, not_connected] }
+        image_status: { type: string, enum: [not_configured, configured, connected, error] }
+        image_models:
+          type: array
+          items: { type: string }
     ProjectCreate:
       type: object
       additionalProperties: false
