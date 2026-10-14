@@ -2,7 +2,7 @@
 
 面向独立漫剧创作者和小型工作室的 AI 漫剧预制作工作台。
 
-当前版本提供 GitHub 单账户登录、模型配置和漫剧预制作工作区。首个完成 OAuth 登录的 GitHub 账户会成为唯一账户。
+当前版本提供邮箱验证码注册登录、GitHub OAuth 登录、账户级模型配置和漫剧预制作工作区。项目、资产和异步生成任务按账户隔离。
 
 ## 技术栈
 
@@ -17,19 +17,22 @@
 
 1. 复制 `.env.example` 为 `.env`。
 2. 在 `.env` 配置 GitHub OAuth App 的 Client ID/Secret、回调地址，并设置至少 32 字符的 `MODEL_ENCRYPTION_KEY`（可用 `openssl rand -hex 32` 生成）。
-3. 在仓库根目录运行 `docker compose up -d postgres`（映射到本机 55442 端口）。
+3. 在仓库根目录运行 `docker compose up -d postgres redis mailpit`（PostgreSQL 映射到本机 55442，Redis 映射到 56379，Mailpit 网页位于 8025）。
 4. 在 `backend/` 执行 `uv sync`，再从仓库根目录执行 `uv run --directory backend alembic upgrade head`。
 5. 在 `frontend/` 执行 `pnpm install`。
-6. 分别启动 API 和前端：
+6. 分别启动 API、ARQ worker 和前端：
 
    ```sh
    uv run --directory backend fastapi dev app/main.py
+   uv run --directory backend arq app.worker.WorkerSettings
    pnpm --dir frontend dev
    ```
 
 前端地址为 `http://localhost:5173`，API 文档为 `http://localhost:8000/docs`。Vite 将 `/api` 请求代理到本地 FastAPI。
 
-在 GitHub OAuth App 中将 Authorization callback URL 设置为 `GITHUB_CALLBACK_URL`。文本模型和 Qwen Image 的 API Key 在登录后的模型设置中录入；Qwen Image 区域 endpoint 通过 `QWEN_IMAGE_BASE_URL` 设置，图片文件保存于 `IMAGE_STORAGE_DIR`，部署时需将其挂载到持久卷。生产环境必须启用 `SESSION_COOKIE_SECURE=true` 并通过 HTTPS 访问。
+邮箱验证码通过本地 Mailpit 测试，收件箱为 `http://localhost:8025`。生产环境必须配置独立的 `EMAIL_CODE_PEPPER` 和 SMTP；不可使用开发模式进程 pepper。GitHub OAuth 可选，在 OAuth App 中将 Authorization callback URL 设置为 `GITHUB_CALLBACK_URL`。文本模型和 Qwen Image 的 API Key 在登录后的模型设置中录入；图片文件保存于 `IMAGE_STORAGE_DIR`，部署时需将其挂载到持久卷。生产环境必须启用 `SESSION_COOKIE_SECURE=true` 并通过 HTTPS 访问。
+
+也可通过 `docker compose up -d --build` 启动 PostgreSQL、Redis、Mailpit、API 和 worker；API 容器启动时会先应用 Alembic 迁移。
 
 ## 检查
 

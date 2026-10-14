@@ -5,6 +5,7 @@ import hmac
 import ipaddress
 import socket
 from urllib.parse import urlsplit
+from uuid import UUID
 
 from cryptography.fernet import Fernet
 from fastapi import HTTPException, Request
@@ -13,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.api_responses import ApiError
 from app.core.config import get_settings
-from app.db.models import AccountRecord, AccountSessionRecord
+from app.db.models import AccountRecord, AccountSessionRecord, ProjectRecord
 
 
 def token_hash(token: str) -> str:
@@ -40,8 +41,11 @@ def decrypt_secret(ciphertext: bytes | None) -> str:
 
 async def current_account(request: Request, session: AsyncSession) -> AccountRecord:
     token = request.cookies.get(get_settings().session_cookie_name)
+    authorization = request.headers.get("authorization", "")
+    if not token and authorization.lower().startswith("bearer "):
+        token = authorization[7:].strip()
     if not token:
-        raise HTTPException(401, "请先使用 GitHub 登录")
+        raise HTTPException(401, "请先登录")
     record = await session.scalar(
         select(AccountSessionRecord).where(AccountSessionRecord.token_hash == token_hash(token))
     )
@@ -59,8 +63,23 @@ async def current_account(request: Request, session: AsyncSession) -> AccountRec
     return account
 
 
+async def require_project_owner(
+    project_id: UUID,
+    account: AccountRecord,
+    session: AsyncSession,
+) -> ProjectRecord:
+    project = await session.get(ProjectRecord, project_id)
+    if project is None or project.owner_id != account.id:
+        raise HTTPException(404, "项目不存在")
+    return project
+
+
 def check_csrf(request: Request) -> None:
     if request.method in {"GET", "HEAD", "OPTIONS"}:
+        return
+    if not request.cookies.get(get_settings().session_cookie_name) and request.headers.get(
+        "authorization", ""
+    ).lower().startswith("bearer "):
         return
     cookie = request.cookies.get("manxu_csrf")
     header = request.headers.get("x-csrf-token")

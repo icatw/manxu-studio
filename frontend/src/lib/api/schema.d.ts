@@ -73,6 +73,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/email/code": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Send an email login code */
+        post: operations["requestEmailCode"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/email/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Verify an email login code and create a session */
+        post: operations["verifyEmailCode"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/github/callback": {
         parameters: {
             query?: never;
@@ -120,6 +154,40 @@ export interface paths {
         /** End the current account session */
         post: operations["logout"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/identities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List login identities for the current account */
+        get: operations["listAuthIdentities"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/identities/{identity_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove a login identity */
+        delete: operations["deleteAuthIdentity"];
         options?: never;
         head?: never;
         patch?: never;
@@ -603,6 +671,14 @@ export interface components {
         ApiSuccessAccount: components["schemas"]["ApiSuccessEnvelope"] & {
             data?: components["schemas"]["Account"];
         };
+        ApiSuccessEmailCodeAccepted: components["schemas"]["ApiSuccessEnvelope"] & {
+            data?: {
+                message: string;
+            };
+        };
+        ApiSuccessIdentityList: components["schemas"]["ApiSuccessEnvelope"] & {
+            data?: components["schemas"]["AuthIdentity"][];
+        };
         ApiSuccessModelConfig: components["schemas"]["ApiSuccessEnvelope"] & {
             data?: components["schemas"]["ModelConfig"];
         };
@@ -665,6 +741,24 @@ export interface components {
         };
         AccountProfileUpdate: {
             display_name: string;
+        };
+        EmailCodeRequest: {
+            /** Format: email */
+            email: string;
+        };
+        EmailVerifyRequest: {
+            /** Format: email */
+            email: string;
+            code: string;
+        };
+        AuthIdentity: {
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            provider: "email" | "github";
+            /** Format: email */
+            email: string | null;
+            verified: boolean;
         };
         ModelConfigUpdate: {
             text_model: string;
@@ -1019,6 +1113,24 @@ export interface components {
                 "application/json": components["schemas"]["ApiErrorEnvelope"];
             };
         };
+        /** @description Rate limit exceeded */
+        RateLimited: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["ApiErrorEnvelope"];
+            };
+        };
+        /** @description Required service is unavailable */
+        ServiceUnavailable: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["ApiErrorEnvelope"];
+            };
+        };
     };
     parameters: {
         ProjectId: string;
@@ -1141,7 +1253,65 @@ export interface operations {
                 };
                 content?: never;
             };
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
             default: components["responses"]["UnexpectedError"];
+        };
+    };
+    requestEmailCode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EmailCodeRequest"];
+            };
+        };
+        responses: {
+            /** @description Code accepted for delivery */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiSuccessEmailCodeAccepted"];
+                };
+            };
+            422: components["responses"]["ValidationError"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    verifyEmailCode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EmailVerifyRequest"];
+            };
+        };
+        responses: {
+            /** @description Signed-in account */
+            200: {
+                headers: {
+                    "Set-Cookie"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiSuccessAccount"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            422: components["responses"]["ValidationError"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
         };
     };
     completeGitHubLogin: {
@@ -1166,6 +1336,8 @@ export interface operations {
                 };
                 content?: never;
             };
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
             default: components["responses"]["UnexpectedError"];
         };
     };
@@ -1233,6 +1405,50 @@ export interface operations {
                 content?: never;
             };
             401: components["responses"]["Unauthorized"];
+        };
+    };
+    listAuthIdentities: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Login identity summaries */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiSuccessIdentityList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    deleteAuthIdentity: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                identity_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Login identity removed */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
         };
     };
     getModelConfig: {

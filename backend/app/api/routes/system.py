@@ -10,6 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
+from app.core.redis import require_rate_limit
 from app.core.security import (
     check_csrf,
     current_account,
@@ -162,7 +163,10 @@ async def update_model_config(
 
 
 @router.post(
-    "/model-config/test", operation_id="testTextModelConnection", response_model=ModelConnectionTest
+    "/model-config/test",
+    operation_id="testTextModelConnection",
+    response_model=ModelConnectionTest,
+    dependencies=[Depends(require_rate_limit)],
 )
 async def test_text_model_connection(
     request: Request,

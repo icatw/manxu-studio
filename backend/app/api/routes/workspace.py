@@ -11,9 +11,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
+from app.core.redis import require_rate_limit
 from app.core.security import check_csrf, current_account
 from app.db.models import (
-    AccountRegistryRecord,
     CharacterRecord,
     EpisodeRecord,
     ExportRecord,
@@ -48,18 +48,57 @@ from app.schemas.workspace import (
     StoryboardPanelCreate,
     StoryboardPanelPatch,
 )
-from app.services.workspace_tasks import run_generation_task
+from app.services.task_queue import enqueue_generation_task
 
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
 
 
 async def require_workspace_account(request: Request, session: SessionDep) -> None:
-    await current_account(request, session)
+    account = await current_account(request, session)
+    request.state.account_id = account.id
+    params = request.path_params
+    project_id = params.get("project_id")
+    if project_id is None and params.get("episode_id") is not None:
+        episode = await session.get(EpisodeRecord, params["episode_id"])
+        project_id = episode.project_id if episode else None
+    if project_id is None and params.get("panel_id") is not None:
+        panel = await session.get(PanelRecord, params["panel_id"])
+        episode = await session.get(EpisodeRecord, panel.episode_id) if panel else None
+        project_id = episode.project_id if episode else None
+    for parameter, model in (("character_id", CharacterRecord), ("scene_id", SceneRecord)):
+        if project_id is None and params.get(parameter) is not None:
+            resource = await session.get(model, params[parameter])
+            project_id = getattr(resource, "project_id", None)
+    if project_id is None and params.get("task_id") is not None:
+        task = await session.get(GenerationTaskRecord, params["task_id"])
+        project_id = task.project_id if task else None
+    if project_id is None and params.get("asset_id") is not None:
+        export = await session.get(ExportRecord, params["asset_id"])
+        if export is not None:
+            episode = await session.get(EpisodeRecord, export.episode_id)
+            project_id = episode.project_id if episode else None
+        else:
+            version = await session.scalar(
+                select(ImageVersionRecord).where(ImageVersionRecord.asset_id == params["asset_id"])
+            )
+            panel = await session.get(PanelRecord, version.panel_id) if version else None
+            episode = await session.get(EpisodeRecord, panel.episode_id) if panel else None
+            project_id = episode.project_id if episode else None
+    if project_id is not None:
+        project = await session.get(ProjectRecord, project_id)
+        if project is None or project.owner_id != account.id:
+            raise HTTPException(404, "资源不存在")
+    elif any(value is not None for value in params.values()):
+        raise HTTPException(404, "资源不存在")
 
 
 router = APIRouter(
     tags=["Projects", "Episodes", "Characters", "Scenes", "Storyboards", "Generations", "Exports"],
-    dependencies=[Depends(require_workspace_account), Depends(check_csrf)],
+    dependencies=[
+        Depends(require_workspace_account),
+        Depends(check_csrf),
+        Depends(require_rate_limit),
+    ],
 )
 
 
@@ -98,6 +137,7 @@ async def _create_task(
     session: AsyncSession,
     background_tasks: BackgroundTasks,
     *,
+    owner_id: UUID,
     project_id: UUID,
     task_type: str,
     request_data: dict[str, object],
@@ -106,6 +146,7 @@ async def _create_task(
     retry_of_task_id: UUID | None = None,
 ) -> GenerationTask:
     task = GenerationTaskRecord(
+        owner_id=owner_id,
         project_id=project_id,
         episode_id=episode_id,
         panel_id=panel_id,
@@ -118,22 +159,23 @@ async def _create_task(
     session.add(task)
     await session.commit()
     await session.refresh(task)
-    background_tasks.add_task(run_generation_task, task.id)
+    try:
+        await enqueue_generation_task(task.id)
+    except Exception as error:
+        raise HTTPException(503, "生成队列暂时不可用，任务已保存并将在服务恢复后重试") from error
     return _task_view(task)
 
 
 @router.get("/projects", operation_id="listProjects", response_model=ProjectPage)
 async def list_projects(
+    request: Request,
     session: SessionDep,
     limit: int = Query(default=20, ge=1, le=100),
     cursor: UUID | None = None,
 ) -> ProjectPage:
-    registry = await session.get(AccountRegistryRecord, 1)
-    if registry is None or registry.account_id is None:
-        return ProjectPage(items=[], next_cursor=None)
     query = (
         select(ProjectRecord)
-        .where(ProjectRecord.owner_id == registry.account_id)
+        .where(ProjectRecord.owner_id == request.state.account_id)
         .order_by(ProjectRecord.created_at.desc(), ProjectRecord.id.desc())
         .limit(limit + 1)
     )
@@ -147,11 +189,8 @@ async def list_projects(
 
 
 @router.post("/projects", operation_id="createProject", response_model=Project, status_code=201)
-async def create_project(body: ProjectCreate, session: SessionDep) -> Project:
-    registry = await session.get(AccountRegistryRecord, 1)
-    if registry is None or registry.account_id is None:
-        raise HTTPException(401, "账户尚未完成初始化")
-    record = ProjectRecord(**body.model_dump(), owner_id=registry.account_id)
+async def create_project(body: ProjectCreate, request: Request, session: SessionDep) -> Project:
+    record = ProjectRecord(**body.model_dump(), owner_id=request.state.account_id)
     session.add(record)
     await session.commit()
     await session.refresh(record)
@@ -285,6 +324,7 @@ async def update_character(
 async def generate_characters(
     project_id: UUID,
     body: CharacterGenerationRequest,
+    request: Request,
     background_tasks: BackgroundTasks,
     session: SessionDep,
 ) -> GenerationTask:
@@ -293,6 +333,7 @@ async def generate_characters(
     return await _create_task(
         session,
         background_tasks,
+        owner_id=request.state.account_id,
         project_id=project_id,
         task_type="character_draft",
         request_data=body.model_dump(mode="json"),
@@ -332,6 +373,7 @@ async def update_scene(scene_id: UUID, body: ScenePatch, session: SessionDep) ->
 async def generate_scenes(
     project_id: UUID,
     body: SceneGenerationRequest,
+    request: Request,
     background_tasks: BackgroundTasks,
     session: SessionDep,
 ) -> GenerationTask:
@@ -340,6 +382,7 @@ async def generate_scenes(
     return await _create_task(
         session,
         background_tasks,
+        owner_id=request.state.account_id,
         project_id=project_id,
         task_type="scene_draft",
         request_data=body.model_dump(mode="json"),
@@ -355,6 +398,7 @@ async def generate_scenes(
 async def generate_storyboard(
     project_id: UUID,
     body: StoryboardGenerationRequest,
+    request: Request,
     background_tasks: BackgroundTasks,
     session: SessionDep,
 ) -> GenerationTask:
@@ -364,6 +408,7 @@ async def generate_storyboard(
     return await _create_task(
         session,
         background_tasks,
+        owner_id=request.state.account_id,
         project_id=project_id,
         episode_id=episode.id,
         task_type="storyboard_draft",
@@ -518,6 +563,7 @@ async def delete_panel(panel_id: UUID, session: SessionDep) -> Response:
 async def generate_panel_image(
     panel_id: UUID,
     body: PanelImageGenerationRequest,
+    request: Request,
     background_tasks: BackgroundTasks,
     session: SessionDep,
 ) -> GenerationTask:
@@ -531,6 +577,7 @@ async def generate_panel_image(
     return await _create_task(
         session,
         background_tasks,
+        owner_id=request.state.account_id,
         project_id=episode.project_id,
         episode_id=episode.id,
         panel_id=panel.id,
@@ -609,7 +656,7 @@ async def get_generation_task(task_id: UUID, session: SessionDep) -> GenerationT
     status_code=202,
 )
 async def retry_generation_task(
-    task_id: UUID, background_tasks: BackgroundTasks, session: SessionDep
+    task_id: UUID, request: Request, background_tasks: BackgroundTasks, session: SessionDep
 ) -> GenerationTask:
     previous = await session.get(GenerationTaskRecord, task_id)
     if previous is None:
@@ -619,6 +666,7 @@ async def retry_generation_task(
     return await _create_task(
         session,
         background_tasks,
+        owner_id=request.state.account_id,
         project_id=previous.project_id,
         episode_id=previous.episode_id,
         panel_id=previous.panel_id,
@@ -637,6 +685,7 @@ async def retry_generation_task(
 async def create_episode_export(
     episode_id: UUID,
     body: ExportRequest,
+    request: Request,
     background_tasks: BackgroundTasks,
     session: SessionDep,
 ) -> GenerationTask:
@@ -646,6 +695,7 @@ async def create_episode_export(
     return await _create_task(
         session,
         background_tasks,
+        owner_id=request.state.account_id,
         project_id=episode.project_id,
         episode_id=episode.id,
         task_type="export",

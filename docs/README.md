@@ -22,6 +22,7 @@
 - [架构与技术选型](technical/architecture.md)：前后端边界、推荐技术栈和待决事项。
 - [领域模型](technical/domain-model.md)：核心实体、关系和生命周期。
 - [SaaS 多账户化准备](technical/saas-readiness.md)：开放注册前的租户隔离、安全和运行能力清单。
+- [测试策略调研](technical/testing-strategy.md)：需求驱动的测试设计、API/E2E 覆盖和 Docker Playground 待办。
 - [AI 生成管线](technical/ai-pipeline.md)：模型职责、任务状态、输入输出和失败处理。
 - [技术决策记录](technical/decisions/README.md)：技术栈与 YAML 契约决策状态及理由。
 

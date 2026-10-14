@@ -5,7 +5,7 @@ from pathlib import Path
 from uuid import UUID, uuid4
 
 from PIL import Image, ImageDraw, ImageFont, ImageOps
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
@@ -21,7 +21,7 @@ from app.db.models import (
     ProjectRecord,
     SceneRecord,
 )
-from app.db.session import SessionFactory
+from app.db.session import SessionFactory, engine
 from app.services.qwen_image import generate_qwen_image
 
 SAMPLE_DIR = Path(__file__).parents[1] / "static" / "samples"
@@ -29,42 +29,65 @@ SAMPLE_IMAGES = ["panel-1.png", "panel-2.png", "panel-3.png", "panel-4.png"]
 
 
 async def run_generation_task(task_id: UUID) -> None:
-    async with SessionFactory() as session:
-        task = await session.get(GenerationTaskRecord, task_id)
-        if task is None:
+    lock_id = int.from_bytes(task_id.bytes[:8], byteorder="big", signed=True)
+    async with engine.connect() as lock_connection:
+        acquired = await lock_connection.scalar(select(func.pg_try_advisory_lock(lock_id)))
+        if not acquired:
             return
-        task.status = "running"
-        task.progress = 15
-        task.updated_at = datetime.now(UTC)
-        await session.commit()
-
-    try:
-        await asyncio.sleep(0.2)
-        async with SessionFactory() as session:
-            task = await session.get(GenerationTaskRecord, task_id)
-            if task is None:
-                return
-            task.progress = 65
-            task.updated_at = datetime.now(UTC)
-            await session.commit()
-            result = await _process_task(session, task)
-            task = await session.get(GenerationTaskRecord, task_id)
-            if task is None:
-                return
-            task.status = "succeeded"
-            task.progress = 100
-            task.result = result
-            task.error = None
-            task.updated_at = datetime.now(UTC)
-            await session.commit()
-    except Exception as error:
-        async with SessionFactory() as session:
-            task = await session.get(GenerationTaskRecord, task_id)
-            if task is not None:
-                task.status = "failed"
-                task.error = {"title": "生成任务失败", "detail": str(error)[:500], "status": 500}
+        try:
+            async with SessionFactory() as session:
+                task = await session.get(GenerationTaskRecord, task_id)
+                if task is None or task.status in {"succeeded", "failed"}:
+                    return
+                project = await session.get(ProjectRecord, task.project_id)
+                if project is None or project.owner_id != task.owner_id:
+                    task.status = "failed"
+                    task.error = {
+                        "title": "生成任务失败",
+                        "detail": "项目归属已变化",
+                        "status": 404,
+                    }
+                    task.updated_at = datetime.now(UTC)
+                    await session.commit()
+                    return
+                task.status = "running"
+                task.progress = 15
                 task.updated_at = datetime.now(UTC)
                 await session.commit()
+
+            try:
+                await asyncio.sleep(0.2)
+                async with SessionFactory() as session:
+                    task = await session.get(GenerationTaskRecord, task_id)
+                    if task is None or task.status != "running":
+                        return
+                    task.progress = 65
+                    task.updated_at = datetime.now(UTC)
+                    await session.commit()
+                    result = await _process_task(session, task)
+                    task = await session.get(GenerationTaskRecord, task_id)
+                    if task is None:
+                        return
+                    task.status = "succeeded"
+                    task.progress = 100
+                    task.result = result
+                    task.error = None
+                    task.updated_at = datetime.now(UTC)
+                    await session.commit()
+            except Exception as error:
+                async with SessionFactory() as session:
+                    task = await session.get(GenerationTaskRecord, task_id)
+                    if task is not None:
+                        task.status = "failed"
+                        task.error = {
+                            "title": "生成任务失败",
+                            "detail": str(error)[:500],
+                            "status": 500,
+                        }
+                        task.updated_at = datetime.now(UTC)
+                        await session.commit()
+        finally:
+            await lock_connection.execute(select(func.pg_advisory_unlock(lock_id)))
 
 
 async def _process_task(session: AsyncSession, task: GenerationTaskRecord) -> dict[str, object]:
