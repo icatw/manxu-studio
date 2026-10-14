@@ -1,7 +1,13 @@
-.PHONY: dev dev-db stop-db check test api-types api-lint migrate
+.PHONY: dev start stop dev-db stop-db check test api-types api-lint migrate
 
 dev:
 	@echo "Run 'pnpm --dir frontend dev' and 'uv run --directory backend fastapi dev app/main.py' in separate terminals."
+
+start:
+	./scripts/start.sh
+
+stop:
+	./scripts/stop.sh
 
 dev-db:
 	docker compose up -d postgres

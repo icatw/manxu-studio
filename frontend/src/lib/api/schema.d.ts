@@ -834,6 +834,15 @@ export interface components {
             /** @enum {string} */
             image_status: "not_configured" | "configured" | "connected" | "error";
             image_models: string[];
+            system_presets: components["schemas"]["ModelPreset"][];
+        };
+        ModelPreset: {
+            id: string;
+            label: string;
+            /** Format: uri */
+            base_url: string;
+            text_model: string;
+            image_model: string;
         };
         ProjectCreate: {
             title: string;

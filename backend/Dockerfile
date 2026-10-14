@@ -14,5 +14,10 @@ RUN uv sync --frozen --no-dev --no-install-project
 COPY alembic.ini ./
 COPY migrations ./migrations
 COPY app ./app
+RUN useradd --create-home --uid 10001 app \
+    && mkdir -p /app/var/images /app/.data \
+    && chown -R app:app /app
+
+USER app
 
 CMD ["uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

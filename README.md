@@ -15,6 +15,22 @@
 
 要求 Node.js 22.12+、pnpm 11.8+、uv、Docker Compose。
 
+### 一键启动
+
+Docker Desktop 启动后，在仓库根目录执行：
+
+```sh
+./scripts/start.sh
+```
+
+脚本会创建缺失的 `.env`、构建前端 Nginx、API 和 worker，并启动 PostgreSQL、Redis、Mailpit。停止服务：
+
+```sh
+./scripts/stop.sh
+```
+
+前端容器通过 Nginx 将 `/api` 代理到 API 容器，因此浏览器只需要访问 `http://localhost:5173`。
+
 1. 复制 `.env.example` 为 `.env`。
 2. 在 `.env` 配置 GitHub OAuth App 的 Client ID/Secret、回调地址，并设置至少 32 字符的 `MODEL_ENCRYPTION_KEY`（可用 `openssl rand -hex 32` 生成）。
 3. 在仓库根目录运行 `docker compose up -d postgres redis mailpit`（PostgreSQL 映射到本机 55442，Redis 映射到 56379，Mailpit 网页位于 8025）。

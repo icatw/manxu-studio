@@ -1328,7 +1328,7 @@ components:
     ModelConfig:
       type: object
       additionalProperties: false
-      required: [text_provider, text_model, text_base_url, text_api_key_configured, text_status, image_provider, image_model, image_base_url, image_api_key_configured, image_concurrency, image_negative_prompt, image_status, image_models]
+      required: [text_provider, text_model, text_base_url, text_api_key_configured, text_status, image_provider, image_model, image_base_url, image_api_key_configured, image_concurrency, image_negative_prompt, image_status, image_models, system_presets]
       properties:
         text_provider: { type: string }
         text_model: { type: string }
@@ -1345,6 +1345,19 @@ components:
         image_models:
           type: array
           items: { type: string }
+        system_presets:
+          type: array
+          items: { $ref: '#/components/schemas/ModelPreset' }
+    ModelPreset:
+      type: object
+      additionalProperties: false
+      required: [id, label, base_url, text_model, image_model]
+      properties:
+        id: { type: string }
+        label: { type: string }
+        base_url: { type: string, format: uri }
+        text_model: { type: string }
+        image_model: { type: string }
     ProjectCreate:
       type: object
       additionalProperties: false
