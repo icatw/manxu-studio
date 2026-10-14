@@ -534,7 +534,9 @@ async def logout(
     response: Response,
     session: AsyncSession = SessionDep,
 ) -> Response:
-    check_csrf(request)
+    # Logout only revokes the presented session and clears browser cookies. It is
+    # intentionally idempotent so stale sessions without a CSRF cookie can still
+    # be closed from the login UI.
     await current_account(request, session)
     token = request.cookies.get(get_settings().session_cookie_name)
     if token:
