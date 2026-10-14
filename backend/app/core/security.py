@@ -4,7 +4,7 @@ import hashlib
 import hmac
 import ipaddress
 import socket
-from typing import Annotated
+from typing import Annotated, cast
 from urllib.parse import urlsplit
 from uuid import UUID
 
@@ -82,8 +82,8 @@ async def current_account_dependency(
     request: Request, session: SessionDep
 ) -> AccountRecord:
     existing = getattr(request.state, "account", None)
-    if isinstance(existing, AccountRecord):
-        return existing
+    if existing is not None and getattr(existing, "id", None) is not None:
+        return cast(AccountRecord, existing)
     account = await current_account(request, session)
     request.state.account_id = account.id
     request.state.account = account

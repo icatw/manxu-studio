@@ -326,6 +326,19 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/ApiSuccessModelConnectionTest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+  /model-config/test-image:
+    post:
+      tags: [ModelSettings]
+      operationId: testImageModelConnection
+      summary: Test the configured Qwen Image model connection
+      x-requirement-ids: [MODEL-02]
+      responses:
+        '200':
+          description: Image connection test result
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiSuccessModelConnectionTest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
   /assets/{asset_id}:
     parameters:
       - name: asset_id

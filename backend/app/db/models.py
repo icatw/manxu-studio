@@ -10,6 +10,7 @@ from sqlalchemy import (
     LargeBinary,
     String,
     Text,
+    UniqueConstraint,
     func,
 )
 from sqlalchemy.dialects.postgresql import JSONB
@@ -131,7 +132,12 @@ class ImageVersionRecord(Base):
 
 class GenerationTaskRecord(Base):
     __tablename__ = "generation_tasks"
-    __table_args__ = (Index("generation_tasks_created_idx", "created_at"),)
+    __table_args__ = (
+        Index("generation_tasks_created_idx", "created_at"),
+        UniqueConstraint(
+            "owner_id", "idempotency_key", name="generation_tasks_owner_idempotency_key_uq"
+        ),
+    )
 
     id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
     owner_id: Mapped[UUID] = mapped_column(
@@ -150,6 +156,7 @@ class GenerationTaskRecord(Base):
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="queued")
     progress: Mapped[int | None] = mapped_column(Integer)
     request_data: Mapped[dict[str, object]] = mapped_column(JSONB, nullable=False, default=dict)
+    idempotency_key: Mapped[str | None] = mapped_column(String(128))
     result: Mapped[dict[str, object] | None] = mapped_column(JSONB)
     error: Mapped[dict[str, object] | None] = mapped_column(JSONB)
     retry_of_task_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True))

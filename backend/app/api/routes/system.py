@@ -210,3 +210,48 @@ async def test_text_model_connection(
         config.text_status = "error"
         await session.commit()
         return ModelConnectionTest(success=False, message="连接失败，请检查地址、密钥和网络后重试")
+
+
+@router.post(
+    "/model-config/test-image",
+    operation_id="testImageModelConnection",
+    response_model=ModelConnectionTest,
+    dependencies=[Depends(require_rate_limit)],
+)
+async def test_image_model_connection(
+    request: Request,
+    session: AsyncSession = SessionDep,
+) -> ModelConnectionTest:
+    check_csrf(request)
+    account = await current_account(request, session)
+    config = await _get_config(session, account.id)
+    if not config.image_model or not config.image_base_url or not config.image_api_key_encrypted:
+        return ModelConnectionTest(success=False, message="请先保存完整的图像模型配置")
+    await validate_public_https_url(config.image_base_url)
+    started = time.monotonic()
+    try:
+        async with httpx.AsyncClient(timeout=20, follow_redirects=False) as client:
+            response = await client.get(
+                urljoin(config.image_base_url.rstrip("/") + "/", "models"),
+                headers={
+                    "Authorization": f"Bearer {decrypt_secret(config.image_api_key_encrypted)}"
+                },
+            )
+        latency = int((time.monotonic() - started) * 1000)
+        if response.is_success:
+            config.image_status = "connected"
+            await session.commit()
+            return ModelConnectionTest(success=True, message="图像模型连接成功", latency_ms=latency)
+        config.image_status = "error"
+        await session.commit()
+        if response.status_code in {401, 403}:
+            message = "认证失败，请检查图像 API Key"
+        elif response.status_code == 404:
+            message = "图像服务接口不存在，请检查 Base URL"
+        else:
+            message = f"图像服务返回 HTTP {response.status_code}"
+        return ModelConnectionTest(success=False, message=message, latency_ms=latency)
+    except (httpx.HTTPError, RuntimeError, ValueError):
+        config.image_status = "error"
+        await session.commit()
+        return ModelConnectionTest(success=False, message="连接失败，请检查地址、密钥和网络后重试")

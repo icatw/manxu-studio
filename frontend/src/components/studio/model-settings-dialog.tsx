@@ -80,6 +80,20 @@ export function ModelSettingsPanel() {
     onError: (error) => setNotice({ success: false, message: error.message }),
   })
 
+  const testImageMutation = useMutation({
+    mutationFn: async () => {
+      await saveMutation.mutateAsync()
+      const { data, error } = await api.POST('/model-config/test-image')
+      if (error || !data) throw new Error('图像连接测试请求失败')
+      return data
+    },
+    onSuccess: (data) => {
+      setNotice({ success: data.success, message: data.latency_ms ? `${data.message} · ${data.latency_ms} ms` : data.message })
+      void queryClient.invalidateQueries({ queryKey: ['model-config'] })
+    },
+    onError: (error) => setNotice({ success: false, message: error.message }),
+  })
+
   function submit(event: FormEvent) {
     event.preventDefault()
     setNotice(null)
@@ -134,10 +148,13 @@ export function ModelSettingsPanel() {
       <div className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
         <span className="flex items-center gap-1.5 text-xs text-muted-foreground"><KeyRound className="size-3.5" aria-hidden />密钥仅加密保存在服务端</span>
         <div className="flex gap-2">
-          <Button type="button" variant="outline" size="sm" disabled={!config || testMutation.isPending || saveMutation.isPending} onClick={() => testMutation.mutate()}>
+          <Button type="button" variant="outline" size="sm" disabled={!config || testMutation.isPending || testImageMutation.isPending || saveMutation.isPending} onClick={() => testMutation.mutate()}>
             {testMutation.isPending ? <LoaderCircle className="animate-spin" /> : <Wifi />}测试文本连接
           </Button>
-          <Button type="submit" size="sm" disabled={!config || saveMutation.isPending || testMutation.isPending}>
+          <Button type="button" variant="outline" size="sm" disabled={!config || testMutation.isPending || testImageMutation.isPending || saveMutation.isPending} onClick={() => testImageMutation.mutate()}>
+            {testImageMutation.isPending ? <LoaderCircle className="animate-spin" /> : <Wifi />}测试图像连接
+          </Button>
+          <Button type="submit" size="sm" disabled={!config || saveMutation.isPending || testMutation.isPending || testImageMutation.isPending}>
             {saveMutation.isPending ? <LoaderCircle className="animate-spin" /> : <Save />}保存模型配置
           </Button>
         </div>
