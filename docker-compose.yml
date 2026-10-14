@@ -1,3 +1,15 @@
+x-backend-env: &backend-env
+  APP_ENV: ${APP_ENV:-development}
+  DATABASE_URL: postgresql+asyncpg://manxu:manxu@postgres:5432/manxu_dev
+  REDIS_URL: redis://redis:6379/0
+  SMTP_HOST: ${SMTP_HOST:-mailpit}
+  SMTP_PORT: ${SMTP_PORT:-1025}
+  SMTP_USERNAME: ${SMTP_USERNAME:-}
+  SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+  SMTP_STARTTLS: ${SMTP_STARTTLS:-false}
+  SMTP_FROM: ${SMTP_FROM:-noreply@manxu.local}
+  IMAGE_STORAGE_DIR: /app/var/images
+
 services:
   postgres:
     image: postgres:17-alpine
@@ -6,7 +18,7 @@ services:
       POSTGRES_USER: manxu
       POSTGRES_PASSWORD: manxu
     ports:
-      - "55442:5432"
+      - "${POSTGRES_PORT:-55442}:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
@@ -17,7 +29,7 @@ services:
   redis:
     image: redis:8-alpine
     ports:
-      - "56379:6379"
+      - "${REDIS_PORT:-56379}:6379"
     volumes:
       - redis-data:/data
     command: ["redis-server", "--appendonly", "yes"]
@@ -29,7 +41,7 @@ services:
   mailpit:
     image: axllent/mailpit:v1.27
     ports:
-      - "8025:8025"
+      - "${MAILPIT_PORT:-8025}:8025"
     healthcheck:
       test: ["CMD", "/mailpit", "readyz"]
       interval: 5s
@@ -41,19 +53,9 @@ services:
     env_file:
       - path: .env
         required: false
-    environment:
-      APP_ENV: development
-      DATABASE_URL: postgresql+asyncpg://manxu:manxu@postgres:5432/manxu_dev
-      REDIS_URL: redis://redis:6379/0
-      SMTP_HOST: ${SMTP_HOST:-mailpit}
-      SMTP_PORT: ${SMTP_PORT:-1025}
-      SMTP_USERNAME: ${SMTP_USERNAME:-}
-      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
-      SMTP_STARTTLS: ${SMTP_STARTTLS:-false}
-      SMTP_FROM: ${SMTP_FROM:-noreply@manxu.local}
-      IMAGE_STORAGE_DIR: /app/var/images
+    environment: *backend-env
     ports:
-      - "8000:8000"
+      - "${API_PORT:-8000}:8000"
     volumes:
       - image-data:/app/var/images
     depends_on:
@@ -75,17 +77,7 @@ services:
     env_file:
       - path: .env
         required: false
-    environment:
-      APP_ENV: development
-      DATABASE_URL: postgresql+asyncpg://manxu:manxu@postgres:5432/manxu_dev
-      REDIS_URL: redis://redis:6379/0
-      SMTP_HOST: ${SMTP_HOST:-mailpit}
-      SMTP_PORT: ${SMTP_PORT:-1025}
-      SMTP_USERNAME: ${SMTP_USERNAME:-}
-      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
-      SMTP_STARTTLS: ${SMTP_STARTTLS:-false}
-      SMTP_FROM: ${SMTP_FROM:-noreply@manxu.local}
-      IMAGE_STORAGE_DIR: /app/var/images
+    environment: *backend-env
     volumes:
       - image-data:/app/var/images
     depends_on:
@@ -94,6 +86,19 @@ services:
       redis:
         condition: service_healthy
     command: ["uv", "run", "arq", "app.worker.WorkerSettings"]
+  frontend:
+    build:
+      context: ./frontend
+    ports:
+      - "${FRONTEND_PORT:-5173}:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "--quiet", "http://127.0.0.1/"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
 
 volumes:
   postgres-data:

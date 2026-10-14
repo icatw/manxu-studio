@@ -52,6 +52,17 @@ class ModelConfig(BaseModel):
     image_negative_prompt: str
     image_status: Literal["not_configured", "configured", "connected", "error"]
     image_models: list[str]
+    system_presets: list["ModelPreset"]
+
+
+class ModelPreset(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: str
+    label: str
+    base_url: str
+    text_model: str
+    image_model: str
 
 
 class ModelConfigUpdate(BaseModel):
@@ -121,6 +132,15 @@ def _config_view(config: AccountModelConfigRecord) -> ModelConfig:
         image_negative_prompt=settings.image_model_negative_prompt,
         image_status=config.image_status,
         image_models=IMAGE_MODELS,
+        system_presets=[
+            ModelPreset(
+                id="dashscope-default",
+                label="百炼兼容模式",
+                base_url=settings.model_preset_base_url,
+                text_model=settings.model_preset_text_model,
+                image_model=settings.model_preset_image_model,
+            )
+        ],
     )
 
 
