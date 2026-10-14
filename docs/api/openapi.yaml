@@ -1,0 +1,1469 @@
+openapi: 3.1.0
+x-contract-status: frozen
+info:
+  title: Manxu Studio API
+  version: 1.0.0
+  summary: AI comic pre-production workspace API
+  description: >-
+    Contract-first API for projects, storyboards, generation tasks, and exports.
+    First-release operations map to confirmed requirements in the PRD. The contract is frozen for the core pre-production workflow.
+servers:
+  - url: /api/v1
+    description: Versioned API base path
+tags:
+  - name: System
+    description: Service metadata and operational checks
+  - name: Projects
+    description: User-owned story projects
+  - name: Episodes
+    description: Story units within a project
+  - name: Characters
+    description: Reusable character profiles
+  - name: Scenes
+    description: Reusable scene profiles
+  - name: Storyboards
+    description: Ordered panels and storyboard versions
+  - name: Generations
+    description: Asynchronous text and image generation tasks
+  - name: Exports
+    description: Storyboard and production material exports
+paths:
+  /health:
+    get:
+      tags: [System]
+      operationId: getHealth
+      summary: Check API process health
+      responses:
+        '200':
+          description: API process is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthStatus'
+  /version:
+    get:
+      tags: [System]
+      operationId: getVersion
+      summary: Get API version
+      responses:
+        '200':
+          description: Running API version
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VersionInfo'
+  /projects:
+    get:
+      tags: [Projects]
+      operationId: listProjects
+      summary: List projects
+      x-requirement-ids: [PROJ-01]
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Project page
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectPage'
+        default:
+          $ref: '#/components/responses/UnexpectedError'
+    post:
+      tags: [Projects]
+      operationId: createProject
+      summary: Create a project
+      x-requirement-ids: [PROJ-01]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProjectCreate'
+      responses:
+        '201':
+          description: Project created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Project'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        default:
+          $ref: '#/components/responses/UnexpectedError'
+  /model-config:
+    get:
+      tags: [System]
+      operationId: getModelConfig
+      summary: Get server-side model configuration without secrets
+      responses:
+        '200':
+          description: Configured models and integration status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModelConfig'
+        default:
+          $ref: '#/components/responses/UnexpectedError'
+
+  /projects/{project_id}:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+    get:
+      tags: [Projects]
+      operationId: getProject
+      summary: Get a project
+      x-requirement-ids: [PROJ-01]
+      responses:
+        '200':
+          description: Project
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Project'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        default:
+          $ref: '#/components/responses/UnexpectedError'
+    patch:
+      tags: [Projects]
+      operationId: updateProject
+      summary: Update project details
+      x-requirement-ids: [PROJ-02]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProjectPatch'
+      responses:
+        '200':
+          description: Project updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Project'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        default:
+          $ref: '#/components/responses/UnexpectedError'
+    delete:
+      tags: [Projects]
+      operationId: deleteProject
+      summary: Delete a project and its project-owned records
+      x-requirement-ids: [PROJ-03]
+      responses:
+        '204':
+          description: Project deleted
+        '404':
+          $ref: '#/components/responses/NotFound'
+        default:
+          $ref: '#/components/responses/UnexpectedError'
+
+  /projects/{project_id}/episodes:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+    get:
+      tags: [Episodes]
+      operationId: listEpisodes
+      summary: List episodes in a project
+      x-requirement-ids: [STORY-01]
+      responses:
+        '200':
+          description: Episodes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Episode'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        default:
+          $ref: '#/components/responses/UnexpectedError'
+    post:
+      tags: [Episodes]
+      operationId: createEpisode
+      summary: Create an episode or story segment
+      x-requirement-ids: [STORY-01]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EpisodeCreate'
+      responses:
+        '201':
+          description: Episode created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Episode'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        default:
+          $ref: '#/components/responses/UnexpectedError'
+
+  /episodes/{episode_id}:
+    parameters:
+      - $ref: '#/components/parameters/EpisodeId'
+    patch:
+      tags: [Episodes]
+      operationId: updateEpisode
+      summary: Update a story unit
+      x-requirement-ids: [STORY-01]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EpisodePatch'
+      responses:
+        '200':
+          description: Updated story unit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Episode'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        default:
+          $ref: '#/components/responses/UnexpectedError'
+
+  /projects/{project_id}/scenes:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+    get:
+      tags: [Scenes]
+      operationId: listScenes
+      summary: List scene assets
+      x-requirement-ids: [ASSET-02]
+      responses:
+        '200':
+          description: Scene assets
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Scene'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        default:
+          $ref: '#/components/responses/UnexpectedError'
+
+  /scenes/{scene_id}:
+    parameters:
+      - name: scene_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    patch:
+      tags: [Scenes]
+      operationId: updateScene
+      summary: Edit or approve a scene profile
+      x-requirement-ids: [ASSET-02]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScenePatch'
+      responses:
+        '200':
+          description: Updated scene
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Scene'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        default:
+          $ref: '#/components/responses/UnexpectedError'
+
+  /projects/{project_id}/scene-generations:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+    post:
+      tags: [Scenes, Generations]
+      operationId: generateScenes
+      summary: Generate scene profile drafts from the project story
+      x-requirement-ids: [ASSET-02]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SceneGenerationRequest'
+      responses:
+        '202':
+          description: Generation task accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenerationTask'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        default:
+          $ref: '#/components/responses/UnexpectedError'
+
+  /projects/{project_id}/characters:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+    get:
+      tags: [Characters]
+      operationId: listCharacters
+      summary: List character assets
+      x-requirement-ids: [ASSET-01]
+      responses:
+        '200':
+          description: Character assets
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Character'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        default:
+          $ref: '#/components/responses/UnexpectedError'
+
+  /characters/{character_id}:
+    parameters:
+      - name: character_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    patch:
+      tags: [Characters]
+      operationId: updateCharacter
+      summary: Edit or approve a character profile
+      x-requirement-ids: [ASSET-01]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CharacterPatch'
+      responses:
+        '200':
+          description: Updated character
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Character'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        default:
+          $ref: '#/components/responses/UnexpectedError'
+
+  /projects/{project_id}/character-generations:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+    post:
+      tags: [Characters, Generations]
+      operationId: generateCharacters
+      summary: Generate character profile drafts from the project story
+      x-requirement-ids: [ASSET-01]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CharacterGenerationRequest'
+      responses:
+        '202':
+          description: Generation task accepted
+          headers:
+            Location:
+              schema:
+                type: string
+                format: uri-reference
+              description: URL of the generation task
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenerationTask'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        default:
+          $ref: '#/components/responses/UnexpectedError'
+
+  /projects/{project_id}/storyboard-generations:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+    post:
+      tags: [Storyboards, Generations]
+      operationId: generateStoryboard
+      summary: Generate storyboard drafts for an episode
+      x-requirement-ids: [SB-01]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StoryboardGenerationRequest'
+      responses:
+        '202':
+          description: Generation task accepted
+          headers:
+            Location:
+              schema:
+                type: string
+                format: uri-reference
+              description: URL of the generation task
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenerationTask'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        default:
+          $ref: '#/components/responses/UnexpectedError'
+
+  /episodes/{episode_id}/panels:
+    parameters:
+      - $ref: '#/components/parameters/EpisodeId'
+    get:
+      tags: [Storyboards]
+      operationId: listPanels
+      summary: List storyboard panels
+      x-requirement-ids: [SB-01]
+      responses:
+        '200':
+          description: Ordered storyboard panels
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/StoryboardPanel'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        default:
+          $ref: '#/components/responses/UnexpectedError'
+    post:
+      tags: [Storyboards]
+      operationId: createPanel
+      summary: Add a storyboard panel
+      x-requirement-ids: [SB-03]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StoryboardPanelCreate'
+      responses:
+        '201':
+          description: Created storyboard panel
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StoryboardPanel'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        default:
+          $ref: '#/components/responses/UnexpectedError'
+
+  /episodes/{episode_id}/panels/order:
+    parameters:
+      - $ref: '#/components/parameters/EpisodeId'
+    put:
+      tags: [Storyboards]
+      operationId: reorderPanels
+      summary: Replace the ordered storyboard panel IDs
+      x-requirement-ids: [SB-02]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PanelOrder'
+      responses:
+        '200':
+          description: Updated ordered storyboard panels
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/StoryboardPanel'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        default:
+          $ref: '#/components/responses/UnexpectedError'
+
+  /panels/{panel_id}:
+    parameters:
+      - $ref: '#/components/parameters/PanelId'
+    patch:
+      tags: [Storyboards]
+      operationId: updatePanel
+      summary: Edit storyboard panel content or order
+      x-requirement-ids: [SB-02]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StoryboardPanelPatch'
+      responses:
+        '200':
+          description: Updated panel
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StoryboardPanel'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        default:
+          $ref: '#/components/responses/UnexpectedError'
+    delete:
+      tags: [Storyboards]
+      operationId: deletePanel
+      summary: Delete a storyboard panel
+      x-requirement-ids: [SB-03]
+      responses:
+        '204':
+          description: Panel deleted
+        '404':
+          $ref: '#/components/responses/NotFound'
+        default:
+          $ref: '#/components/responses/UnexpectedError'
+
+  /panels/{panel_id}/image-versions:
+    parameters:
+      - $ref: '#/components/parameters/PanelId'
+    get:
+      tags: [Generations]
+      operationId: listPanelImageVersions
+      summary: List generated image versions for a panel
+      x-requirement-ids: [GEN-01, GEN-04]
+      responses:
+        '200':
+          description: Image versions ordered newest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PanelImageVersion'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        default:
+          $ref: '#/components/responses/UnexpectedError'
+
+  /panels/{panel_id}/image-versions/{version_id}/selection:
+    parameters:
+      - $ref: '#/components/parameters/PanelId'
+      - name: version_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    put:
+      tags: [Generations]
+      operationId: selectPanelImageVersion
+      summary: Select the current image version for a panel
+      x-requirement-ids: [GEN-04]
+      responses:
+        '200':
+          description: Selected image version
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PanelImageVersion'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        default:
+          $ref: '#/components/responses/UnexpectedError'
+
+  /panels/{panel_id}/image-generations:
+    parameters:
+      - $ref: '#/components/parameters/PanelId'
+    post:
+      tags: [Storyboards, Generations]
+      operationId: generatePanelImage
+      summary: Generate a new image version for one panel
+      x-requirement-ids: [GEN-01]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PanelImageGenerationRequest'
+      responses:
+        '202':
+          description: Image generation task accepted
+          headers:
+            Location:
+              schema:
+                type: string
+                format: uri-reference
+              description: URL of the generation task
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenerationTask'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        default:
+          $ref: '#/components/responses/UnexpectedError'
+
+  /generation-tasks/{task_id}:
+    parameters:
+      - $ref: '#/components/parameters/TaskId'
+    get:
+      tags: [Generations]
+      operationId: getGenerationTask
+      summary: Get task state and result
+      x-requirement-ids: [GEN-02]
+      responses:
+        '200':
+          description: Generation task
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenerationTask'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        default:
+          $ref: '#/components/responses/UnexpectedError'
+
+  /generation-tasks/{task_id}/retries:
+    parameters:
+      - $ref: '#/components/parameters/TaskId'
+    post:
+      tags: [Generations]
+      operationId: retryGenerationTask
+      summary: Retry a failed generation as a new task
+      x-requirement-ids: [GEN-03]
+      responses:
+        '202':
+          description: Retry task accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenerationTask'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        default:
+          $ref: '#/components/responses/UnexpectedError'
+
+  /episodes/{episode_id}/exports:
+    parameters:
+      - $ref: '#/components/parameters/EpisodeId'
+    post:
+      tags: [Exports, Generations]
+      operationId: createEpisodeExport
+      summary: Create an export for the current episode state
+      x-requirement-ids: [EXP-01]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExportRequest'
+      responses:
+        '202':
+          description: Export task accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenerationTask'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        default:
+          $ref: '#/components/responses/UnexpectedError'
+
+  /exports/{asset_id}:
+    parameters:
+      - name: asset_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      tags: [Exports]
+      operationId: downloadExport
+      summary: Download a completed export
+      x-requirement-ids: [EXP-01]
+      responses:
+        '200':
+          description: Export file
+          content:
+            application/json:
+              schema:
+                type: object
+            image/png:
+              schema:
+                type: string
+                format: binary
+        '404':
+          $ref: '#/components/responses/NotFound'
+        default:
+          $ref: '#/components/responses/UnexpectedError'
+
+components:
+  parameters:
+    ProjectId:
+      name: project_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    EpisodeId:
+      name: episode_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    PanelId:
+      name: panel_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    TaskId:
+      name: task_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    Cursor:
+      name: cursor
+      in: query
+      required: false
+      schema:
+        type: string
+    Limit:
+      name: limit
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+  responses:
+    NotFound:
+      description: Resource not found
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Conflict:
+      description: Operation conflicts with the current resource state
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    ValidationError:
+      description: Request validation failed
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ValidationProblem'
+    UnexpectedError:
+      description: Unexpected server error
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+  schemas:
+    HealthStatus:
+      type: object
+      additionalProperties: false
+      required: [status]
+      properties:
+        status:
+          type: string
+          const: ok
+    VersionInfo:
+      type: object
+      additionalProperties: false
+      required: [version]
+      properties:
+        version:
+          type: string
+          minLength: 1
+    ModelConfig:
+      type: object
+      additionalProperties: false
+      required: [text_provider, text_model, text_base_url, text_api_key_configured, text_status, image_provider, image_model, image_base_url, image_api_key_configured, image_concurrency, image_negative_prompt, image_status]
+      properties:
+        text_provider: { type: string }
+        text_model: { type: string }
+        text_base_url: { type: string }
+        text_api_key_configured: { type: boolean }
+        text_status: { type: string, enum: [demo, not_connected] }
+        image_provider: { type: string }
+        image_model: { type: string }
+        image_base_url: { type: string }
+        image_api_key_configured: { type: boolean }
+        image_concurrency: { type: integer, minimum: 1, maximum: 16 }
+        image_negative_prompt: { type: string }
+        image_status: { type: string, enum: [demo, not_connected] }
+    ProjectCreate:
+      type: object
+      additionalProperties: false
+      required: [title, synopsis, genre, art_style, aspect_ratio]
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 120
+        synopsis:
+          type: string
+          minLength: 1
+          maxLength: 10000
+        genre:
+          type: string
+          minLength: 1
+          maxLength: 80
+        art_style:
+          type: string
+          minLength: 1
+          maxLength: 240
+        aspect_ratio:
+          type: string
+          enum: [portrait, landscape, square]
+    ProjectPatch:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 120
+        synopsis:
+          type: string
+          minLength: 1
+          maxLength: 10000
+        genre:
+          type: string
+          minLength: 1
+          maxLength: 80
+        art_style:
+          type: string
+          minLength: 1
+          maxLength: 240
+        aspect_ratio:
+          type: string
+          enum: [portrait, landscape, square]
+    Project:
+      allOf:
+        - $ref: '#/components/schemas/ProjectCreate'
+        - type: object
+          required: [id, created_at, updated_at]
+          properties:
+            id:
+              type: string
+              format: uuid
+            created_at:
+              type: string
+              format: date-time
+            updated_at:
+              type: string
+              format: date-time
+    ProjectPage:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Project'
+        next_cursor:
+          type: [string, 'null']
+    EpisodeCreate:
+      type: object
+      additionalProperties: false
+      required: [title, synopsis]
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 120
+        synopsis:
+          type: string
+          minLength: 1
+          maxLength: 10000
+        panel_count:
+          type: integer
+          minimum: 1
+          maximum: 60
+          default: 4
+    EpisodePatch:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 120
+        synopsis:
+          type: string
+          minLength: 1
+          maxLength: 10000
+        panel_count:
+          type: integer
+          minimum: 1
+          maximum: 60
+    Episode:
+      allOf:
+        - $ref: '#/components/schemas/EpisodeCreate'
+        - type: object
+          required: [id, project_id, position, panel_count, created_at, updated_at]
+          properties:
+            id:
+              type: string
+              format: uuid
+            project_id:
+              type: string
+              format: uuid
+            position:
+              type: integer
+              minimum: 0
+            panel_count:
+              type: integer
+              minimum: 1
+              maximum: 60
+            created_at:
+              type: string
+              format: date-time
+            updated_at:
+              type: string
+              format: date-time
+    CharacterGenerationRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        story_version_id:
+          type: [string, 'null']
+          format: uuid
+        guidance:
+          type: string
+          maxLength: 4000
+    CharacterPatch:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 120
+        profile:
+          $ref: '#/components/schemas/CharacterProfile'
+        status:
+          type: string
+          enum: [draft, in_review, approved]
+    CharacterProfile:
+      type: object
+      additionalProperties: false
+      required: [appearance, outfit, personality, visual_traits]
+      properties:
+        appearance:
+          type: string
+        outfit:
+          type: string
+        personality:
+          type: string
+        visual_traits:
+          type: array
+          items:
+            type: string
+    Character:
+      type: object
+      additionalProperties: false
+      required: [id, project_id, name, profile, status, version]
+      properties:
+        id:
+          type: string
+          format: uuid
+        project_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        profile:
+          type: object
+          additionalProperties: false
+          required: [appearance, outfit, personality, visual_traits]
+          properties:
+            appearance:
+              type: string
+            outfit:
+              type: string
+            personality:
+              type: string
+            visual_traits:
+              type: array
+              items:
+                type: string
+        reference_asset_id:
+          type: [string, 'null']
+          format: uuid
+        status:
+          type: string
+          enum: [draft, in_review, approved]
+        version:
+          type: integer
+          minimum: 1
+    SceneGenerationRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        episode_id:
+          type: [string, 'null']
+          format: uuid
+        guidance:
+          type: string
+          maxLength: 4000
+    SceneProfile:
+      type: object
+      additionalProperties: false
+      required: [description, lighting, palette, visual_traits]
+      properties:
+        description:
+          type: string
+        lighting:
+          type: string
+        palette:
+          type: string
+        visual_traits:
+          type: array
+          items:
+            type: string
+    ScenePatch:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 120
+        profile:
+          $ref: '#/components/schemas/SceneProfile'
+        status:
+          type: string
+          enum: [draft, in_review, approved]
+    Scene:
+      type: object
+      additionalProperties: false
+      required: [id, project_id, name, profile, status, version]
+      properties:
+        id:
+          type: string
+          format: uuid
+        project_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        profile:
+          $ref: '#/components/schemas/SceneProfile'
+        reference_asset_id:
+          type: [string, 'null']
+          format: uuid
+        status:
+          type: string
+          enum: [draft, in_review, approved]
+        version:
+          type: integer
+          minimum: 1
+    StoryboardGenerationRequest:
+      type: object
+      additionalProperties: false
+      required: [episode_id, panel_count]
+      properties:
+        episode_id:
+          type: string
+          format: uuid
+        panel_count:
+          type: integer
+          minimum: 1
+          maximum: 60
+        pacing:
+          type: string
+          enum: [fast, balanced, slow]
+          default: balanced
+        use_approved_assets:
+          type: boolean
+          default: true
+    StoryboardPanelPatch:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        position:
+          type: integer
+          minimum: 0
+        scene_description:
+          type: string
+          maxLength: 4000
+        shot:
+          type: string
+          maxLength: 240
+        composition:
+          type: string
+          maxLength: 2000
+        character_actions:
+          type: string
+          maxLength: 2000
+        emotion:
+          type: string
+          maxLength: 240
+        dialogue:
+          type: string
+          maxLength: 4000
+        story_purpose:
+          type: string
+          maxLength: 1000
+        image_prompt:
+          type: string
+          maxLength: 8000
+        character_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+        scene_id:
+          type: [string, 'null']
+          format: uuid
+        review_status:
+          type: string
+          enum: [draft, in_review, approved]
+    StoryboardPanelCreate:
+      type: object
+      additionalProperties: false
+      required: [scene_description, shot, composition, character_actions, emotion, dialogue, story_purpose, image_prompt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        scene_description:
+          type: string
+          maxLength: 4000
+        shot:
+          type: string
+          maxLength: 240
+        composition:
+          type: string
+          maxLength: 2000
+        character_actions:
+          type: string
+          maxLength: 2000
+        emotion:
+          type: string
+          maxLength: 240
+        dialogue:
+          type: string
+          maxLength: 4000
+        story_purpose:
+          type: string
+          maxLength: 1000
+        image_prompt:
+          type: string
+          maxLength: 8000
+        character_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+        scene_id:
+          type: [string, 'null']
+          format: uuid
+    PanelOrder:
+      type: object
+      additionalProperties: false
+      required: [panel_ids]
+      properties:
+        panel_ids:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            type: string
+            format: uuid
+    StoryboardPanel:
+      allOf:
+        - $ref: '#/components/schemas/StoryboardPanelPatch'
+        - type: object
+          required: [id, episode_id, position, review_status, version, created_at, updated_at]
+          properties:
+            id:
+              type: string
+              format: uuid
+            episode_id:
+              type: string
+              format: uuid
+            review_status:
+              type: string
+              enum: [draft, in_review, approved]
+            current_image_asset_id:
+              type: [string, 'null']
+              format: uuid
+            character_ids:
+              type: array
+              items:
+                type: string
+                format: uuid
+            scene_id:
+              type: [string, 'null']
+              format: uuid
+            version:
+              type: integer
+              minimum: 1
+            created_at:
+              type: string
+              format: date-time
+            updated_at:
+              type: string
+              format: date-time
+    PanelImageGenerationRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        instruction:
+          type: string
+          maxLength: 4000
+        reference_character_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+        reference_location_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+        idempotency_key:
+          type: string
+          maxLength: 128
+    ExportRequest:
+      type: object
+      additionalProperties: false
+      required: [format]
+      properties:
+        format:
+          type: string
+          enum: [png, production_json]
+        include_unapproved_panels:
+          type: boolean
+          default: false
+    GenerationTask:
+      type: object
+      additionalProperties: false
+      required: [id, task_type, status, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        task_type:
+          type: string
+          enum: [character_draft, scene_draft, storyboard_draft, panel_image, panel_image_edit, export]
+        status:
+          type: string
+          enum: [queued, running, succeeded, failed, cancelled]
+        progress:
+          type: [integer, 'null']
+          minimum: 0
+          maximum: 100
+        result:
+          oneOf:
+            - $ref: '#/components/schemas/SceneGenerationResult'
+            - $ref: '#/components/schemas/CharacterGenerationResult'
+            - $ref: '#/components/schemas/StoryboardGenerationResult'
+            - $ref: '#/components/schemas/PanelImageGenerationResult'
+            - $ref: '#/components/schemas/ExportResult'
+            - type: 'null'
+        error:
+          oneOf:
+            - $ref: '#/components/schemas/Problem'
+            - type: 'null'
+        retry_of_task_id:
+          type: [string, 'null']
+          format: uuid
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    CharacterGenerationResult:
+      type: object
+      additionalProperties: false
+      required: [character_ids]
+      properties:
+        character_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+    StoryboardGenerationResult:
+      type: object
+      additionalProperties: false
+      required: [episode_id, panel_ids]
+      properties:
+        episode_id:
+          type: string
+          format: uuid
+        panel_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+    PanelImageGenerationResult:
+      type: object
+      additionalProperties: false
+      required: [panel_id, asset_id]
+      properties:
+        panel_id:
+          type: string
+          format: uuid
+        asset_id:
+          type: string
+          format: uuid
+    SceneGenerationResult:
+      type: object
+      additionalProperties: false
+      required: [scene_ids]
+      properties:
+        scene_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+    PanelImageVersion:
+      type: object
+      additionalProperties: false
+      required: [id, panel_id, asset_id, image_url, is_current, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        panel_id:
+          type: string
+          format: uuid
+        asset_id:
+          type: string
+          format: uuid
+        image_url:
+          type: string
+          format: uri-reference
+        is_current:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+    ExportResult:
+      type: object
+      additionalProperties: false
+      required: [asset_id, download_url, expires_at]
+      properties:
+        asset_id:
+          type: string
+          format: uuid
+        download_url:
+          type: string
+          format: uri
+        expires_at:
+          type: string
+          format: date-time
+    Problem:
+      type: object
+      additionalProperties: true
+      required: [title, status]
+      properties:
+        type:
+          type: string
+          format: uri-reference
+          default: about:blank
+        title:
+          type: string
+        status:
+          type: integer
+          minimum: 400
+          maximum: 599
+        detail:
+          type: string
+        instance:
+          type: string
+          format: uri-reference
+        code:
+          type: string
+    ValidationProblem:
+      allOf:
+        - $ref: '#/components/schemas/Problem'
+        - type: object
+          required: [errors]
+          properties:
+            errors:
+              type: array
+              items:
+                type: object
+                required: [field, message]
+                properties:
+                  field:
+                    type: string
+                  message:
+                    type: string

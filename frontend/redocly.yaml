@@ -1,0 +1,9 @@
+extends:
+  - recommended
+rules:
+  # Authentication is intentionally deferred until the product access model is confirmed.
+  security-defined: off
+  # No license has been selected for this project yet.
+  info-license: off
+  # Draft operations use a shared default error response; refine per-operation errors during contract review.
+  operation-4xx-response: off
