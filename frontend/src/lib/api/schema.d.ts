@@ -245,6 +245,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/model-config/test-image": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Test the configured Qwen Image model connection */
+        post: operations["testImageModelConnection"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/assets/{asset_id}": {
         parameters: {
             query?: never;
@@ -1552,6 +1569,27 @@ export interface operations {
         requestBody?: never;
         responses: {
             /** @description Connection test result */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiSuccessModelConnectionTest"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    testImageModelConnection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Image connection test result */
             200: {
                 headers: {
                     [name: string]: unknown;

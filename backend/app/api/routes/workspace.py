@@ -12,7 +12,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.core.redis import require_rate_limit
-from app.core.security import check_csrf, current_account, require_project_owner_dependency
+from app.core.security import (
+    check_csrf,
+    current_account,
+    require_asset_owner,
+    require_character_owner,
+    require_episode_owner,
+    require_panel_owner,
+    require_project_owner_dependency,
+    require_scene_owner,
+    require_task_owner,
+)
 from app.db.models import (
     CharacterRecord,
     EpisodeRecord,
@@ -54,43 +64,14 @@ SessionDep = Annotated[AsyncSession, Depends(get_session)]
 
 
 async def require_workspace_account(request: Request, session: SessionDep) -> None:
+    """Populate request account state for legacy route handlers.
+
+    Resource ownership is enforced by each route's explicit dependency below;
+    this compatibility dependency intentionally does no path inspection.
+    """
     account = await current_account(request, session)
     request.state.account_id = account.id
     request.state.account = account
-    params = request.path_params
-    project_id = params.get("project_id")
-    if project_id is None and params.get("episode_id") is not None:
-        episode = await session.get(EpisodeRecord, params["episode_id"])
-        project_id = episode.project_id if episode else None
-    if project_id is None and params.get("panel_id") is not None:
-        panel = await session.get(PanelRecord, params["panel_id"])
-        episode = await session.get(EpisodeRecord, panel.episode_id) if panel else None
-        project_id = episode.project_id if episode else None
-    for parameter, model in (("character_id", CharacterRecord), ("scene_id", SceneRecord)):
-        if project_id is None and params.get(parameter) is not None:
-            resource = await session.get(model, params[parameter])
-            project_id = getattr(resource, "project_id", None)
-    if project_id is None and params.get("task_id") is not None:
-        task = await session.get(GenerationTaskRecord, params["task_id"])
-        project_id = task.project_id if task else None
-    if project_id is None and params.get("asset_id") is not None:
-        export = await session.get(ExportRecord, params["asset_id"])
-        if export is not None:
-            episode = await session.get(EpisodeRecord, export.episode_id)
-            project_id = episode.project_id if episode else None
-        else:
-            version = await session.scalar(
-                select(ImageVersionRecord).where(ImageVersionRecord.asset_id == params["asset_id"])
-            )
-            panel = await session.get(PanelRecord, version.panel_id) if version else None
-            episode = await session.get(EpisodeRecord, panel.episode_id) if panel else None
-            project_id = episode.project_id if episode else None
-    if project_id is not None:
-        project = await session.get(ProjectRecord, project_id)
-        if project is None or project.owner_id != account.id:
-            raise HTTPException(404, "资源不存在")
-    elif any(value is not None for value in params.values()):
-        raise HTTPException(404, "资源不存在")
 
 
 router = APIRouter(
@@ -145,7 +126,17 @@ async def _create_task(
     episode_id: UUID | None = None,
     panel_id: UUID | None = None,
     retry_of_task_id: UUID | None = None,
+    idempotency_key: str | None = None,
 ) -> GenerationTask:
+    if idempotency_key:
+        existing = await session.scalar(
+            select(GenerationTaskRecord).where(
+                GenerationTaskRecord.owner_id == owner_id,
+                GenerationTaskRecord.idempotency_key == idempotency_key,
+            )
+        )
+        if existing is not None:
+            return _task_view(existing)
     task = GenerationTaskRecord(
         owner_id=owner_id,
         project_id=project_id,
@@ -156,6 +147,7 @@ async def _create_task(
         progress=0,
         request_data=request_data,
         retry_of_task_id=retry_of_task_id,
+        idempotency_key=idempotency_key,
     )
     session.add(task)
     await session.commit()
@@ -245,7 +237,8 @@ async def delete_project(project_id: UUID, session: SessionDep) -> Response:
 
 
 @router.get(
-    "/projects/{project_id}/episodes", operation_id="listEpisodes", response_model=list[Episode]
+    "/projects/{project_id}/episodes", operation_id="listEpisodes", response_model=list[Episode],
+    dependencies=[Depends(require_project_owner_dependency)]
 )
 async def list_episodes(project_id: UUID, session: SessionDep) -> list[Episode]:
     if await session.get(ProjectRecord, project_id) is None:
@@ -263,6 +256,7 @@ async def list_episodes(project_id: UUID, session: SessionDep) -> list[Episode]:
     operation_id="createEpisode",
     response_model=Episode,
     status_code=201,
+    dependencies=[Depends(require_project_owner_dependency)],
 )
 async def create_episode(project_id: UUID, body: EpisodeCreate, session: SessionDep) -> Episode:
     if await session.get(ProjectRecord, project_id) is None:
@@ -284,7 +278,8 @@ async def create_episode(project_id: UUID, body: EpisodeCreate, session: Session
     return Episode.model_validate(record)
 
 
-@router.patch("/episodes/{episode_id}", operation_id="updateEpisode", response_model=Episode)
+@router.patch("/episodes/{episode_id}", operation_id="updateEpisode", response_model=Episode,
+              dependencies=[Depends(require_episode_owner)])
 async def update_episode(episode_id: UUID, body: EpisodePatch, session: SessionDep) -> Episode:
     record = await session.get(EpisodeRecord, episode_id)
     if record is None:
@@ -301,6 +296,7 @@ async def update_episode(episode_id: UUID, body: EpisodePatch, session: SessionD
     "/projects/{project_id}/characters",
     operation_id="listCharacters",
     response_model=list[Character],
+    dependencies=[Depends(require_project_owner_dependency)],
 )
 async def list_characters(project_id: UUID, session: SessionDep) -> list[Character]:
     if await session.get(ProjectRecord, project_id) is None:
@@ -312,7 +308,8 @@ async def list_characters(project_id: UUID, session: SessionDep) -> list[Charact
 
 
 @router.patch(
-    "/characters/{character_id}", operation_id="updateCharacter", response_model=Character
+    "/characters/{character_id}", operation_id="updateCharacter", response_model=Character,
+    dependencies=[Depends(require_character_owner)]
 )
 async def update_character(
     character_id: UUID, body: CharacterPatch, session: SessionDep
@@ -336,6 +333,7 @@ async def update_character(
     operation_id="generateCharacters",
     response_model=GenerationTask,
     status_code=202,
+    dependencies=[Depends(require_project_owner_dependency)],
 )
 async def generate_characters(
     project_id: UUID,
@@ -356,7 +354,8 @@ async def generate_characters(
     )
 
 
-@router.get("/projects/{project_id}/scenes", operation_id="listScenes", response_model=list[Scene])
+@router.get("/projects/{project_id}/scenes", operation_id="listScenes", response_model=list[Scene],
+            dependencies=[Depends(require_project_owner_dependency)])
 async def list_scenes(project_id: UUID, session: SessionDep) -> list[Scene]:
     if await session.get(ProjectRecord, project_id) is None:
         raise _not_found("项目")
@@ -364,7 +363,8 @@ async def list_scenes(project_id: UUID, session: SessionDep) -> list[Scene]:
     return [Scene.model_validate(item) for item in rows]
 
 
-@router.patch("/scenes/{scene_id}", operation_id="updateScene", response_model=Scene)
+@router.patch("/scenes/{scene_id}", operation_id="updateScene", response_model=Scene,
+              dependencies=[Depends(require_scene_owner)])
 async def update_scene(scene_id: UUID, body: ScenePatch, session: SessionDep) -> Scene:
     record = await session.get(SceneRecord, scene_id)
     if record is None:
@@ -385,6 +385,7 @@ async def update_scene(scene_id: UUID, body: ScenePatch, session: SessionDep) ->
     operation_id="generateScenes",
     response_model=GenerationTask,
     status_code=202,
+    dependencies=[Depends(require_project_owner_dependency)],
 )
 async def generate_scenes(
     project_id: UUID,
@@ -410,6 +411,7 @@ async def generate_scenes(
     operation_id="generateStoryboard",
     response_model=GenerationTask,
     status_code=202,
+    dependencies=[Depends(require_project_owner_dependency)],
 )
 async def generate_storyboard(
     project_id: UUID,
@@ -433,7 +435,10 @@ async def generate_storyboard(
 
 
 @router.get(
-    "/episodes/{episode_id}/panels", operation_id="listPanels", response_model=list[StoryboardPanel]
+    "/episodes/{episode_id}/panels",
+    operation_id="listPanels",
+    response_model=list[StoryboardPanel],
+    dependencies=[Depends(require_episode_owner)]
 )
 async def list_panels(episode_id: UUID, session: SessionDep) -> list[StoryboardPanel]:
     if await session.get(EpisodeRecord, episode_id) is None:
@@ -451,6 +456,7 @@ async def list_panels(episode_id: UUID, session: SessionDep) -> list[StoryboardP
     operation_id="createPanel",
     response_model=StoryboardPanel,
     status_code=201,
+    dependencies=[Depends(require_episode_owner)],
 )
 async def create_panel(
     episode_id: UUID, body: StoryboardPanelCreate, session: SessionDep
@@ -480,6 +486,7 @@ async def create_panel(
     "/episodes/{episode_id}/panels/order",
     operation_id="reorderPanels",
     response_model=list[StoryboardPanel],
+    dependencies=[Depends(require_episode_owner)],
 )
 async def reorder_panels(
     episode_id: UUID, body: PanelOrder, session: SessionDep
@@ -508,7 +515,8 @@ async def reorder_panels(
     return [StoryboardPanel.model_validate(_panel_view(row)) for row in ordered]
 
 
-@router.patch("/panels/{panel_id}", operation_id="updatePanel", response_model=StoryboardPanel)
+@router.patch("/panels/{panel_id}", operation_id="updatePanel", response_model=StoryboardPanel,
+              dependencies=[Depends(require_panel_owner)])
 async def update_panel(
     panel_id: UUID, body: StoryboardPanelPatch, session: SessionDep
 ) -> StoryboardPanel:
@@ -543,7 +551,8 @@ async def update_panel(
     return StoryboardPanel.model_validate(_panel_view(record))
 
 
-@router.delete("/panels/{panel_id}", operation_id="deletePanel", status_code=204)
+@router.delete("/panels/{panel_id}", operation_id="deletePanel", status_code=204,
+               dependencies=[Depends(require_panel_owner)])
 async def delete_panel(panel_id: UUID, session: SessionDep) -> Response:
     record = await session.get(PanelRecord, panel_id)
     if record is None:
@@ -575,6 +584,7 @@ async def delete_panel(panel_id: UUID, session: SessionDep) -> Response:
     operation_id="generatePanelImage",
     response_model=GenerationTask,
     status_code=202,
+    dependencies=[Depends(require_panel_owner)],
 )
 async def generate_panel_image(
     panel_id: UUID,
@@ -599,6 +609,7 @@ async def generate_panel_image(
         panel_id=panel.id,
         task_type=task_type,
         request_data=body.model_dump(mode="json"),
+        idempotency_key=body.idempotency_key,
     )
 
 
@@ -606,6 +617,7 @@ async def generate_panel_image(
     "/panels/{panel_id}/image-versions",
     operation_id="listPanelImageVersions",
     response_model=list[PanelImageVersion],
+    dependencies=[Depends(require_panel_owner)],
 )
 async def list_panel_image_versions(panel_id: UUID, session: SessionDep) -> list[PanelImageVersion]:
     panel = await session.get(PanelRecord, panel_id)
@@ -633,6 +645,7 @@ async def list_panel_image_versions(panel_id: UUID, session: SessionDep) -> list
     "/panels/{panel_id}/image-versions/{version_id}/selection",
     operation_id="selectPanelImageVersion",
     response_model=PanelImageVersion,
+    dependencies=[Depends(require_panel_owner)],
 )
 async def select_panel_image_version(
     panel_id: UUID, version_id: UUID, session: SessionDep
@@ -656,7 +669,8 @@ async def select_panel_image_version(
 
 
 @router.get(
-    "/generation-tasks/{task_id}", operation_id="getGenerationTask", response_model=GenerationTask
+    "/generation-tasks/{task_id}", operation_id="getGenerationTask", response_model=GenerationTask,
+    dependencies=[Depends(require_task_owner)]
 )
 async def get_generation_task(task_id: UUID, session: SessionDep) -> GenerationTask:
     task = await session.get(GenerationTaskRecord, task_id)
@@ -670,6 +684,7 @@ async def get_generation_task(task_id: UUID, session: SessionDep) -> GenerationT
     operation_id="retryGenerationTask",
     response_model=GenerationTask,
     status_code=202,
+    dependencies=[Depends(require_task_owner)],
 )
 async def retry_generation_task(
     task_id: UUID, request: Request, background_tasks: BackgroundTasks, session: SessionDep
@@ -697,6 +712,7 @@ async def retry_generation_task(
     operation_id="createEpisodeExport",
     response_model=GenerationTask,
     status_code=202,
+    dependencies=[Depends(require_episode_owner)],
 )
 async def create_episode_export(
     episode_id: UUID,
@@ -719,7 +735,8 @@ async def create_episode_export(
     )
 
 
-@router.get("/exports/{asset_id}", operation_id="downloadExport")
+@router.get("/exports/{asset_id}", operation_id="downloadExport",
+            dependencies=[Depends(require_asset_owner)])
 async def download_export(asset_id: UUID, session: SessionDep) -> Response:
     record = await session.get(ExportRecord, asset_id)
     if record is None:
@@ -735,7 +752,8 @@ async def download_export(asset_id: UUID, session: SessionDep) -> Response:
     )
 
 
-@router.get("/assets/{asset_id}", operation_id="getImageAsset")
+@router.get("/assets/{asset_id}", operation_id="getImageAsset",
+            dependencies=[Depends(require_asset_owner)])
 async def get_image_asset(asset_id: UUID) -> FileResponse:
     storage = await asyncio.to_thread(Path(get_settings().image_storage_dir).resolve)
     for suffix, media_type in (
