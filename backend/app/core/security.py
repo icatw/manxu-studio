@@ -11,6 +11,7 @@ from fastapi import HTTPException, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.api_responses import ApiError
 from app.core.config import get_settings
 from app.db.models import AccountRecord, AccountSessionRecord
 
@@ -64,7 +65,11 @@ def check_csrf(request: Request) -> None:
     cookie = request.cookies.get("manxu_csrf")
     header = request.headers.get("x-csrf-token")
     if not cookie or not header or not hmac.compare_digest(cookie, header):
-        raise HTTPException(403, "请求校验失败，请刷新页面后重试")
+        raise ApiError(
+            "CSRF_INVALID",
+            "请求校验失败，请刷新页面后重试。",
+            status_code=403,
+        )
 
 
 async def validate_public_https_url(url: str) -> None:

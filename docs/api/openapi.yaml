@@ -46,7 +46,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HealthStatus'
+                $ref: '#/components/schemas/ApiSuccessHealthStatus'
   /version:
     get:
       security: []
@@ -59,7 +59,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/VersionInfo'
+                $ref: '#/components/schemas/ApiSuccessVersionInfo'
   /projects:
     get:
       tags: [Projects]
@@ -75,7 +75,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ProjectPage'
+                $ref: '#/components/schemas/ApiSuccessProjectPage'
         default:
           $ref: '#/components/responses/UnexpectedError'
     post:
@@ -95,7 +95,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Project'
+                $ref: '#/components/schemas/ApiSuccessProject'
         '422':
           $ref: '#/components/responses/ValidationError'
         default:
@@ -156,7 +156,7 @@ paths:
           description: Current account
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/Account' }
+              schema: { $ref: '#/components/schemas/ApiSuccessAccount' }
         '401':
           $ref: '#/components/responses/Unauthorized'
     patch:
@@ -174,7 +174,7 @@ paths:
           description: Updated current account
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/Account' }
+              schema: { $ref: '#/components/schemas/ApiSuccessAccount' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '422': { $ref: '#/components/responses/ValidationError' }
   /auth/logout:
@@ -198,7 +198,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ModelConfig'
+                $ref: '#/components/schemas/ApiSuccessModelConfig'
         default:
           $ref: '#/components/responses/UnexpectedError'
     put:
@@ -216,7 +216,7 @@ paths:
           description: Updated settings without secret values
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/ModelConfig' }
+              schema: { $ref: '#/components/schemas/ApiSuccessModelConfig' }
         '422': { $ref: '#/components/responses/ValidationError' }
   /model-config/test:
     post:
@@ -229,7 +229,7 @@ paths:
           description: Connection test result
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/ModelConnectionTest' }
+              schema: { $ref: '#/components/schemas/ApiSuccessModelConnectionTest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
   /assets/{asset_id}:
     parameters:
@@ -265,7 +265,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Project'
+                $ref: '#/components/schemas/ApiSuccessProject'
         '404':
           $ref: '#/components/responses/NotFound'
         default:
@@ -287,7 +287,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Project'
+                $ref: '#/components/schemas/ApiSuccessProject'
         '404':
           $ref: '#/components/responses/NotFound'
         '422':
@@ -321,9 +321,7 @@ paths:
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/Episode'
+                $ref: '#/components/schemas/ApiSuccessEpisodeList'
         '404':
           $ref: '#/components/responses/NotFound'
         default:
@@ -345,7 +343,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Episode'
+                $ref: '#/components/schemas/ApiSuccessEpisode'
         '404':
           $ref: '#/components/responses/NotFound'
         '422':
@@ -373,7 +371,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Episode'
+                $ref: '#/components/schemas/ApiSuccessEpisode'
         '404':
           $ref: '#/components/responses/NotFound'
         '422':
@@ -395,9 +393,7 @@ paths:
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/Scene'
+                $ref: '#/components/schemas/ApiSuccessSceneList'
         '404':
           $ref: '#/components/responses/NotFound'
         default:
@@ -428,7 +424,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Scene'
+                $ref: '#/components/schemas/ApiSuccessScene'
         '404':
           $ref: '#/components/responses/NotFound'
         '422':
@@ -456,7 +452,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenerationTask'
+                $ref: '#/components/schemas/ApiSuccessGenerationTask'
         '404':
           $ref: '#/components/responses/NotFound'
         '422':
@@ -478,9 +474,7 @@ paths:
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/Character'
+                $ref: '#/components/schemas/ApiSuccessCharacterList'
         '404':
           $ref: '#/components/responses/NotFound'
         default:
@@ -511,7 +505,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Character'
+                $ref: '#/components/schemas/ApiSuccessCharacter'
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
@@ -547,7 +541,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenerationTask'
+                $ref: '#/components/schemas/ApiSuccessGenerationTask'
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
@@ -583,7 +577,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenerationTask'
+                $ref: '#/components/schemas/ApiSuccessGenerationTask'
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
@@ -607,9 +601,7 @@ paths:
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/StoryboardPanel'
+                $ref: '#/components/schemas/ApiSuccessStoryboardPanelList'
         '404':
           $ref: '#/components/responses/NotFound'
         default:
@@ -631,7 +623,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/StoryboardPanel'
+                $ref: '#/components/schemas/ApiSuccessStoryboardPanel'
         '404':
           $ref: '#/components/responses/NotFound'
         '422':
@@ -659,9 +651,7 @@ paths:
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/StoryboardPanel'
+                $ref: '#/components/schemas/ApiSuccessStoryboardPanelList'
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
@@ -691,7 +681,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/StoryboardPanel'
+                $ref: '#/components/schemas/ApiSuccessStoryboardPanel'
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
@@ -727,9 +717,7 @@ paths:
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/PanelImageVersion'
+                $ref: '#/components/schemas/ApiSuccessPanelImageVersionList'
         '404':
           $ref: '#/components/responses/NotFound'
         default:
@@ -755,7 +743,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PanelImageVersion'
+                $ref: '#/components/schemas/ApiSuccessPanelImageVersion'
         '404':
           $ref: '#/components/responses/NotFound'
         default:
@@ -787,7 +775,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenerationTask'
+                $ref: '#/components/schemas/ApiSuccessGenerationTask'
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
@@ -811,7 +799,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenerationTask'
+                $ref: '#/components/schemas/ApiSuccessGenerationTask'
         '404':
           $ref: '#/components/responses/NotFound'
         default:
@@ -831,7 +819,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenerationTask'
+                $ref: '#/components/schemas/ApiSuccessGenerationTask'
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
@@ -859,7 +847,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenerationTask'
+                $ref: '#/components/schemas/ApiSuccessGenerationTask'
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
@@ -886,9 +874,6 @@ paths:
         '200':
           description: Export file
           content:
-            application/json:
-              schema:
-                type: object
             image/png:
               schema:
                 type: string
@@ -952,33 +937,161 @@ components:
     Unauthorized:
       description: Authentication is required
       content:
-        application/problem+json:
-          schema: { $ref: '#/components/schemas/Problem' }
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiErrorEnvelope' }
     NotFound:
       description: Resource not found
       content:
-        application/problem+json:
-          schema:
-            $ref: '#/components/schemas/Problem'
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiErrorEnvelope' }
     Conflict:
       description: Operation conflicts with the current resource state
       content:
-        application/problem+json:
-          schema:
-            $ref: '#/components/schemas/Problem'
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiErrorEnvelope' }
     ValidationError:
       description: Request validation failed
       content:
-        application/problem+json:
-          schema:
-            $ref: '#/components/schemas/ValidationProblem'
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiValidationErrorEnvelope' }
     UnexpectedError:
       description: Unexpected server error
       content:
-        application/problem+json:
-          schema:
-            $ref: '#/components/schemas/Problem'
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiErrorEnvelope' }
   schemas:
+    ApiSuccessEnvelope:
+      type: object
+      additionalProperties: false
+      required: [code, message, data, request_id]
+      properties:
+        code: { type: string, const: OK }
+        message: { type: string }
+        data: {}
+        request_id: { type: string, format: uuid }
+    ApiErrorEnvelope:
+      type: object
+      additionalProperties: false
+      required: [code, message, data, request_id]
+      properties:
+        code:
+          type: string
+          enum: [BAD_REQUEST, AUTH_REQUIRED, FORBIDDEN, CSRF_INVALID, NOT_FOUND, CONFLICT, RATE_LIMITED, SERVICE_UNAVAILABLE, HTTP_ERROR, INTERNAL_ERROR]
+        message: { type: string }
+        data: { type: 'null' }
+        request_id: { type: string, format: uuid }
+    ApiValidationErrorEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/ApiErrorEnvelope'
+        - type: object
+          required: [errors]
+          properties:
+            code: { type: string, const: VALIDATION_FAILED }
+            errors:
+              type: array
+              items:
+                type: object
+                additionalProperties: false
+                required: [field, code, message]
+                properties:
+                  field: { type: string }
+                  code: { type: string }
+                  message: { type: string }
+    ApiSuccessHealthStatus:
+      allOf:
+        - $ref: '#/components/schemas/ApiSuccessEnvelope'
+        - type: object
+          properties: { data: { $ref: '#/components/schemas/HealthStatus' } }
+    ApiSuccessVersionInfo:
+      allOf:
+        - $ref: '#/components/schemas/ApiSuccessEnvelope'
+        - type: object
+          properties: { data: { $ref: '#/components/schemas/VersionInfo' } }
+    ApiSuccessAccount:
+      allOf:
+        - $ref: '#/components/schemas/ApiSuccessEnvelope'
+        - type: object
+          properties: { data: { $ref: '#/components/schemas/Account' } }
+    ApiSuccessModelConfig:
+      allOf:
+        - $ref: '#/components/schemas/ApiSuccessEnvelope'
+        - type: object
+          properties: { data: { $ref: '#/components/schemas/ModelConfig' } }
+    ApiSuccessModelConnectionTest:
+      allOf:
+        - $ref: '#/components/schemas/ApiSuccessEnvelope'
+        - type: object
+          properties: { data: { $ref: '#/components/schemas/ModelConnectionTest' } }
+    ApiSuccessProject:
+      allOf:
+        - $ref: '#/components/schemas/ApiSuccessEnvelope'
+        - type: object
+          properties: { data: { $ref: '#/components/schemas/Project' } }
+    ApiSuccessProjectPage:
+      allOf:
+        - $ref: '#/components/schemas/ApiSuccessEnvelope'
+        - type: object
+          properties: { data: { $ref: '#/components/schemas/ProjectPage' } }
+    ApiSuccessEpisode:
+      allOf:
+        - $ref: '#/components/schemas/ApiSuccessEnvelope'
+        - type: object
+          properties: { data: { $ref: '#/components/schemas/Episode' } }
+    ApiSuccessEpisodeList:
+      allOf:
+        - $ref: '#/components/schemas/ApiSuccessEnvelope'
+        - type: object
+          properties:
+            data: { type: array, items: { $ref: '#/components/schemas/Episode' } }
+    ApiSuccessCharacter:
+      allOf:
+        - $ref: '#/components/schemas/ApiSuccessEnvelope'
+        - type: object
+          properties: { data: { $ref: '#/components/schemas/Character' } }
+    ApiSuccessCharacterList:
+      allOf:
+        - $ref: '#/components/schemas/ApiSuccessEnvelope'
+        - type: object
+          properties:
+            data: { type: array, items: { $ref: '#/components/schemas/Character' } }
+    ApiSuccessScene:
+      allOf:
+        - $ref: '#/components/schemas/ApiSuccessEnvelope'
+        - type: object
+          properties: { data: { $ref: '#/components/schemas/Scene' } }
+    ApiSuccessSceneList:
+      allOf:
+        - $ref: '#/components/schemas/ApiSuccessEnvelope'
+        - type: object
+          properties:
+            data: { type: array, items: { $ref: '#/components/schemas/Scene' } }
+    ApiSuccessStoryboardPanel:
+      allOf:
+        - $ref: '#/components/schemas/ApiSuccessEnvelope'
+        - type: object
+          properties: { data: { $ref: '#/components/schemas/StoryboardPanel' } }
+    ApiSuccessStoryboardPanelList:
+      allOf:
+        - $ref: '#/components/schemas/ApiSuccessEnvelope'
+        - type: object
+          properties:
+            data: { type: array, items: { $ref: '#/components/schemas/StoryboardPanel' } }
+    ApiSuccessPanelImageVersion:
+      allOf:
+        - $ref: '#/components/schemas/ApiSuccessEnvelope'
+        - type: object
+          properties: { data: { $ref: '#/components/schemas/PanelImageVersion' } }
+    ApiSuccessPanelImageVersionList:
+      allOf:
+        - $ref: '#/components/schemas/ApiSuccessEnvelope'
+        - type: object
+          properties:
+            data: { type: array, items: { $ref: '#/components/schemas/PanelImageVersion' } }
+    ApiSuccessGenerationTask:
+      allOf:
+        - $ref: '#/components/schemas/ApiSuccessEnvelope'
+        - type: object
+          properties: { data: { $ref: '#/components/schemas/GenerationTask' } }
     HealthStatus:
       type: object
       additionalProperties: false
