@@ -7,6 +7,7 @@ from sqlalchemy import func, select
 from app.core.logging import api_logger
 from app.db.models import GenerationTaskRecord, ProjectRecord
 from app.db.session import SessionFactory, engine
+from app.providers.errors import RecoverableProviderError
 from app.tasks.registry import get_handler
 from app.tasks.types import failure_for
 
@@ -92,6 +93,19 @@ async def run_generation_task(task_id: UUID) -> None:
                 )
                 await _mark_interrupted(task_id)
                 raise
+            except RecoverableProviderError as error:
+                # Keep provider/text checkpoints; reclaim will resume the same task.
+                api_logger.warning(
+                    "generation_task_recoverable",
+                    extra={
+                        "event": "generation_task_recoverable",
+                        "task_id": str(task_id),
+                        "task_type": task_type,
+                        "error_type": type(error).__name__,
+                    },
+                )
+                await _mark_interrupted(task_id)
+                return
             except Exception:
                 failure_id = str(uuid4())
                 api_logger.exception(

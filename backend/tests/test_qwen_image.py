@@ -5,6 +5,7 @@ from uuid import uuid4
 import pytest
 
 from app.providers import local_store, qwen_image
+from app.providers.errors import RecoverableProviderError
 
 
 class FakeResponse:
@@ -197,7 +198,7 @@ async def test_qwen_image_resume_probe_429_does_not_resubmit(
     monkeypatch.setattr(qwen_image, "get_settings", lambda: settings)
     monkeypatch.setattr(local_store, "get_settings", lambda: settings)
 
-    with pytest.raises(ValueError, match="查询 Qwen Image 任务失败"):
+    with pytest.raises(RecoverableProviderError, match="查询 Qwen Image 任务失败"):
         await qwen_image.generate_image(
             api_key="private",
             model="qwen-image-3.0-pro",
@@ -231,7 +232,7 @@ async def test_qwen_image_resume_probe_5xx_does_not_resubmit(
     monkeypatch.setattr(qwen_image, "get_settings", lambda: settings)
     monkeypatch.setattr(local_store, "get_settings", lambda: settings)
 
-    with pytest.raises(ValueError, match="查询 Qwen Image 任务失败"):
+    with pytest.raises(RecoverableProviderError, match="查询 Qwen Image 任务失败"):
         await qwen_image.generate_image(
             api_key="private",
             model="qwen-image-3.0-pro",

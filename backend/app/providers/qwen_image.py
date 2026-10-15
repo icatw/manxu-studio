@@ -7,10 +7,16 @@ import httpx
 
 from app.core.config import get_settings
 from app.core.security import validate_public_https_url
+from app.providers.errors import RecoverableProviderError
 from app.providers.local_store import LocalObjectStore
 
 OnSubmitted = Callable[[str], Awaitable[None]]
 _TERMINAL_REMOTE = frozenset({"FAILED", "CANCELED", "UNKNOWN"})
+
+
+def _raise_query_failure(status_code: int) -> None:
+    # Any non-success query while a remote job may exist must stay resumable.
+    raise RecoverableProviderError(f"查询 Qwen Image 任务失败（HTTP {status_code}）")
 
 
 def normalize_dashscope_api_base(configured_base_url: str) -> str:
@@ -64,8 +70,8 @@ class QwenImageProvider:
                 elif probe.status_code == 404:
                     task_id = None
                 else:
-                    # 429 / 5xx / other transient probe failures must not spawn a new billable job.
-                    raise ValueError(f"查询 Qwen Image 任务失败（HTTP {probe.status_code}）")
+                    # Transient probe failures must not spawn a new billable job.
+                    _raise_query_failure(probe.status_code)
 
             if not task_id:
                 endpoint = f"{api_root}/services/aigc/image-generation/generation"
@@ -81,6 +87,10 @@ class QwenImageProvider:
                 if not response.is_success:
                     if response.status_code in {401, 403}:
                         raise ValueError("Qwen Image 认证失败，请检查图像 API Key")
+                    if response.status_code == 429 or response.status_code >= 500:
+                        raise RecoverableProviderError(
+                            f"Qwen Image 提交失败（HTTP {response.status_code}）"
+                        )
                     raise ValueError(f"Qwen Image 提交失败（HTTP {response.status_code}）")
                 task_id = response.json().get("output", {}).get("task_id")
                 if not task_id:
@@ -96,8 +106,7 @@ class QwenImageProvider:
                     headers=auth_headers,
                 )
                 if not task_response.is_success:
-                    status_code = task_response.status_code
-                    raise ValueError(f"查询 Qwen Image 任务失败（HTTP {status_code}）")
+                    _raise_query_failure(task_response.status_code)
                 output = task_response.json().get("output", {})
                 status = output.get("task_status")
                 if status == "SUCCEEDED":
@@ -110,12 +119,13 @@ class QwenImageProvider:
                 if status in _TERMINAL_REMOTE:
                     raise ValueError("Qwen Image 生成失败，请检查提示词和账户额度后重试")
             if not image_url:
-                raise ValueError("Qwen Image 任务超时或未返回图像")
+                # Remote job may still be running; keep checkpoint and resume later.
+                raise RecoverableProviderError("Qwen Image 任务超时或未返回图像")
 
             await validate_public_https_url(image_url)
             download = await client.get(image_url)
             if not download.is_success:
-                raise ValueError("下载 Qwen Image 结果失败")
+                raise RecoverableProviderError("下载 Qwen Image 结果失败")
             content_type = download.headers.get("content-type", "").split(";", 1)[0].lower()
             extensions = {"image/png": ".png", "image/jpeg": ".jpg", "image/webp": ".webp"}
             extension = extensions.get(content_type)

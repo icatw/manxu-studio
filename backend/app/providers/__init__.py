@@ -1,5 +1,6 @@
 """Vendor adapters for text, image, and object storage."""
 
+from app.providers.errors import RecoverableProviderError
 from app.providers.local_store import LocalObjectStore
 from app.providers.openai_compatible import (
     OpenAICompatibleTextProvider,
@@ -16,6 +17,7 @@ __all__ = [
     "LocalObjectStore",
     "OpenAICompatibleTextProvider",
     "QwenImageProvider",
+    "RecoverableProviderError",
     "generate_image",
     "generate_qwen_image",
     "generate_structured_text",

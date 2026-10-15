@@ -14,6 +14,7 @@ from app.db.models import (
     SceneRecord,
 )
 from app.providers import generate_image, generate_structured_text
+from app.providers.errors import RecoverableProviderError
 from app.tasks.prompts import SCENE_DRAFT
 from app.tasks.provider_jobs import (
     bind_image_job,
@@ -71,9 +72,9 @@ async def generate_scenes(
     else:
         checkpoint = text_checkpoint(task, "scenes")
         if checkpoint is not None:
-            scene_ids = [UUID(str(item)) for item in checkpoint.get("scene_ids", [])]
+            checkpoint_ids = [UUID(str(item)) for item in checkpoint.get("scene_ids", [])]
             by_id = {scene.id: scene for scene in existing}
-            generated_scenes = [by_id[scene_id] for scene_id in scene_ids if scene_id in by_id]
+            generated_scenes = [by_id[scene_id] for scene_id in checkpoint_ids if scene_id in by_id]
             if not generated_scenes:
                 raise ValueError("场景文字设定检查点存在，但场景记录已丢失")
             await report_progress(session, task, 45)
@@ -169,6 +170,9 @@ async def generate_scenes(
                 )
                 scene.reference_asset_id = asset_id
                 await session.commit()
+            except RecoverableProviderError:
+                # Transient image errors must not finish as succeeded; runtime requeues.
+                raise
             except Exception as error:
                 warnings.append(f"{scene.name}参考图生成失败，可稍后单独重试。")
                 api_logger.warning(

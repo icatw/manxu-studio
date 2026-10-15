@@ -10,6 +10,7 @@ from app.db.models import (
     ProjectRecord,
     SceneRecord,
 )
+from app.providers.errors import RecoverableProviderError
 from app.schemas.workspace import SceneProfile
 from app.tasks.handlers import characters as character_handler
 from app.tasks.handlers import scenes as scene_handler
@@ -383,6 +384,82 @@ async def test_character_text_regen_clears_stale_image_checkpoint(
     assert character_job is not None
     assert character_job.get("remote_task_id") != "stale-remote"
     assert character.name == "新角色"
+
+
+@pytest.mark.asyncio
+async def test_character_recoverable_image_error_is_not_swallowed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_id = uuid4()
+    owner_id = uuid4()
+    character_id = uuid4()
+    character = CharacterRecord(project_id=project_id, status="draft")
+    character.id = character_id
+    character.name = "沈知遥"
+    character.profile = {"generation_source": "ai", "image_prompt": "提示词"}
+    character.reference_asset_id = None
+    project = SimpleNamespace(
+        id=project_id,
+        owner_id=owner_id,
+        title="雨夜的旧车站",
+        synopsis="梗概",
+        genre="悬疑",
+        art_style="电影感写实",
+    )
+    config = SimpleNamespace(
+        text_api_key_encrypted=b"text-encrypted",
+        text_base_url="https://text.example/v1",
+        text_model="text-model",
+        image_api_key_encrypted=b"image-encrypted",
+        image_base_url="https://image.example/v1",
+        image_model="qwen-image-test",
+    )
+
+    class FakeSession:
+        async def get(self, model: type[object], record_id: object) -> object:
+            if model is ProjectRecord:
+                return project
+            if model is CharacterRecord:
+                return character
+            raise AssertionError(f"Unexpected model: {model}")
+
+        async def scalars(self, query: object) -> SimpleNamespace:
+            return SimpleNamespace(all=lambda: [character])
+
+        async def flush(self) -> None:
+            pass
+
+        async def commit(self) -> None:
+            pass
+
+    async def configured_model(session: object, account_id: object) -> SimpleNamespace:
+        return config
+
+    async def generate_image(**kwargs: object) -> str:
+        raise RecoverableProviderError("查询 Qwen Image 任务失败（HTTP 429）")
+
+    monkeypatch.setattr(character_handler, "require_text_model", configured_model)
+    monkeypatch.setattr(character_handler, "decrypt_secret", lambda _: "secret")
+    monkeypatch.setattr(
+        character_handler,
+        "generate_structured_text",
+        lambda **_: (_ for _ in ()).throw(AssertionError("should use text checkpoint")),
+    )
+    monkeypatch.setattr(character_handler, "generate_image", generate_image)
+
+    task = SimpleNamespace(
+        id=uuid4(),
+        project_id=project_id,
+        progress=5,
+        request_data={
+            "text_checkpoints": {
+                "characters": {"done": True, "character_ids": [str(character_id)]}
+            },
+            "provider_jobs": {},
+        },
+    )
+    with pytest.raises(RecoverableProviderError, match="429"):
+        await character_handler.generate_characters(FakeSession(), task)  # type: ignore[arg-type]
 
 
 @pytest.mark.asyncio
