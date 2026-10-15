@@ -1,4 +1,4 @@
-import { Route, Routes, useParams } from "react-router";
+import { Navigate, Route, Routes, useParams } from "react-router";
 import { StudioWorkspace } from "./components/studio/studio-workspace";
 import { ProjectLibrary } from "./components/studio/project-library";
 import { AccountGate } from "./components/auth/account-gate";
@@ -8,6 +8,7 @@ export default function App() {
   return (
     <AccountGate>
       <Routes>
+        <Route path="/login" element={<Navigate to="/projects" replace />} />
         <Route path="/" element={<ProjectLibrary />} />
         <Route path="/projects" element={<ProjectLibrary />} />
         <Route path="/settings" element={<SettingsPage />} />

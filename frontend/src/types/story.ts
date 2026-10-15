@@ -28,6 +28,6 @@ export interface SceneAsset {
   description: string
   mood: string
   imageUrl: string
-  imageSource: AssetSource
+  imageSource: AssetSource | null
   confirmed?: boolean
 }

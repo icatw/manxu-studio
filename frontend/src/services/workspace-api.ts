@@ -116,14 +116,18 @@ export function toComicProject(workspace: WorkspaceData): ComicProject {
   const characterAssets: Character[] = characters.map((character) => ({
     id: character.id,
     name: character.name,
-    role: "故事角色",
+    generationSource: character.profile.generation_source,
+    role: character.profile.role,
     appearance: character.profile.appearance,
-    hairstyle: character.profile.visual_traits[0] ?? "",
+    hairstyle: character.profile.hairstyle,
     clothing: character.profile.outfit,
-    signatureTraits: character.profile.visual_traits.join("、"),
+    signatureTraits: character.profile.signature_traits.join("、"),
     personality: character.profile.personality,
-    referenceImageUrl: "",
-    referenceImageSource: "ai",
+    imagePrompt: character.profile.image_prompt,
+    referenceImageUrl: character.reference_asset_id
+      ? `/api/v1/assets/${character.reference_asset_id}`
+      : "",
+    referenceImageSource: character.reference_asset_id ? "ai" : null,
     confirmed: character.status === "approved",
   }));
   const sceneAssets: SceneAsset[] = scenes.map((scene) => ({
@@ -131,8 +135,8 @@ export function toComicProject(workspace: WorkspaceData): ComicProject {
     name: scene.name,
     description: scene.profile.description,
     mood: [scene.profile.lighting, scene.profile.palette].filter(Boolean).join("、"),
-    imageUrl: "",
-    imageSource: "ai",
+    imageUrl: scene.reference_asset_id ? `/api/v1/assets/${scene.reference_asset_id}` : "",
+    imageSource: scene.reference_asset_id ? "ai" : null,
     confirmed: scene.status === "approved",
   }));
   const panelAssets: StoryboardPanel[] = panels.map((panel, index) => {
@@ -196,10 +200,15 @@ export function toCharacterPatch(character: Character) {
     name: character.name,
     status: character.confirmed ? ("approved" as const) : ("draft" as const),
     profile: {
+      generation_source: character.generationSource,
+      role: character.role,
       appearance: character.appearance,
+      hairstyle: character.hairstyle,
       outfit: character.clothing,
+      signature_traits: character.signatureTraits.split("、").filter(Boolean),
       personality: character.personality,
       visual_traits: [character.hairstyle, character.signatureTraits].filter(Boolean),
+      image_prompt: character.imagePrompt,
     },
   };
 }
@@ -238,11 +247,36 @@ export async function waitForTask(
   onProgress?: (progress: number) => void,
   signal?: AbortSignal,
 ): Promise<TaskDto> {
+  const delay = (milliseconds: number) => new Promise<void>((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(new DOMException("Aborted", "AbortError"));
+      return;
+    }
+    const timeout = window.setTimeout(() => {
+      signal?.removeEventListener("abort", abort);
+      resolve();
+    }, milliseconds);
+    const abort = () => {
+      window.clearTimeout(timeout);
+      reject(new DOMException("Aborted", "AbortError"));
+    };
+    signal?.addEventListener("abort", abort, { once: true });
+  });
+
+  let pollDelayMs = 2000;
   while (!signal?.aborted) {
     const { data, error } = await api.GET("/generation-tasks/{task_id}", {
       params: { path: { task_id: taskId } },
       signal,
     });
+    if (error) {
+      const apiError = failure(error);
+      if ("code" in apiError && apiError.code === "RATE_LIMITED") {
+        await delay(Math.max(pollDelayMs, 5000));
+        pollDelayMs = Math.min(pollDelayMs + 1000, 15000);
+        continue;
+      }
+    }
     const task = required(data, error);
     onProgress?.(task.progress ?? 0);
     if (task.status === "succeeded") return task;
@@ -251,13 +285,8 @@ export async function waitForTask(
       throw new Error(typeof detail === "string" ? detail : "任务失败，请重试");
     }
     if (task.status === "cancelled") throw new Error("任务已取消");
-    await new Promise<void>((resolve, reject) => {
-      const timeout = window.setTimeout(resolve, 900);
-      signal?.addEventListener("abort", () => {
-        window.clearTimeout(timeout);
-        reject(new DOMException("Aborted", "AbortError"));
-      }, { once: true });
-    });
+    await delay(pollDelayMs);
+    pollDelayMs = Math.min(pollDelayMs + 1000, 15000);
   }
   throw new DOMException("Aborted", "AbortError");
 }
@@ -268,21 +297,53 @@ export async function generateStoryAssets(
   panelCount: number,
   options: { regenerateCharacters?: boolean } = {},
 ) {
+  const warnings: string[] = [];
   if (options.regenerateCharacters !== false) {
     const { data: charactersTask, error: charactersError } = await api.POST(
       "/projects/{project_id}/character-generations",
       { params: { path: { project_id: projectId } }, body: {} },
     );
-    await waitForTask(required(charactersTask, charactersError).id);
+    const characterResult = await waitForTask(required(charactersTask, charactersError).id);
+    const taskWarnings = characterResult.result && "warnings" in characterResult.result
+      ? characterResult.result.warnings
+      : undefined;
+    if (Array.isArray(taskWarnings)) {
+      warnings.push(...taskWarnings.filter((warning): warning is string => typeof warning === "string"));
+    }
     const { data: scenesTask, error: scenesError } = await api.POST(
       "/projects/{project_id}/scene-generations",
-      { params: { path: { project_id: projectId } }, body: { episode_id: episodeId } },
+      {
+        params: { path: { project_id: projectId } },
+        body: { episode_id: episodeId, image_only: false },
+      },
     );
-    await waitForTask(required(scenesTask, scenesError).id);
+    const sceneResult = await waitForTask(required(scenesTask, scenesError).id);
+    const sceneWarnings = sceneResult.result && "scene_ids" in sceneResult.result
+      ? sceneResult.result.warnings
+      : undefined;
+    if (Array.isArray(sceneWarnings)) {
+      warnings.push(...sceneWarnings.filter((warning): warning is string => typeof warning === "string"));
+    }
   }
   const { data, error } = await api.POST("/projects/{project_id}/storyboard-generations", {
     params: { path: { project_id: projectId } },
     body: { episode_id: episodeId, panel_count: panelCount, pacing: "balanced", use_approved_assets: true },
   });
-  return waitForTask(required(data, error).id);
+  const task = await waitForTask(required(data, error).id);
+  return { task, warnings };
+}
+
+export async function generateSceneReferences(projectId: string) {
+  const { data, error } = await api.POST("/projects/{project_id}/scene-generations", {
+    params: { path: { project_id: projectId } },
+    body: { image_only: true },
+  });
+  const task = await waitForTask(required(data, error).id);
+  const result = task.result && "scene_ids" in task.result ? task.result : undefined;
+  return {
+    task,
+    warnings: Array.isArray(result?.warnings)
+      ? result.warnings.filter((warning): warning is string => typeof warning === "string")
+      : [],
+  };
 }

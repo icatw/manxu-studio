@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query"
 import { useEffect, useState } from "react"
 import { ArrowLeft, Github, LoaderCircle, Mail, ShieldCheck } from "lucide-react"
-import { useSearchParams } from "react-router"
+import { Navigate, useLocation, useSearchParams } from "react-router"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { api } from "@/lib/api/client"
@@ -16,6 +16,7 @@ const AUTH_ERRORS: Record<string, string> = {
 }
 
 export function AccountGate({ children }: { children: React.ReactNode }) {
+  const location = useLocation()
   const [searchParams] = useSearchParams()
   const auth = useQuery({
     queryKey: ["current-account"],
@@ -90,6 +91,9 @@ export function AccountGate({ children }: { children: React.ReactNode }) {
     return <main className="grid min-h-dvh place-items-center text-sm text-muted-foreground"><LoaderCircle className="mr-2 size-4 animate-spin" />正在验证账户…</main>
   }
   if (auth.data) return children
+  if (location.pathname !== "/login") {
+    return <Navigate to={`/login${location.search}`} replace />
+  }
 
   const error = searchParams.get("auth_error")
   return (

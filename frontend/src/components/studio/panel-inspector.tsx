@@ -76,7 +76,7 @@ function StageHelp() {
   const tips: Record<typeof stage, string> = {
     story: '填写标题、梗概、题材与画风，然后生成角色设定与分镜脚本。重新生成分镜会删除旧分镜及其图像版本。',
     characters: '角色设定会写入每一格的画面提示词。修改后请重新确认，确保多格画面中的角色保持一致。',
-    scenes: '场景资产是分镜的环境参考。当前为示例素材，接入真实服务后可按场景单独生成。',
+    scenes: '场景资产定义分镜环境与氛围；可在场景资产页生成并维护参考图。',
     storyboard: '在画布中选择一格分镜以编辑镜头、对白与画面提示词。',
   }
   const confirmed = project.characters.filter((c) => c.confirmed).length

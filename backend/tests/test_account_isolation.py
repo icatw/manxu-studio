@@ -5,8 +5,8 @@ from uuid import uuid4
 import pytest
 from fastapi.testclient import TestClient
 
-from app.api.routes import workspace
 from app.core.redis import require_rate_limit
+from app.core.security import current_account_dependency
 from app.db.models import (
     EpisodeRecord,
     GenerationTaskRecord,
@@ -41,20 +41,18 @@ class IsolationSession:
 
 
 @pytest.mark.parametrize("operation", ["get", "patch", "delete"])
-def test_other_account_cannot_read_update_or_delete_project(
-    monkeypatch: pytest.MonkeyPatch, operation: str
-) -> None:
+def test_other_account_cannot_read_update_or_delete_project(operation: str) -> None:
     account_a = uuid4()
     account_b = uuid4()
     session = IsolationSession(owner_id=account_b)
 
-    async def signed_in_account(request: object, db: object) -> SimpleNamespace:
+    async def signed_in_account() -> SimpleNamespace:
         return SimpleNamespace(id=account_a)
 
     async def override_session() -> AsyncIterator[IsolationSession]:
         yield session
 
-    monkeypatch.setattr(workspace, "current_account", signed_in_account)
+    app.dependency_overrides[current_account_dependency] = signed_in_account
     app.dependency_overrides[get_session] = override_session
     app.dependency_overrides[require_rate_limit] = lambda: None
     try:
@@ -91,18 +89,16 @@ def test_other_account_cannot_read_update_or_delete_project(
         ("/api/v1/generation-tasks/{id}", "task_id"),
     ],
 )
-def test_other_account_cannot_read_project_children(
-    monkeypatch: pytest.MonkeyPatch, path: str, record_id: str
-) -> None:
+def test_other_account_cannot_read_project_children(path: str, record_id: str) -> None:
     session = IsolationSession(owner_id=uuid4())
 
-    async def signed_in_account(request: object, db: object) -> SimpleNamespace:
+    async def signed_in_account() -> SimpleNamespace:
         return SimpleNamespace(id=uuid4())
 
     async def override_session() -> AsyncIterator[IsolationSession]:
         yield session
 
-    monkeypatch.setattr(workspace, "current_account", signed_in_account)
+    app.dependency_overrides[current_account_dependency] = signed_in_account
     app.dependency_overrides[get_session] = override_session
     app.dependency_overrides[require_rate_limit] = lambda: None
     try:

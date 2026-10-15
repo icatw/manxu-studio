@@ -77,6 +77,12 @@ class IdentityView(BaseModel):
     verified: bool
 
 
+def identity_is_verified(identity: AuthIdentityRecord) -> bool:
+    if identity.provider == "github":
+        return True
+    return identity.email_verified_at is not None
+
+
 class CsrfTokenView(BaseModel):
     token: str
 
@@ -516,7 +522,7 @@ async def list_auth_identities(
             id=str(identity.id),
             provider=identity.provider,
             email=identity.email_original or identity.email_normalized,
-            verified=identity.email_verified_at is not None,
+            verified=identity_is_verified(identity),
         )
         for identity in identities
     ]
@@ -548,6 +554,7 @@ async def delete_auth_identity(
         raise HTTPException(409, "账户至少需要保留一种登录方式")
     await session.delete(identity)
     await session.commit()
+    response.status_code = 204
     return response
 
 
@@ -557,16 +564,24 @@ async def logout(
     response: Response,
     session: AsyncSession = SessionDep,
 ) -> Response:
-    # Logout only revokes the presented session and clears browser cookies. It is
-    # intentionally idempotent so stale sessions without a CSRF cookie can still
-    # be closed from the login UI.
-    await current_account(request, session)
-    token = request.cookies.get(get_settings().session_cookie_name)
+    settings = get_settings()
+    token = request.cookies.get(settings.session_cookie_name)
+    authorization = request.headers.get("authorization", "")
+    if not token and authorization.lower().startswith("bearer "):
+        token = authorization[7:].strip()
+
     if token:
         record = await session.get(AccountSessionRecord, token_hash(token))
         if record:
+            # A still-valid cookie session must prove same-origin intent. Expired
+            # or unknown sessions can only be revoked/cleared, so logout stays idempotent.
+            if record.expires_at > datetime.now(UTC) and request.cookies.get(
+                settings.session_cookie_name
+            ):
+                check_csrf(request)
             await session.delete(record)
             await session.commit()
-    response.delete_cookie(get_settings().session_cookie_name, path="/")
+    response.delete_cookie(settings.session_cookie_name, path="/")
     response.delete_cookie("manxu_csrf", path="/")
+    response.status_code = 204
     return response

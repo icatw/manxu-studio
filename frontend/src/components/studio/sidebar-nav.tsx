@@ -24,7 +24,7 @@ export function SidebarNav() {
   const logout = useMutation({ mutationFn: async () => {
     const { error } = await api.POST("/auth/logout");
     if (error) throw new Error("登出失败");
-  }, onSuccess: () => window.location.assign("/") });
+  }, onSuccess: () => window.location.assign("/login") });
   const stageMeta: Record<StudioStage, string> = {
     story: project.story.genre,
     characters: `${project.characters.length}`,

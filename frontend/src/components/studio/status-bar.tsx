@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils'
 import { useStudio } from './studio-provider'
 
 export function StatusBar() {
-  const { project, generation, selectPanel, setStage } = useStudio()
+  const { project, generation, selectPanel, setStage, storyBusy } = useStudio()
   const counts = project.panels.reduce(
     (acc, p) => ({ ...acc, [p.status]: acc[p.status] + 1 }),
     { draft: 0, generating: 0, completed: 0, failed: 0 },
@@ -27,7 +27,9 @@ export function StatusBar() {
           className={cn('size-1.5 rounded-full', counts.generating ? 'animate-pulse bg-primary' : 'bg-success')}
           aria-hidden
         />
-        {counts.generating ? (
+        {storyBusy ? (
+          <span>AI 正在生成角色、场景与分镜…</span>
+        ) : counts.generating ? (
           <span>
             正在生成 {counts.generating} 格 · <span className="tabular-nums">{avgProgress}%</span>
           </span>
@@ -59,7 +61,7 @@ export function StatusBar() {
         </Button>
       )}
 
-      <span className="ml-auto rounded bg-warning/10 px-1.5 py-0.5 text-warning">服务端演示生成 · 样例图</span>
+      <span className="ml-auto rounded bg-muted px-1.5 py-0.5 text-muted-foreground">图像模型：{generation.providerName}</span>
     </footer>
   )
 }

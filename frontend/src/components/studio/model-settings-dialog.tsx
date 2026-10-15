@@ -3,7 +3,7 @@ import { Check, ImageIcon, KeyRound, LoaderCircle, Save, ScrollText, Sparkles, W
 import { useEffect, useState, type FormEvent } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { api } from '@/lib/api/client'
+import { api, toApiError } from '@/lib/api/client'
 import type { components } from '@/lib/api/schema'
 
 export function ModelSettingsPanel() {
@@ -22,7 +22,7 @@ export function ModelSettingsPanel() {
     queryKey: ['model-config'],
     queryFn: async () => {
       const { data, error } = await api.GET('/model-config')
-      if (error || !data) throw new Error('无法读取模型配置')
+      if (error || !data) throw toApiError(error, '无法读取模型配置')
       return data
     },
   })
@@ -52,7 +52,7 @@ export function ModelSettingsPanel() {
       if (imageKey.trim()) body.image_api_key = imageKey
       else if (clearImageKey) body.image_api_key = null
       const { data, error } = await api.PUT('/model-config', { body })
-      if (error || !data) throw new Error('保存模型配置失败，请检查填写内容')
+      if (error || !data) throw toApiError(error, '保存模型配置失败，请检查填写内容')
       return data
     },
     onSuccess: (data) => {
@@ -70,7 +70,7 @@ export function ModelSettingsPanel() {
     mutationFn: async () => {
       await saveMutation.mutateAsync()
       const { data, error } = await api.POST('/model-config/test')
-      if (error || !data) throw new Error('连接测试请求失败')
+      if (error || !data) throw toApiError(error, '文本模型连接测试请求失败')
       return data
     },
     onSuccess: (data) => {
@@ -84,7 +84,7 @@ export function ModelSettingsPanel() {
     mutationFn: async () => {
       await saveMutation.mutateAsync()
       const { data, error } = await api.POST('/model-config/test-image')
-      if (error || !data) throw new Error('图像连接测试请求失败')
+      if (error || !data) throw toApiError(error, '图像模型连接测试请求失败')
       return data
     },
     onSuccess: (data) => {

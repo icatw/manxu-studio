@@ -70,7 +70,7 @@ export function StoryEditor() {
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-6">
       <div>
         <h1 className="text-lg font-semibold tracking-tight">故事创意</h1>
-        <p className="mt-1 text-sm text-muted-foreground">一句话梗概即可，系统会据此生成角色设定、场景与分镜脚本。</p>
+        <p className="mt-1 text-sm text-muted-foreground">根据故事生成 AI 角色设定、场景和分镜脚本，确认后可继续逐格出图。</p>
       </div>
 
       <div className="flex flex-col gap-5 rounded-lg border bg-card p-5">
@@ -118,7 +118,7 @@ export function StoryEditor() {
       </div>
 
       <div className="flex items-center justify-between gap-4">
-        <p className="text-xs text-muted-foreground">将生成：角色设定 → 场景资产 → {story.panelCount} 格分镜脚本</p>
+        <p className="text-xs text-muted-foreground">AI 将生成角色文字设定与参考图、场景资产和 {story.panelCount} 格分镜脚本。</p>
         <Button onClick={handleGenerate} disabled={storyBusy || synopsisEmpty}>
           {storyBusy ? <Loader2 className="animate-spin" data-icon="inline-start" /> : <Sparkles data-icon="inline-start" />}
           {storyBusy ? '生成中…' : '生成角色与分镜'}

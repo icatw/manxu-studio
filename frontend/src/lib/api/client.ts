@@ -46,19 +46,35 @@ function csrfCookie() {
 
 async function refreshCsrfCookie() {
   if (typeof window === "undefined") return null;
-  await fetch("/api/v1/auth/csrf", { credentials: "include", headers: { Accept: "application/json" } });
+  const response = await fetch("/api/v1/auth/csrf", {
+    credentials: "include",
+    headers: { Accept: "application/json" },
+  });
+  const value: unknown = await response.json().catch(() => null);
+  if (
+    isEnvelope(value) &&
+    typeof value.data === "object" &&
+    value.data !== null &&
+    "token" in value.data &&
+    typeof value.data.token === "string"
+  ) {
+    return value.data.token;
+  }
   return csrfCookie();
 }
 
 export async function authenticatedFetch(input: RequestInfo | URL, init?: RequestInit) {
-  const headers = new Headers(init?.headers)
-  const method = (init?.method ?? "GET").toUpperCase()
+  const request = isRequestLike(input) ? input : null
+  const headers = new Headers(request?.headers)
+  new Headers(init?.headers).forEach((value, name) => headers.set(name, value))
+  const method = (init?.method ?? request?.method ?? "GET").toUpperCase()
+  const requestUrl = request?.url ?? (input instanceof URL ? input.href : String(input))
   if (typeof init?.body === "string" && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json")
   }
   if (typeof document !== "undefined" && !["GET", "HEAD", "OPTIONS"].includes(method)) {
     let csrf = csrfCookie()
-    if (!csrf && typeof input === "string" && !input.includes("/auth/csrf")) csrf = await refreshCsrfCookie()
+    if (!csrf && !requestUrl.includes("/auth/csrf")) csrf = await refreshCsrfCookie()
     if (csrf) headers.set("X-CSRF-Token", csrf)
   }
   const response = await fetch(input, { ...init, headers, credentials: "include" })
@@ -68,6 +84,12 @@ export async function authenticatedFetch(input: RequestInfo | URL, init?: Reques
   const value: unknown = await response.clone().json().catch(() => null)
   if (!isEnvelope(value)) return response
   if (!response.ok && value.code === "CSRF_INVALID") await refreshCsrfCookie()
+  if (
+    !response.ok && value.code === "AUTH_REQUIRED" &&
+    typeof window !== "undefined" && window.location.pathname !== "/login"
+  ) {
+    window.location.assign(`/login${window.location.search}`)
+  }
 
   const body = response.ok
     ? value.data
@@ -83,6 +105,16 @@ export async function authenticatedFetch(input: RequestInfo | URL, init?: Reques
     statusText: response.statusText,
     headers: responseHeaders,
   })
+}
+
+function isRequestLike(input: RequestInfo | URL): input is Request {
+  return (
+    typeof input === "object" &&
+    input !== null &&
+    "url" in input &&
+    "method" in input &&
+    "headers" in input
+  )
 }
 
 export function toApiError(error: unknown, fallback = "请求失败，请稍后重试") {
@@ -108,4 +140,8 @@ function isEnvelope(value: unknown): value is Envelope {
     typeof value.request_id === "string"
 }
 
-export const api = createClient<UnwrappedPaths>({ baseUrl: "/api/v1", fetch: authenticatedFetch });
+const apiBaseUrl = typeof window === "undefined"
+  ? "/api/v1"
+  : new URL("/api/v1", window.location.origin).toString();
+
+export const api = createClient<UnwrappedPaths>({ baseUrl: apiBaseUrl, fetch: authenticatedFetch });
