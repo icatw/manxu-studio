@@ -59,7 +59,7 @@ export function StoryboardCanvas() {
           {generation.batchRunning ? (
             <Button variant="outline" size="sm" onClick={generation.cancelAll}>
               <Square data-icon="inline-start" />
-              取消全部
+              停止全部跟踪
             </Button>
           ) : (
             <Button size="sm" variant="secondary" onClick={startBatch} disabled={storyBusy}>

@@ -1,8 +1,16 @@
-import { useEffect, useRef, useState, type Dispatch, type MutableRefObject } from 'react'
+import {
+  useEffect,
+  useRef,
+  useState,
+  type Dispatch,
+  type MutableRefObject,
+  type RefObject,
+  type SetStateAction,
+} from 'react'
 import { toast } from 'sonner'
 import { api } from '@/lib/api/client'
 import { aspectRatioToApi } from '@/lib/domain-mappings'
-import type { ProjectAction } from '@/lib/project-store'
+import { mergeHydratedProject, type ProjectAction } from '@/lib/project-store'
 import { toCharacterPatch, toComicProject, toPanelPatch, toScenePatch, type WorkspaceData } from '@/services/workspace-api'
 import type { ComicProject } from '@/types/storyboard'
 
@@ -123,6 +131,8 @@ export async function persistProject(
 
 export function useStudioHydrate({
   workspace,
+  projectRef,
+  getBusyPanelIds,
   dispatch,
   setSelectedPanelId,
   setSaveState,
@@ -131,8 +141,10 @@ export function useStudioHydrate({
   lastSignatureRef,
 }: {
   workspace: WorkspaceData
+  projectRef: RefObject<ComicProject>
+  getBusyPanelIds: () => ReadonlySet<string>
   dispatch: Dispatch<ProjectAction>
-  setSelectedPanelId: (id: string | null) => void
+  setSelectedPanelId: Dispatch<SetStateAction<string | null>>
   setSaveState: (state: SaveState) => void
   setLastSavedAt: (date: Date | null) => void
   baselineRef: MutableRefObject<ComicProject>
@@ -145,16 +157,31 @@ export function useStudioHydrate({
     if (workspaceSignature === signatureRef.current) return
     signatureRef.current = workspaceSignature
     const next = toComicProject(workspace)
-    baselineRef.current = next
-    lastSignatureRef.current = comparable(next)
-    dispatch({ type: 'hydrate', project: next })
-    setSelectedPanelId(next.panels[0]?.id ?? null)
-    setSaveState('saved')
-    setLastSavedAt(new Date(workspace.episode.updated_at))
+    const current = projectRef.current
+    const dirty = comparable(current) !== lastSignatureRef.current
+    const busyPanelIds = new Set([
+      ...getBusyPanelIds(),
+      ...current.panels.filter((panel) => panel.status === 'generating').map((panel) => panel.id),
+    ])
+    const merged = mergeHydratedProject(current, next, { dirty, busyPanelIds })
+    if (!dirty) {
+      baselineRef.current = next
+      lastSignatureRef.current = comparable(merged)
+      setSaveState('saved')
+      setLastSavedAt(new Date(workspace.episode.updated_at))
+    }
+    dispatch({ type: 'hydrate', project: merged })
+    setSelectedPanelId((selected) =>
+      selected && merged.panels.some((panel) => panel.id === selected)
+        ? selected
+        : (merged.panels[0]?.id ?? null),
+    )
   }, [
     baselineRef,
     dispatch,
+    getBusyPanelIds,
     lastSignatureRef,
+    projectRef,
     setLastSavedAt,
     setSaveState,
     setSelectedPanelId,
