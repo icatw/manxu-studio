@@ -4,10 +4,10 @@ from uuid import uuid4
 import pytest
 from fastapi import HTTPException
 
-from app.services.assets import scene_view
 from app.core.security import require_asset_owner
 from app.db.models import ExportRecord, ProjectRecord
 from app.schemas.workspace import SceneProfile
+from app.services.assets import scene_view
 
 
 def test_scene_view_ignores_legacy_name_in_json_profile() -> None:
