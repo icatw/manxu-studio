@@ -1,3 +1,4 @@
+import asyncio
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
@@ -19,6 +20,17 @@ def _problem(*, title: str, status: int, detail: str, code: str | None = None) -
     if code:
         problem["code"] = code
     return problem
+
+
+async def _mark_interrupted(task_id: UUID) -> None:
+    """Return timed-out/cancelled work to queued so reclaim can pick it up promptly."""
+    async with SessionFactory() as session:
+        task = await session.get(GenerationTaskRecord, task_id)
+        if task is None or task.status != "running":
+            return
+        task.status = "queued"
+        task.updated_at = datetime.now(UTC)
+        await session.commit()
 
 
 async def run_generation_task(task_id: UUID) -> None:
@@ -69,6 +81,17 @@ async def run_generation_task(task_id: UUID) -> None:
                     task.error = None
                     task.updated_at = datetime.now(UTC)
                     await session.commit()
+            except asyncio.CancelledError:
+                api_logger.warning(
+                    "generation_task_interrupted",
+                    extra={
+                        "event": "generation_task_interrupted",
+                        "task_id": str(task_id),
+                        "task_type": task_type,
+                    },
+                )
+                await _mark_interrupted(task_id)
+                raise
             except Exception:
                 failure_id = str(uuid4())
                 api_logger.exception(

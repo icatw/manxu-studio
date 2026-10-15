@@ -34,6 +34,7 @@ from app.schemas.workspace import (
     ExportRequest,
     GenerationTask,
 )
+from app.tasks.checkpoints import strip_resumable_checkpoints
 
 router = create_workspace_router(tags=["Generations", "Exports"])
 
@@ -73,7 +74,7 @@ async def retry_generation_task(
         episode_id=previous.episode_id,
         panel_id=previous.panel_id,
         task_type=previous.task_type,
-        request_data=previous.request_data,
+        request_data=strip_resumable_checkpoints(previous.request_data),
         retry_of_task_id=previous.id,
     )
 

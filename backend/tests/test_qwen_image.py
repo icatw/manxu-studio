@@ -132,6 +132,48 @@ async def test_qwen_image_resume_skips_resubmit(
     assert client.get_count >= 1
 
 
+@pytest.mark.asyncio
+async def test_qwen_image_resume_resubmits_when_remote_already_failed(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    class FailedThenOkClient(FakeClient):
+        async def get(self, url: str, **_: object) -> FakeResponse:
+            self.get_count += 1
+            if self.get_count == 1:
+                return FakeResponse(body={"output": {"task_status": "FAILED"}})
+            return await super().get(url)
+
+    client = FailedThenOkClient()
+    settings = SimpleNamespace(
+        qwen_image_base_url="https://dashscope.aliyuncs.com/api/v1",
+        image_storage_dir=str(tmp_path),
+    )
+    submitted: list[str] = []
+
+    async def on_submitted(task_id: str) -> None:
+        submitted.append(task_id)
+
+    monkeypatch.setattr(qwen_image.httpx, "AsyncClient", lambda **kwargs: client)
+    monkeypatch.setattr(qwen_image.asyncio, "sleep", lambda _: _no_sleep())
+    monkeypatch.setattr(qwen_image, "validate_public_https_url", _skip_url_validation)
+    monkeypatch.setattr(qwen_image, "get_settings", lambda: settings)
+    monkeypatch.setattr(local_store, "get_settings", lambda: settings)
+
+    asset_id = uuid4()
+    result = await qwen_image.generate_image(
+        api_key="private",
+        model="qwen-image-3.0-pro",
+        prompt="retry",
+        asset_id=asset_id,
+        resume_task_id="dead-remote-task",
+        on_submitted=on_submitted,
+    )
+
+    assert result == f"/api/v1/assets/{asset_id}"
+    assert client.submitted is not None
+    assert submitted == ["task-1"]
+
+
 async def _no_sleep() -> None:
     return None
 

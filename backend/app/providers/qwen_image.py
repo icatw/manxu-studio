@@ -44,16 +44,26 @@ class QwenImageProvider:
         configured_base_url = base_url or settings.qwen_image_base_url
         await validate_public_https_url(configured_base_url)
         api_root = normalize_dashscope_api_base(configured_base_url)
+        auth_headers = {"Authorization": f"Bearer {api_key}"}
         headers = {
-            "Authorization": f"Bearer {api_key}",
+            **auth_headers,
             "Content-Type": "application/json",
             "X-DashScope-Async": "enable",
         }
         timeout = httpx.Timeout(45, connect=10)
         async with httpx.AsyncClient(timeout=timeout, follow_redirects=False) as client:
-            if resume_task_id:
-                task_id = resume_task_id
-            else:
+            task_id = resume_task_id
+            if task_id:
+                probe = await client.get(f"{api_root}/tasks/{task_id}", headers=auth_headers)
+                if probe.is_success:
+                    probe_status = probe.json().get("output", {}).get("task_status")
+                    if probe_status in {"FAILED", "CANCELED", "UNKNOWN"}:
+                        # Terminal remote failure: submit a fresh job instead of looping forever.
+                        task_id = None
+                else:
+                    task_id = None
+
+            if not task_id:
                 endpoint = f"{api_root}/services/aigc/image-generation/generation"
                 response = await client.post(
                     endpoint,
@@ -79,7 +89,7 @@ class QwenImageProvider:
                 await asyncio.sleep(5)
                 task_response = await client.get(
                     f"{api_root}/tasks/{task_id}",
-                    headers={"Authorization": f"Bearer {api_key}"},
+                    headers=auth_headers,
                 )
                 if not task_response.is_success:
                     status_code = task_response.status_code
