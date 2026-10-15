@@ -1,15 +1,60 @@
 # 漫序 Studio
 
-面向独立漫剧创作者和小型工作室的 AI 漫剧预制作工作台。
+面向独立漫剧创作者和小型工作室的 **AI 漫剧预制作工作台**。
 
-当前版本提供邮箱验证码注册登录、GitHub OAuth 登录、账户级模型配置和漫剧预制作工作区。项目、资产和异步生成任务按账户隔离。
+把故事创意推进成可编辑、可复用、可导出的材料：角色定妆、场景设定、结构化分镜、画面生成与局部重绘，以及多话连载的连续性管理。
+
+<p align="center">
+  <img src="docs/media/01-library.png" alt="作品库" width="860" />
+</p>
+
+## 演示
+
+| 材料 | 说明 |
+| --- | --- |
+| [演示录屏（约 3–4 分钟）](docs/media/demo-walkthrough.mp4) | 产品判断 + 主路径走查（含字幕） |
+| 完整版 | `demo/out/manxu-studio-demo-final.mp4`（同源更高码率） |
+
+本地也可直接打开：
+
+```sh
+open docs/media/demo-walkthrough.mp4
+```
+
+## 产品能力
+
+- **账户**：邮箱验证码登录 / GitHub OAuth；项目与生成任务按账户隔离
+- **作品与连载**：作品库、AI 季策划、多话切换、设定集、伏笔、话摘要前置
+- **创作主路径**：故事 → 角色 / 场景（定妆锁定）→ 分镜 → 出图 → 预览
+- **导出**：本话长图 / 分页 ZIP；作品总览合集 ZIP / PDF
+- **模型**：账户可配置文本与图像模型；密钥服务端加密保存
+
+### 界面一览
+
+| 作品库 | 作品总览 |
+| --- | --- |
+| ![作品库](docs/media/01-library.png) | ![总览](docs/media/02-overview.png) |
+
+| 工作室（角色 / 场景） | 阅读页 |
+| --- | --- |
+| ![工作室](docs/media/03-studio.png) | ![阅读](docs/media/04-reader.png) |
+
+### 建议体验路径
+
+1. 打开 `http://localhost:5173`，用邮箱验证码登录（本地验证码在 Mailpit：`http://localhost:8025`）
+2. 创建作品或打开已有作品 → 总览查看章节 / 设定集 / 伏笔
+3. 进入工作室：写故事 → 生成角色场景 → 分镜出图
+4. 预览后导出长图或分页 ZIP；多话时先写好上一话摘要再续写
 
 ## 技术栈
 
-- 前端：React、TypeScript、Vite、React Router、TanStack Query、Tailwind CSS、shadcn/ui（源码组件按需求添加）。
-- 后端：Python 3.13、FastAPI、Pydantic Settings、SQLAlchemy async、Alembic，使用 uv。
-- 数据库：PostgreSQL。
-- 接口：`docs/api/openapi.yaml` 是人工维护的契约源；前端类型由它生成。
+| 层 | 选型 |
+| --- | --- |
+| 前端 | React、TypeScript、Vite、React Router、TanStack Query、Tailwind、shadcn/ui |
+| 后端 | Python 3.13、FastAPI、SQLAlchemy async、Alembic、uv |
+| 数据 / 队列 | PostgreSQL、Redis、ARQ worker |
+| 契约 | `docs/api/openapi.yaml`（人工维护；前端类型由此生成） |
+| 部署 | Docker Compose + Caddy（生产 overlay） |
 
 ## 本地启动
 
@@ -17,62 +62,65 @@
 
 ### 一键启动
 
-Docker Desktop 启动后，在仓库根目录执行：
-
 ```sh
 ./scripts/start.sh
 ```
 
-脚本会创建缺失的 `.env`、构建前端 Nginx、API 和 worker，并启动 PostgreSQL、Redis、Mailpit。停止服务：
+会创建缺失的 `.env`，构建并启动 PostgreSQL、Redis、Mailpit、API、worker、前端。停止：
 
 ```sh
 ./scripts/stop.sh
 ```
 
-前端容器通过 Nginx 将 `/api` 代理到 API 容器，因此浏览器只需要访问 `http://localhost:5173`。Mailpit 使用 Compose profile `local`（`start.sh` 已带上）。
+浏览器打开 [http://localhost:5173](http://localhost:5173)。前端 Nginx 将 `/api` 反代到 API；Mailpit 收件箱在 [http://localhost:8025](http://localhost:8025)。
 
 ### 分进程开发（可选）
 
-1. 复制 `.env.example` 为 `.env`。
-2. 在 `.env` 配置 GitHub OAuth App 的 Client ID/Secret、回调地址，并设置至少 32 字符的 `MODEL_ENCRYPTION_KEY`（可用 `openssl rand -hex 32` 生成）。
-3. 在仓库根目录运行 `docker compose --profile local up -d postgres redis mailpit`（PostgreSQL 映射到本机 55442，Redis 映射到 56379，Mailpit 网页位于 8025）。
-4. 在 `backend/` 执行 `uv sync`，再从仓库根目录执行 `uv run --directory backend alembic upgrade head`。
-5. 在 `frontend/` 执行 `pnpm install`。
-6. 分别启动 API、ARQ worker 和前端：
+1. 复制 `.env.example` 为 `.env`，配置 `MODEL_ENCRYPTION_KEY`（可用 `openssl rand -hex 32`）及可选 GitHub OAuth。
+2. `docker compose --profile local up -d postgres redis mailpit`
+3. `uv sync --directory backend` → `uv run --directory backend alembic upgrade head`
+4. `pnpm --dir frontend install`
+5. 分别启动：
 
-   ```sh
-   uv run --directory backend fastapi dev app/main.py
-   uv run --directory backend arq app.worker.WorkerSettings
-   pnpm --dir frontend dev
-   ```
-
-前端地址为 `http://localhost:5173`，API 文档为 `http://localhost:8000/docs`。Vite 将 `/api` 请求代理到本地 FastAPI。邮箱验证码通过本地 Mailpit 测试，收件箱为 `http://localhost:8025`。
+```sh
+uv run --directory backend fastapi dev app.main:app
+uv run --directory backend arq app.worker.WorkerSettings
+pnpm --dir frontend dev
+```
 
 ## 生产部署（单机 VPS）
 
-在已安装 Docker Compose v2.24+ 的 Linux 主机上：
-
 ```sh
 cp .env.prod.example .env.prod
-# 填写 DOMAIN、HTTPS 相关 URL、POSTGRES_PASSWORD、MODEL_ENCRYPTION_KEY、
-# EMAIL_CODE_PEPPER、真实 SMTP（见文件内注释）
+# 填写 DOMAIN、HTTPS URL、POSTGRES_PASSWORD、MODEL_ENCRYPTION_KEY、
+# EMAIL_CODE_PEPPER、真实 SMTP
 ./scripts/deploy.sh
-# 或 make deploy
 ```
 
-Caddy 终止 TLS 并反代到前端；Postgres / Redis / API 不暴露公网。图像第一期仍使用命名卷 `image-data`。完整步骤、备份与远程同步见 [`docs/delivery/deploy-vps.md`](docs/delivery/deploy-vps.md)；决策见 [ADR-003](docs/technical/decisions/ADR-003-vps-compose-caddy.md)。
-
-生产必须使用独立的 `EMAIL_CODE_PEPPER` 与真实 SMTP，并保持 `SESSION_COOKIE_SECURE=true`。GitHub OAuth 可选；模型 API Key 在登录后的设置页录入。
+说明见 [`docs/delivery/deploy-vps.md`](docs/delivery/deploy-vps.md)。若主机已有 nginx 占用 80/443，需要改成「内部端口 + 反代」方案，不能直接套默认 Caddy 占端口。
 
 ## 检查
 
-- `make check`：OpenAPI lint、类型生成、前后端 lint/typecheck。
-- `make test`：前后端自动化测试。
-- `make migrate`：应用 Alembic 迁移。
-- `make check-prod-env`：校验 `.env.prod` 生产门禁。
+- `make check`：OpenAPI lint、类型生成、前后端 lint / typecheck
+- `make test`：前后端自动化测试
+- `make migrate`：Alembic 迁移
+- `make check-prod-env`：校验 `.env.prod`
 
-## 项目资料
+## 仓库结构（简图）
 
-- 产品和技术资料：[`docs/README.md`](docs/README.md)
-- Harness 工作区、当前阶段和活动计划： [`.harness/README.md`](.harness/README.md)
+```
+frontend/          React 应用
+backend/           FastAPI + worker
+docs/              产品 / API / 架构文档；media/ 为截图与演示视频
+demo/              汇报讲稿、旁白与录屏合成脚本
+deploy/            Caddyfile 等
+scripts/           start / deploy / check
+.harness/          当前阶段与计划
+```
+
+## 更多资料
+
+- 产品与技术文档索引：[`docs/README.md`](docs/README.md)
+- 当前阶段与计划： [`.harness/status.md`](.harness/status.md)
 - 接口契约流程：[`docs/api/README.md`](docs/api/README.md)
+- 演示录屏重做：[`demo/README.md`](demo/README.md)

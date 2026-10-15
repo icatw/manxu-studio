@@ -1,0 +1,12 @@
+# Keep deliverables; ignore intermediate encode/cache artifacts.
+*
+!.gitignore
+!manxu-studio-demo-final.mp4
+!manxu-studio-report.mp4
+!narration.mp3
+!narration.srt
+!product-narration.mp3
+!product-narration.srt
+!product-live.webm
+!slides/
+!slides/**
