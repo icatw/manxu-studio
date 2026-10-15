@@ -44,7 +44,7 @@ export function ModelSettingsPanel() {
       const body: components['schemas']['ModelConfigUpdate'] = {
         text_model: textModel.trim(),
         text_base_url: textBaseUrl.trim(),
-        image_model: imageModel as components['schemas']['ModelConfigUpdate']['image_model'],
+        image_model: imageModel,
         image_base_url: imageBaseUrl.trim(),
       }
       if (textKey.trim()) body.text_api_key = textKey

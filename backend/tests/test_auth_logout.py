@@ -68,19 +68,15 @@ async def test_logout_clears_cookies_for_missing_unknown_or_expired_session(
     record: SimpleNamespace | None,
 ) -> None:
     session = LogoutSession(record)
-    response = await logout(
-        make_request(cookie), Response(), session
-    )
+    response = await logout(make_request(cookie), Response(), session)
 
     assert response.status_code == 204
     cookie_headers = [value for name, value in response.raw_headers if name == b"set-cookie"]
     assert any(
-        value.startswith(b"manxu_session=") and b"Max-Age=0" in value
-        for value in cookie_headers
+        value.startswith(b"manxu_session=") and b"Max-Age=0" in value for value in cookie_headers
     )
     assert any(
-        value.startswith(b"manxu_csrf=") and b"Max-Age=0" in value
-        for value in cookie_headers
+        value.startswith(b"manxu_csrf=") and b"Max-Age=0" in value for value in cookie_headers
     )
     if record:
         assert session.deleted == [record]
@@ -108,9 +104,7 @@ async def test_logout_revokes_active_cookie_session_with_valid_csrf() -> None:
     session = LogoutSession(record)
 
     response = await logout(
-        make_request(
-            "manxu_session=session-token; manxu_csrf=csrf-token", "csrf-token"
-        ),
+        make_request("manxu_session=session-token; manxu_csrf=csrf-token", "csrf-token"),
         Response(),
         session,
     )

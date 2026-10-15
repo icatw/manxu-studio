@@ -39,23 +39,23 @@ shadcn/ui 的组件源码安装到项目中，便于 AI 编程工具直接理解
 ```text
 frontend/
   src/
-    app/                 # 路由与应用级 provider
-    features/            # projects, story, assets, storyboards, generations
-    components/          # 共用 UI
-    lib/api/              # OpenAPI 生成类型与 HTTP 客户端
-    lib/state/            # 跨页面 UI 状态
+    components/          # 页面与工作室 UI（后续可再拆 features/）
+    services/            # 薄 API 编排；不持有供应商密钥
+    lib/api/             # OpenAPI 生成类型与 HTTP 客户端
+    lib/domain-mappings.ts  # 展示层枚举/标签映射（集中，避免散落 if）
 backend/
   app/
-    api/                  # HTTP routers 与依赖
-    domain/               # 领域类型与规则
-    schemas/              # Pydantic 请求/响应
-    services/             # 用例服务
-    providers/            # 文本/图像模型与对象存储适配器
-    persistence/          # SQLAlchemy 模型、仓储与迁移
-    workers/              # 长时间生成任务执行
+    api/                 # HTTP routers 与依赖（不写 prompt / 不调供应商）
+    schemas/             # Pydantic 请求/响应
+    providers/           # 文本/图像/对象存储适配器
+    tasks/               # 任务类型、注册表、handler、runtime
+    services/            # 队列、兼容门面
+    worker.py            # ARQ worker 入口
   tests/
 docs/
 ```
+
+生成任务通过 `tasks` 注册表分发；多步「故事起稿」使用 `story_pipeline` 在服务端编排，前端只提交一次并轮询。
 
 ## API 与类型同步
 

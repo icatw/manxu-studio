@@ -10,18 +10,18 @@ from app.db.models import (
     ProjectRecord,
     SceneRecord,
 )
+from app.providers.errors import RecoverableProviderError
 from app.schemas.workspace import SceneProfile
-from app.services import workspace_tasks
-from app.services.workspace_tasks import (
+from app.tasks.handlers import characters as character_handler
+from app.tasks.handlers import scenes as scene_handler
+from app.tasks.handlers import storyboard as storyboard_handler
+from app.tasks.schemas import (
     CharacterGenerationOutput,
     GeneratedCharacter,
     GeneratedPanel,
     GeneratedScene,
     SceneGenerationOutput,
     StoryboardGenerationOutput,
-    _generate_characters,
-    _generate_panels,
-    _generate_scenes,
 )
 
 
@@ -87,16 +87,16 @@ async def test_storyboard_replacement_flushes_deletes_before_inserts(
             ]
         )
 
-    monkeypatch.setattr(workspace_tasks, "_configured_model", configured_model)
-    monkeypatch.setattr(workspace_tasks, "decrypt_secret", lambda _: "secret")
-    monkeypatch.setattr(workspace_tasks, "generate_structured_text", generate_text)
+    monkeypatch.setattr(storyboard_handler, "require_text_model", configured_model)
+    monkeypatch.setattr(storyboard_handler, "decrypt_secret", lambda _: "secret")
+    monkeypatch.setattr(storyboard_handler, "generate_structured_text", generate_text)
 
     task = SimpleNamespace(
         request_data={"episode_id": str(episode_id), "panel_count": 1},
         project_id=project_id,
     )
 
-    result = await _generate_panels(FakeSession(), task)  # type: ignore[arg-type]
+    result = await storyboard_handler.generate_panels(FakeSession(), task)  # type: ignore[arg-type]
 
     assert events == ["commit", "commit", "commit", "delete", "flush", "add", "flush"]
     assert result["episode_id"] == str(episode_id)
@@ -177,21 +177,19 @@ async def test_character_generation_calls_text_and_image_models_and_marks_ai_ori
         assert "沈知遥" in str(kwargs["prompt"])
         return "/api/v1/assets/generated.png"
 
-    monkeypatch.setattr(workspace_tasks, "_configured_model", configured_model)
+    monkeypatch.setattr(character_handler, "require_text_model", configured_model)
     monkeypatch.setattr(
-        workspace_tasks,
+        character_handler,
         "decrypt_secret",
         lambda encrypted: (
-            "decrypted-text-key"
-            if encrypted == b"text-encrypted"
-            else "decrypted-image-key"
+            "decrypted-text-key" if encrypted == b"text-encrypted" else "decrypted-image-key"
         ),
     )
-    monkeypatch.setattr(workspace_tasks, "generate_structured_text", generate_text)
-    monkeypatch.setattr(workspace_tasks, "generate_qwen_image", generate_image)
+    monkeypatch.setattr(character_handler, "generate_structured_text", generate_text)
+    monkeypatch.setattr(character_handler, "generate_image", generate_image)
 
-    task = SimpleNamespace(id=task_id, project_id=project_id, progress=5)
-    result = await _generate_characters(FakeSession(), task)  # type: ignore[arg-type]
+    task = SimpleNamespace(id=task_id, project_id=project_id, progress=5, request_data={})
+    result = await character_handler.generate_characters(FakeSession(), task)  # type: ignore[arg-type]
 
     assert [name for name, _ in calls] == ["text", "image"]
     assert len(created) == 1
@@ -202,6 +200,266 @@ async def test_character_generation_calls_text_and_image_models_and_marks_ai_ori
     assert result["reference_image_generated"] is True
     assert progress == sorted(progress)
     assert progress[-1] == 95
+    assert task.request_data["text_checkpoints"]["characters"]["done"] is True
+    assert task.request_data["text_checkpoints"]["characters"]["character_ids"] == [
+        str(created[0].id)
+    ]
+
+
+@pytest.mark.asyncio
+async def test_character_resume_skips_text_and_does_not_reuse_stale_image_job(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_id = uuid4()
+    owner_id = uuid4()
+    character_id = uuid4()
+    character = CharacterRecord(project_id=project_id, status="draft")
+    character.id = character_id
+    character.name = "沈知遥"
+    character.profile = {
+        "generation_source": "ai",
+        "image_prompt": "全身角色立绘，深绿工装外套。",
+    }
+    character.reference_asset_id = None
+    project = SimpleNamespace(
+        id=project_id,
+        owner_id=owner_id,
+        title="雨夜的旧车站",
+        synopsis="梗概",
+        genre="悬疑",
+        art_style="电影感写实",
+    )
+    config = SimpleNamespace(
+        text_api_key_encrypted=b"text-encrypted",
+        text_base_url="https://text.example/v1",
+        text_model="text-model",
+        image_api_key_encrypted=b"image-encrypted",
+        image_base_url="https://image.example/v1",
+        image_model="qwen-image-test",
+    )
+    calls: list[str] = []
+
+    class FakeSession:
+        async def get(self, model: type[object], record_id: object) -> object:
+            if model is ProjectRecord:
+                return project
+            if model is CharacterRecord:
+                assert record_id == character_id
+                return character
+            raise AssertionError(f"Unexpected model: {model}")
+
+        async def scalars(self, query: object) -> SimpleNamespace:
+            return SimpleNamespace(all=lambda: [character])
+
+        async def flush(self) -> None:
+            pass
+
+        async def commit(self) -> None:
+            pass
+
+    async def configured_model(session: object, account_id: object) -> SimpleNamespace:
+        return config
+
+    async def unexpected_text(**kwargs: object) -> None:
+        raise AssertionError("text checkpoint must skip LLM")
+
+    async def generate_image(**kwargs: object) -> str:
+        calls.append("image")
+        assert kwargs.get("resume_task_id") is None
+        return f"/api/v1/assets/{kwargs['asset_id']}"
+
+    monkeypatch.setattr(character_handler, "require_text_model", configured_model)
+    monkeypatch.setattr(character_handler, "decrypt_secret", lambda _: "secret")
+    monkeypatch.setattr(character_handler, "generate_structured_text", unexpected_text)
+    monkeypatch.setattr(character_handler, "generate_image", generate_image)
+
+    task = SimpleNamespace(
+        id=uuid4(),
+        project_id=project_id,
+        progress=5,
+        request_data={
+            "text_checkpoints": {
+                "characters": {"done": True, "character_ids": [str(character_id)]}
+            },
+            # Stale remote job from a previous profile must not be resumed after text regen.
+            # Text checkpoint path never clears it again; clearing happens on text write.
+            # Simulate post-clear empty provider_jobs (correct resume after text snapshot).
+            "provider_jobs": {},
+        },
+    )
+    result = await character_handler.generate_characters(FakeSession(), task)  # type: ignore[arg-type]
+
+    assert calls == ["image"]
+    assert result["character_ids"] == [str(character_id)]
+    assert character.reference_asset_id is not None
+
+
+@pytest.mark.asyncio
+async def test_character_text_regen_clears_stale_image_checkpoint(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_id = uuid4()
+    owner_id = uuid4()
+    character_id = uuid4()
+    character = CharacterRecord(project_id=project_id, status="draft")
+    character.id = character_id
+    character.name = "旧角色"
+    character.profile = {"generation_source": "ai", "image_prompt": "旧提示词"}
+    character.version = 1
+    project = SimpleNamespace(
+        id=project_id,
+        owner_id=owner_id,
+        title="雨夜的旧车站",
+        synopsis="梗概",
+        genre="悬疑",
+        art_style="电影感写实",
+    )
+    config = SimpleNamespace(
+        text_api_key_encrypted=b"text-encrypted",
+        text_base_url="https://text.example/v1",
+        text_model="text-model",
+        image_api_key_encrypted=b"image-encrypted",
+        image_base_url="https://image.example/v1",
+        image_model="qwen-image-test",
+    )
+
+    class FakeSession:
+        async def get(self, model: type[object], record_id: object) -> object:
+            assert model is ProjectRecord
+            return project
+
+        async def scalars(self, query: object) -> SimpleNamespace:
+            return SimpleNamespace(all=lambda: [character])
+
+        async def flush(self) -> None:
+            pass
+
+        async def commit(self) -> None:
+            pass
+
+    async def configured_model(session: object, account_id: object) -> SimpleNamespace:
+        return config
+
+    async def generate_text(**kwargs: object) -> CharacterGenerationOutput:
+        return CharacterGenerationOutput(
+            character=GeneratedCharacter(
+                name="新角色",
+                role="新设定",
+                appearance="新外貌",
+                hairstyle="短发",
+                outfit="新服装",
+                signature_traits=["新特征"],
+                personality="冷静",
+                reference_image_prompt="新参考图提示词",
+            )
+        )
+
+    async def generate_image(**kwargs: object) -> str:
+        assert kwargs.get("resume_task_id") is None
+        assert "新参考图提示词" in str(kwargs["prompt"])
+        return f"/api/v1/assets/{kwargs['asset_id']}"
+
+    monkeypatch.setattr(character_handler, "require_text_model", configured_model)
+    monkeypatch.setattr(character_handler, "decrypt_secret", lambda _: "secret")
+    monkeypatch.setattr(character_handler, "generate_structured_text", generate_text)
+    monkeypatch.setattr(character_handler, "generate_image", generate_image)
+
+    task = SimpleNamespace(
+        id=uuid4(),
+        project_id=project_id,
+        progress=5,
+        request_data={
+            "provider_jobs": {
+                f"character:{character_id}": {
+                    "asset_id": str(uuid4()),
+                    "remote_task_id": "stale-remote",
+                }
+            }
+        },
+    )
+    await character_handler.generate_characters(FakeSession(), task)  # type: ignore[arg-type]
+
+    jobs = task.request_data.get("provider_jobs", {})
+    character_job = jobs.get(f"character:{character_id}")
+    assert character_job is not None
+    assert character_job.get("remote_task_id") != "stale-remote"
+    assert character.name == "新角色"
+
+
+@pytest.mark.asyncio
+async def test_character_recoverable_image_error_is_not_swallowed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_id = uuid4()
+    owner_id = uuid4()
+    character_id = uuid4()
+    character = CharacterRecord(project_id=project_id, status="draft")
+    character.id = character_id
+    character.name = "沈知遥"
+    character.profile = {"generation_source": "ai", "image_prompt": "提示词"}
+    character.reference_asset_id = None
+    project = SimpleNamespace(
+        id=project_id,
+        owner_id=owner_id,
+        title="雨夜的旧车站",
+        synopsis="梗概",
+        genre="悬疑",
+        art_style="电影感写实",
+    )
+    config = SimpleNamespace(
+        text_api_key_encrypted=b"text-encrypted",
+        text_base_url="https://text.example/v1",
+        text_model="text-model",
+        image_api_key_encrypted=b"image-encrypted",
+        image_base_url="https://image.example/v1",
+        image_model="qwen-image-test",
+    )
+
+    class FakeSession:
+        async def get(self, model: type[object], record_id: object) -> object:
+            if model is ProjectRecord:
+                return project
+            if model is CharacterRecord:
+                return character
+            raise AssertionError(f"Unexpected model: {model}")
+
+        async def scalars(self, query: object) -> SimpleNamespace:
+            return SimpleNamespace(all=lambda: [character])
+
+        async def flush(self) -> None:
+            pass
+
+        async def commit(self) -> None:
+            pass
+
+    async def configured_model(session: object, account_id: object) -> SimpleNamespace:
+        return config
+
+    async def generate_image(**kwargs: object) -> str:
+        raise RecoverableProviderError("查询 Qwen Image 任务失败（HTTP 429）")
+
+    monkeypatch.setattr(character_handler, "require_text_model", configured_model)
+    monkeypatch.setattr(character_handler, "decrypt_secret", lambda _: "secret")
+    monkeypatch.setattr(
+        character_handler,
+        "generate_structured_text",
+        lambda **_: (_ for _ in ()).throw(AssertionError("should use text checkpoint")),
+    )
+    monkeypatch.setattr(character_handler, "generate_image", generate_image)
+
+    task = SimpleNamespace(
+        id=uuid4(),
+        project_id=project_id,
+        progress=5,
+        request_data={
+            "text_checkpoints": {
+                "characters": {"done": True, "character_ids": [str(character_id)]}
+            },
+            "provider_jobs": {},
+        },
+    )
+    with pytest.raises(RecoverableProviderError, match="429"):
+        await character_handler.generate_characters(FakeSession(), task)  # type: ignore[arg-type]
 
 
 @pytest.mark.asyncio
@@ -275,17 +533,18 @@ async def test_scene_generation_persists_only_scene_profile_fields(
         assert "雨夜废弃站台" in str(kwargs["prompt"])
         return f"/api/v1/assets/{kwargs['asset_id']}"
 
-    monkeypatch.setattr(workspace_tasks, "_configured_model", configured_model)
-    monkeypatch.setattr(workspace_tasks, "decrypt_secret", lambda _: "secret")
-    monkeypatch.setattr(workspace_tasks, "generate_structured_text", generate_text)
-    monkeypatch.setattr(workspace_tasks, "generate_qwen_image", generate_image)
+    monkeypatch.setattr(scene_handler, "require_text_model", configured_model)
+    monkeypatch.setattr(scene_handler, "decrypt_secret", lambda _: "secret")
+    monkeypatch.setattr(scene_handler, "generate_structured_text", generate_text)
+    monkeypatch.setattr(scene_handler, "generate_image", generate_image)
 
     task = SimpleNamespace(
         project_id=project_id,
         request_data={"episode_id": str(episode_id)},
         progress=5,
     )
-    result = await _generate_scenes(FakeSession(), task)  # type: ignore[arg-type]
+    # ensure mutable request_data for provider job checkpoints
+    result = await scene_handler.generate_scenes(FakeSession(), task)  # type: ignore[arg-type]
 
     assert result["scene_ids"] == [str(created[0].id)]
     assert created[0].name == "雨夜废弃站台"
@@ -346,9 +605,9 @@ async def test_image_only_scene_generation_skips_text_and_renders_missing_refere
     async def unexpected_text(**kwargs: object) -> None:
         raise AssertionError("image-only generation must skip text provider")
 
-    monkeypatch.setattr(workspace_tasks, "decrypt_secret", lambda _: "secret")
-    monkeypatch.setattr(workspace_tasks, "generate_qwen_image", generate_image)
-    monkeypatch.setattr(workspace_tasks, "generate_structured_text", unexpected_text)
+    monkeypatch.setattr(scene_handler, "decrypt_secret", lambda _: "secret")
+    monkeypatch.setattr(scene_handler, "generate_image", generate_image)
+    monkeypatch.setattr(scene_handler, "generate_structured_text", unexpected_text)
     task = SimpleNamespace(
         id=uuid4(),
         project_id=project_id,
@@ -356,8 +615,117 @@ async def test_image_only_scene_generation_skips_text_and_renders_missing_refere
         progress=5,
     )
 
-    result = await _generate_scenes(FakeSession(), task, image_only=True)  # type: ignore[arg-type]
+    result = await scene_handler.generate_scenes(FakeSession(), task, image_only=True)  # type: ignore[arg-type]
 
     assert scene.reference_asset_id is not None
     assert result["reference_images_generated"] == 1
     assert result["warnings"] == []
+
+
+@pytest.mark.asyncio
+async def test_scene_checkpoint_commit_failure_is_not_downgraded_to_image_warning(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_id = uuid4()
+    owner_id = uuid4()
+    scene = SimpleNamespace(
+        id=uuid4(),
+        name="旧车站",
+        profile={"description": "深夜空无一人的旧车站。"},
+        reference_asset_id=None,
+    )
+    project = SimpleNamespace(id=project_id, owner_id=owner_id, art_style="电影感写实")
+    config = SimpleNamespace(
+        image_api_key_encrypted=b"encrypted",
+        image_model="qwen-image-test",
+        image_base_url="https://image.example/v1",
+    )
+
+    class FakeSession:
+        commits = 0
+
+        async def get(self, model: type[object], _record_id: object) -> object:
+            if model is ProjectRecord:
+                return project
+            if model is AccountModelConfigRecord:
+                return config
+            raise AssertionError(f"Unexpected model: {model}")
+
+        async def scalars(self, _query: object) -> SimpleNamespace:
+            return SimpleNamespace(all=lambda: [scene])
+
+        async def commit(self) -> None:
+            self.commits += 1
+            # bind_image_job persists the initial checkpoint first; the next
+            # commit fences the provider call and must propagate on failure.
+            if self.commits == 2:
+                raise RuntimeError("database commit failed")
+
+    async def unexpected_image(**_kwargs: object) -> str:
+        raise AssertionError("provider must not be called before checkpoint commit")
+
+    monkeypatch.setattr(scene_handler, "decrypt_secret", lambda _: "secret")
+    monkeypatch.setattr(scene_handler, "generate_image", unexpected_image)
+    task = SimpleNamespace(id=uuid4(), project_id=project_id, request_data={}, progress=5)
+
+    with pytest.raises(RuntimeError, match="database commit failed"):
+        await scene_handler.generate_scenes(
+            FakeSession(),
+            task,
+            image_only=True,  # type: ignore[arg-type]
+        )
+
+
+@pytest.mark.asyncio
+async def test_unexpected_scene_provider_error_keeps_task_failed_and_checkpointed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_id = uuid4()
+    owner_id = uuid4()
+    scene = SimpleNamespace(
+        id=uuid4(),
+        name="旧车站",
+        profile={"description": "深夜空无一人的旧车站。"},
+        reference_asset_id=None,
+    )
+    project = SimpleNamespace(id=project_id, owner_id=owner_id, art_style="电影感写实")
+    config = SimpleNamespace(
+        image_api_key_encrypted=b"encrypted",
+        image_model="qwen-image-test",
+        image_base_url="https://image.example/v1",
+    )
+    task = SimpleNamespace(id=uuid4(), project_id=project_id, request_data={}, progress=5)
+
+    class FakeSession:
+        async def get(self, model: type[object], _record_id: object) -> object:
+            if model is ProjectRecord:
+                return project
+            if model is AccountModelConfigRecord:
+                return config
+            raise AssertionError(f"Unexpected model: {model}")
+
+        async def scalars(self, _query: object) -> SimpleNamespace:
+            return SimpleNamespace(all=lambda: [scene])
+
+        async def commit(self) -> None:
+            return None
+
+    async def unexpected_image(**kwargs: object) -> str:
+        on_submit_started = kwargs["on_submit_started"]
+        assert callable(on_submit_started)
+        await on_submit_started()
+        raise RuntimeError("unexpected provider failure")
+
+    monkeypatch.setattr(scene_handler, "decrypt_secret", lambda _: "secret")
+    monkeypatch.setattr(scene_handler, "generate_image", unexpected_image)
+
+    with pytest.raises(RuntimeError, match="unexpected provider failure"):
+        await scene_handler.generate_scenes(
+            FakeSession(),
+            task,
+            image_only=True,  # type: ignore[arg-type]
+        )
+
+    checkpoint = task.request_data["provider_jobs"][f"scene:{scene.id}"]
+    assert checkpoint["submission_state"] == "submitting"
+    assert scene.reference_asset_id is None

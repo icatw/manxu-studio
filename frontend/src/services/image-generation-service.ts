@@ -9,7 +9,6 @@ export interface ImageGenerationRequest {
   aspectRatio: AspectRatio
   referenceImageUrls: string[]
   signal: AbortSignal
-  /** Folder used when the result is persisted to Blob storage. */
   kind?: 'panels' | 'characters' | 'scenes'
   onProgress?: (progress: number) => void
 }
@@ -22,7 +21,7 @@ export interface ImageGenerationResult {
 }
 
 /**
- * The provider API key remains server-side; the browser only polls task state.
+ * Browser only submits tasks and polls state; provider credentials stay on the server.
  */
 export interface ImageGenerationService {
   readonly providerName: string
@@ -43,15 +42,8 @@ export function isAbortError(error: unknown) {
   return error instanceof DOMException && error.name === 'AbortError'
 }
 
-/**
- * Submits an async Qwen Image task and polls the persisted FastAPI task.
- */
-export class QwenImageGenerationService implements ImageGenerationService {
-  readonly providerName: string
-
-  constructor() {
-    this.providerName = 'Qwen Image'
-  }
+export class ServerImageGenerationService implements ImageGenerationService {
+  readonly providerName = 'Server image provider'
 
   async generate({ panelId, prompt, signal, onProgress }: ImageGenerationRequest): Promise<ImageGenerationResult> {
     if (!prompt.trim()) throw new ImageGenerationError('提示词为空，无法提交生成任务', false)
@@ -80,13 +72,4 @@ export class QwenImageGenerationService implements ImageGenerationService {
   }
 }
 
-export function createImageGenerationService(settings: {
-  provider: string
-  model: string
-  negativePrompt: string
-}): ImageGenerationService {
-  void settings
-  return new QwenImageGenerationService()
-}
-
-export const imageGenerationService: ImageGenerationService = new QwenImageGenerationService()
+export const imageGenerationService: ImageGenerationService = new ServerImageGenerationService()

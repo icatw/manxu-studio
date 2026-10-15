@@ -82,9 +82,7 @@ async def current_account(request: Request, session: AsyncSession) -> AccountRec
     return account
 
 
-async def current_account_dependency(
-    request: Request, session: SessionDep
-) -> AccountRecord:
+async def current_account_dependency(request: Request, session: SessionDep) -> AccountRecord:
     existing = getattr(request.state, "account", None)
     if existing is not None and getattr(existing, "id", None) is not None:
         return cast(AccountRecord, existing)
@@ -113,9 +111,7 @@ async def require_project_owner_dependency(
     return await require_project_owner(project_id, account, session)
 
 
-async def _owned_project(
-    project: ProjectRecord | None, account: AccountRecord
-) -> ProjectRecord:
+async def _owned_project(project: ProjectRecord | None, account: AccountRecord) -> ProjectRecord:
     if project is None or project.owner_id != account.id:
         raise HTTPException(404, "资源不存在")
     return project

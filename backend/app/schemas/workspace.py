@@ -130,6 +130,14 @@ class StoryboardGenerationRequest(APIModel):
     use_approved_assets: bool = True
 
 
+class StoryPipelineRequest(APIModel):
+    episode_id: UUID
+    panel_count: int = Field(ge=1, le=60)
+    pacing: Literal["fast", "balanced", "slow"] = "balanced"
+    regenerate_characters: bool = True
+    use_approved_assets: bool = True
+
+
 class PanelFields(APIModel):
     scene_description: str = Field(default="", max_length=4000)
     shot: str = Field(default="中景", max_length=240)
@@ -201,6 +209,7 @@ class GenerationTask(APIModel):
         "scene_draft",
         "scene_reference_images",
         "storyboard_draft",
+        "story_pipeline",
         "panel_image",
         "panel_image_edit",
         "export",
@@ -217,3 +226,11 @@ class GenerationTask(APIModel):
 class ExportRequest(APIModel):
     format: Literal["png", "production_json"]
     include_unapproved_panels: bool = False
+
+
+class GenerationProviderResumeRequest(APIModel):
+    """Explicit resume for failures that may already own a remote provider job."""
+
+    remote_task_id: str | None = Field(default=None, max_length=128)
+    job_key: str | None = Field(default=None, max_length=128)
+    acknowledge_resubmit: bool = False

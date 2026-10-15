@@ -22,7 +22,9 @@
 
 ## 后续重构边界
 
-- 将模型推荐值从组件常量提升为服务端只读 preset 接口，避免 UI 与后端模型列表漂移。
-- 将 `workspace.py` 拆为 projects、assets、storyboard、generation 四个路由模块。
+- 将模型推荐值从组件常量提升为服务端只读 preset 接口，避免 UI 与后端模型列表漂移。（部分完成：`system_presets` + `IMAGE_MODEL_ALLOWLIST`）
+- 将 `workspace.py` 拆为 projects、assets、storyboard、generation 四个路由模块。（已完成）
 - 为 worker 增加独立健康检查和任务指标；不要用 API 健康状态代表 worker 健康。
 - 在 CI 中执行 Compose smoke test，覆盖迁移、API、worker、前端代理和刷新恢复。
+- 对象存储从本地目录升级为 S3 兼容实现（`LocalObjectStore` 协议已就位）。
+- 提示词模板版本写入任务元数据表字段（模板名/版本已在 handler 结果中带回）。
