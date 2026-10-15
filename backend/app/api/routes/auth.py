@@ -65,9 +65,7 @@ async def github_callback(
 
 
 @router.get("/me", operation_id="getCurrentAccount", response_model=AccountView)
-async def get_current_account(
-    request: Request, session: AsyncSession = SessionDep
-) -> AccountView:
+async def get_current_account(request: Request, session: AsyncSession = SessionDep) -> AccountView:
     return await auth_service.get_current_account(request, session)
 
 

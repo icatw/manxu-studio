@@ -58,12 +58,9 @@ class Settings(BaseSettings):
     def validate_generation_sla(self) -> Self:
         if self.generation_stale_running_seconds >= self.generation_job_timeout_seconds:
             raise ValueError(
-                "generation_stale_running_seconds must be less than "
-                "generation_job_timeout_seconds"
+                "generation_stale_running_seconds must be less than generation_job_timeout_seconds"
             )
-        poll_budget = (
-            self.image_task_poll_interval_seconds * self.image_task_poll_max_attempts
-        )
+        poll_budget = self.image_task_poll_interval_seconds * self.image_task_poll_max_attempts
         max_poll_budget = self.generation_job_timeout_seconds - 60
         if poll_budget > max_poll_budget:
             raise ValueError(
