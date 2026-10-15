@@ -71,6 +71,8 @@ async def test_qwen_image_async_task_is_downloaded_to_persistent_storage(
     settings = SimpleNamespace(
         qwen_image_base_url="https://workspace.example.com/compatible-mode/v1",
         image_storage_dir=str(tmp_path),
+        image_task_poll_interval_seconds=0,
+        image_task_poll_max_attempts=5,
     )
     monkeypatch.setattr(qwen_image.httpx, "AsyncClient", lambda **kwargs: client)
     monkeypatch.setattr(qwen_image.asyncio, "sleep", lambda _: _no_sleep())
@@ -121,6 +123,8 @@ async def test_qwen_image_resume_skips_resubmit(
     settings = SimpleNamespace(
         qwen_image_base_url="https://dashscope.aliyuncs.com/api/v1",
         image_storage_dir=str(tmp_path),
+        image_task_poll_interval_seconds=0,
+        image_task_poll_max_attempts=5,
     )
     submitted: list[str] = []
 
@@ -164,6 +168,8 @@ async def test_qwen_image_resume_resubmits_when_remote_already_failed(
     settings = SimpleNamespace(
         qwen_image_base_url="https://dashscope.aliyuncs.com/api/v1",
         image_storage_dir=str(tmp_path),
+        image_task_poll_interval_seconds=0,
+        image_task_poll_max_attempts=5,
     )
     submitted: list[str] = []
 
@@ -206,6 +212,8 @@ async def test_qwen_image_resume_probe_429_does_not_resubmit(
     settings = SimpleNamespace(
         qwen_image_base_url="https://dashscope.aliyuncs.com/api/v1",
         image_storage_dir=str(tmp_path),
+        image_task_poll_interval_seconds=0,
+        image_task_poll_max_attempts=5,
     )
     monkeypatch.setattr(qwen_image.httpx, "AsyncClient", lambda **kwargs: client)
     monkeypatch.setattr(qwen_image.asyncio, "sleep", lambda _: _no_sleep())
@@ -240,6 +248,8 @@ async def test_qwen_image_resume_probe_5xx_does_not_resubmit(
     settings = SimpleNamespace(
         qwen_image_base_url="https://dashscope.aliyuncs.com/api/v1",
         image_storage_dir=str(tmp_path),
+        image_task_poll_interval_seconds=0,
+        image_task_poll_max_attempts=5,
     )
     monkeypatch.setattr(qwen_image.httpx, "AsyncClient", lambda **kwargs: client)
     monkeypatch.setattr(qwen_image.asyncio, "sleep", lambda _: _no_sleep())
@@ -272,6 +282,8 @@ async def test_qwen_image_submit_5xx_is_ambiguous_not_auto_retried(
     settings = SimpleNamespace(
         qwen_image_base_url="https://dashscope.aliyuncs.com/api/v1",
         image_storage_dir=str(tmp_path),
+        image_task_poll_interval_seconds=0,
+        image_task_poll_max_attempts=5,
     )
     monkeypatch.setattr(qwen_image.httpx, "AsyncClient", lambda **kwargs: client)
     monkeypatch.setattr(qwen_image, "validate_public_https_url", _skip_url_validation)
@@ -300,6 +312,8 @@ async def test_qwen_image_submit_429_is_recoverable(
     settings = SimpleNamespace(
         qwen_image_base_url="https://dashscope.aliyuncs.com/api/v1",
         image_storage_dir=str(tmp_path),
+        image_task_poll_interval_seconds=0,
+        image_task_poll_max_attempts=5,
     )
     monkeypatch.setattr(qwen_image.httpx, "AsyncClient", lambda **kwargs: client)
     monkeypatch.setattr(qwen_image, "validate_public_https_url", _skip_url_validation)
@@ -333,6 +347,8 @@ async def test_qwen_image_submit_checkpoint_failure_is_ambiguous(
     settings = SimpleNamespace(
         qwen_image_base_url="https://dashscope.aliyuncs.com/api/v1",
         image_storage_dir=str(tmp_path),
+        image_task_poll_interval_seconds=0,
+        image_task_poll_max_attempts=5,
     )
     monkeypatch.setattr(qwen_image.httpx, "AsyncClient", lambda **kwargs: client)
     monkeypatch.setattr(qwen_image, "validate_public_https_url", _skip_url_validation)
@@ -369,6 +385,8 @@ async def test_qwen_image_probe_network_error_keeps_existing_remote_job(
     settings = SimpleNamespace(
         qwen_image_base_url="https://dashscope.aliyuncs.com/api/v1",
         image_storage_dir=str(tmp_path),
+        image_task_poll_interval_seconds=0,
+        image_task_poll_max_attempts=5,
     )
     monkeypatch.setattr(qwen_image.httpx, "AsyncClient", lambda **kwargs: client)
     monkeypatch.setattr(qwen_image, "validate_public_https_url", _skip_url_validation)
@@ -402,6 +420,8 @@ async def test_qwen_image_probe_401_is_permanent(
     settings = SimpleNamespace(
         qwen_image_base_url="https://dashscope.aliyuncs.com/api/v1",
         image_storage_dir=str(tmp_path),
+        image_task_poll_interval_seconds=0,
+        image_task_poll_max_attempts=5,
     )
     monkeypatch.setattr(qwen_image.httpx, "AsyncClient", lambda **kwargs: client)
     monkeypatch.setattr(qwen_image, "validate_public_https_url", _skip_url_validation)

@@ -6,6 +6,7 @@ from fastapi import HTTPException
 
 from app.api.routes import generations as generations_routes
 from app.schemas.workspace import GenerationProviderResumeRequest
+from app.services import generations as generations_service
 from app.tasks.retry_policy import (
     authorize_provider_resubmit,
     bind_remote_task_id,
@@ -199,17 +200,17 @@ async def test_provider_resume_binds_remote_and_requeues(
         assert reclaim_if_blocked is True
         return True
 
-    monkeypatch.setattr(generations_routes, "enqueue_generation_task", enqueue)
+    monkeypatch.setattr(generations_service, "enqueue_generation_task", enqueue)
     monkeypatch.setattr(
-        generations_routes,
-        "_task_view",
+        generations_service,
+        "task_view",
         lambda item: SimpleNamespace(id=item.id, status=item.status),
     )
 
-    result = await generations_routes.resume_provider_generation_task(
-        task_id,
-        GenerationProviderResumeRequest(remote_task_id="remote-abc"),
+    result = await generations_service.resume_provider_task(
         FakeSession(),  # type: ignore[arg-type]
+        task_id=task_id,
+        body=GenerationProviderResumeRequest(remote_task_id="remote-abc"),
     )
     assert task.status == "queued"
     assert task.error is None
@@ -234,10 +235,10 @@ async def test_provider_resume_requires_ack_without_remote_id() -> None:
             return task
 
     with pytest.raises(HTTPException) as raised:
-        await generations_routes.resume_provider_generation_task(
-            task_id,
-            GenerationProviderResumeRequest(acknowledge_resubmit=False),
+        await generations_service.resume_provider_task(
             FakeSession(),  # type: ignore[arg-type]
+            task_id=task_id,
+            body=GenerationProviderResumeRequest(acknowledge_resubmit=False),
         )
     assert raised.value.status_code == 409
     assert "acknowledge_resubmit" in str(raised.value.detail)
@@ -274,16 +275,16 @@ async def test_provider_resume_acknowledgment_resets_checkpoint(
         assert reclaim_if_blocked is True
         return True
 
-    monkeypatch.setattr(generations_routes, "enqueue_generation_task", enqueue)
+    monkeypatch.setattr(generations_service, "enqueue_generation_task", enqueue)
     monkeypatch.setattr(
-        generations_routes,
-        "_task_view",
+        generations_service,
+        "task_view",
         lambda item: SimpleNamespace(id=item.id, status=item.status),
     )
-    await generations_routes.resume_provider_generation_task(
-        task_id,
-        GenerationProviderResumeRequest(acknowledge_resubmit=True),
+    await generations_service.resume_provider_task(
         FakeSession(),  # type: ignore[arg-type]
+        task_id=task_id,
+        body=GenerationProviderResumeRequest(acknowledge_resubmit=True),
     )
 
     assert task.status == "queued"
@@ -325,16 +326,16 @@ async def test_provider_resume_uses_runtime_persisted_remote_id_without_ack(
         assert reclaim_if_blocked is True
         return True
 
-    monkeypatch.setattr(generations_routes, "enqueue_generation_task", enqueue)
+    monkeypatch.setattr(generations_service, "enqueue_generation_task", enqueue)
     monkeypatch.setattr(
-        generations_routes,
-        "_task_view",
+        generations_service,
+        "task_view",
         lambda item: SimpleNamespace(id=item.id, status=item.status),
     )
-    result = await generations_routes.resume_provider_generation_task(
-        task_id,
-        GenerationProviderResumeRequest(),
+    result = await generations_service.resume_provider_task(
         FakeSession(),  # type: ignore[arg-type]
+        task_id=task_id,
+        body=GenerationProviderResumeRequest(),
     )
     assert task.status == "queued"
     assert task.request_data["provider_jobs"]["panel:1"]["remote_task_id"] == (

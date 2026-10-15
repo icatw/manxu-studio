@@ -1,3 +1,8 @@
+import {
+  ASPECT_RATIOS,
+  ASPECT_RATIO_VALUES,
+  type AspectRatioOption,
+} from '@/lib/catalogs'
 import type { Character } from './character'
 import type { AssetSource, SceneAsset, StoryIdea } from './story'
 
@@ -11,15 +16,8 @@ export const SHOT_TYPE_LABELS: Record<ShotType, string> = {
   'extreme-close-up': '大特写',
 }
 
-export const ASPECT_RATIOS = ['16:9', '4:3', '1:1', '3:4'] as const
-export type AspectRatio = (typeof ASPECT_RATIOS)[number]
-
-export const ASPECT_RATIO_VALUES: Record<AspectRatio, number> = {
-  '16:9': 16 / 9,
-  '4:3': 4 / 3,
-  '1:1': 1,
-  '3:4': 3 / 4,
-}
+export { ASPECT_RATIOS, ASPECT_RATIO_VALUES }
+export type AspectRatio = AspectRatioOption
 
 export type PanelStatus = 'draft' | 'generating' | 'completed' | 'failed'
 

@@ -6,7 +6,8 @@ import { ArrowLeft, Check, CloudOff, Download, Eye, FileJson, Loader2, Redo2, Se
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { api } from '@/lib/api/client'
-import { waitForTask } from '@/services/workspace-api'
+import { waitForGenerationTask } from '@/lib/generation-task'
+import { queryClient } from '@/lib/query-client'
 import { useStudio } from './studio-provider'
 import { WithTooltip } from './shared'
 import { RegenerateConfirmDialog } from './regenerate-confirm-dialog'
@@ -63,7 +64,7 @@ export function TopToolbar() {
         body: { format, include_unapproved_panels: true },
       })
       if (error || !data) throw new Error('无法创建导出任务')
-      const task = await waitForTask(data.id)
+      const task = await waitForGenerationTask(queryClient, data.id)
       const result = task.result
       if (!result || !('download_url' in result)) throw new Error('导出任务未返回下载地址')
       const response = await fetch(result.download_url)

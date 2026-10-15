@@ -5,6 +5,7 @@ import { useNavigate, useSearchParams } from 'react-router'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ModelSettingsPanel } from '@/components/studio/model-settings-dialog'
+import { useCurrentAccount } from '@/hooks/use-current-account'
 import { api } from '@/lib/api/client'
 import { cn } from '@/lib/utils'
 import type { components } from '@/lib/api/schema'
@@ -24,14 +25,7 @@ export function SettingsPage() {
   const requestedSection = searchParams.get('section') as SectionId | null
   const activeSection: SectionId = sections.some((section) => section.id === requestedSection) ? requestedSection! : 'profile'
   const queryClient = useQueryClient()
-  const account = useQuery({
-    queryKey: ['current-account'],
-    queryFn: async () => {
-      const { data, error } = await api.GET('/auth/me')
-      if (error || !data) throw new Error('无法读取账户资料')
-      return data
-    },
-  })
+  const account = useCurrentAccount()
   const identities = useQuery({
     queryKey: ['auth-identities'],
     queryFn: async () => {

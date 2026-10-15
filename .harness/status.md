@@ -1,18 +1,16 @@
 # 项目状态
 
 - 更新时间：2026-10-15
-- 当前阶段：生成架构重构已合入 main；连载层与 Playwright E2E 已落地
-- 代码阶段：邮箱/GitHub 登录、资源隔离、Redis/ARQ、providers/tasks 分层、定妆锁定、多话壳、季策划/伏笔/摘要/阅读页、Playwright E2E 已接入
+- 当前阶段：架构债清理在分支 `arch/debt-cleanup`（worktree `../kaiying-arch-debt`）已完成验证，待合入
+- 代码阶段：邮箱/GitHub 登录、资源隔离、Redis/ARQ、providers/tasks 分层、应用服务层、定妆锁定、多话壳、连载层、Playwright E2E 已接入
 
 ## 当前事实
 
-- 生成架构：`providers/` + `tasks/` 注册表拆分自巨石 `workspace_tasks`；服务端 `story_pipeline`；ARQ pool 进程级复用。
-- Phase 1 工作区对齐：PNG + 制作资料 JSON 导出；检查器可编辑构图/剧情作用；侧栏多话切换与新建；角色 `reference_locked` 定妆锁定；作品库卡片与派生 `cover_image_url`。
-- Phase 2 连载层：PRD 解冻 SERIAL-01..04 与 PROJ-04；作品设定集；伏笔 CRUD；AI 季策划与 from-plan 创建；话摘要与 continuity 注入分镜；作品总览 Tabs；独立阅读页。
-- 路由：`/projects` 作品库；`/projects/new` 策划；`/projects/:id` 总览；`/projects/:id/studio` 工作区；`/projects/:id/read/:episodeId` 阅读。
-- API 资源名仍为 Project/Episode；产品文案为作品/话。迁移 head：`20261021_serial_layer`。
-- Playwright：`frontend/e2e` + Mailpit 登录；`make test-e2e` / `make test-e2e-ai`；E2E 用 `docker-compose.e2e.yml` 把 SMTP 指到 Mailpit。
-- 验证：核心 E2E 1 passed；`E2E_LIVE_AI=1` AI 策划/摘要 E2E 1 passed（约 54s）。合入 `#1` 后需复跑后端 pytest。
+- 生成架构：`providers/` + `tasks/` 注册表；应用服务 `projects/assets/storyboard/generations/model_config/auth`；路由保持薄。
+- 契约：任务状态无 `cancelled`；生成 SLA（job/stale/poll）由 Settings 统一；默认图像模型单源。
+- 前端：TanStack Query 共享 `queryClient` 轮询生成任务；`lib/catalogs`；`useCurrentAccount`；Studio hydrate/autosave 抽出。
+- Phase 1/2 与连载层能力仍在 main 基线上可用。
+- 计划：`.harness/plans/completed/0013-architecture-debt-cleanup.md`（backend 93 / frontend 9 已通过）。
 
 ## 阶段与进度
 
@@ -27,10 +25,11 @@
 | 生成架构分层 | 完成 | providers + task registry 合入 main（#1） |
 | v0 工作区体验对齐 | 完成 | 导出双格式、构图字段、多话壳、定妆锁定、库卡片 |
 | 连载层 | 完成 | 策划/伏笔/摘要/设定集/阅读页 + Playwright 核心与 live AI E2E |
+| 架构债清理 | 分支完成待合入 | 服务层抽取、cancelled 移除、Query 轮询、catalogs、Studio 拆分 |
 | 发布与交付 | 未开始 | 部署、演示录屏、运行说明 |
 
 ## 下一步
 
-1. 配置 GitHub OAuth 后完成双账户隔离浏览器验证。
-2. 验证生成失败重试与 worker 重启恢复。
-3. 将 Playwright 核心路径纳入常规 CI（live AI 保持 opt-in）；搭建独立 Docker playground 测试环境。
+1. 评审并合入 `arch/debt-cleanup`（或拆 PR）。
+2. 配置 GitHub OAuth 后完成双账户隔离浏览器验证。
+3. 将 Playwright 核心路径纳入常规 CI（live AI 保持 opt-in）。
