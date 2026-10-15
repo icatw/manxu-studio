@@ -29,6 +29,7 @@ async def get_csrf_token(
 @router.post(
     "/email/code",
     operation_id="requestEmailCode",
+    status_code=202,
     dependencies=[Depends(require_rate_limit)],
 )
 async def request_email_code(

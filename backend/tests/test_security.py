@@ -43,3 +43,19 @@ def test_model_secret_encryption_reports_missing_master_key(
 async def test_private_or_insecure_text_endpoints_are_rejected(url: str) -> None:
     with pytest.raises(HTTPException):
         await security.validate_public_https_url(url)
+
+
+@pytest.mark.asyncio
+async def test_private_model_base_urls_allowed_when_configured(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        security,
+        "get_settings",
+        lambda: type("S", (), {"allow_private_model_base_urls": True})(),
+    )
+    await security.validate_public_https_url("http://fake-llm:8080/v1")
+    with pytest.raises(HTTPException):
+        await security.validate_public_https_url("https://metadata.google.internal/")
+    with pytest.raises(HTTPException):
+        await security.validate_public_https_url("ftp://fake-llm/v1")
