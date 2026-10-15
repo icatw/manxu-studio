@@ -21,6 +21,7 @@ Keep this file as a short map for coding agents. Product and technical facts liv
 - Keep model-provider credentials on the backend. Validate external/model output at system boundaries.
 - Run the relevant quality checks for code changes and report what was or was not verified. Update project status when a milestone changes.
 - Do not duplicate full requirements, API schemas, or architecture explanations in this file. Add a link to their canonical document instead.
+- Route work through the project skills: `.agents/skills/manxu-frontend/SKILL.md` for React/UI, `.agents/skills/manxu-backend/SKILL.md` for FastAPI/data/workers, `.agents/skills/manxu-integration/SKILL.md` when a change crosses layers, and `.agents/skills/manxu-testing/SKILL.md` when designing or verifying tests. Use `.agents/skills/manxu-architecture/SKILL.md` for architecture decisions and cross-layer review.
 
 ## Change Completion
 
