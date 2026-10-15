@@ -1,5 +1,6 @@
-# Use with: docker compose -f docker-compose.yml -f docker-compose.e2e.yml up -d
+# Use with: docker compose --profile local -f docker-compose.yml -f docker-compose.e2e.yml up -d
 # Forces API mail delivery into Mailpit so Playwright can read login codes.
+# Profile "local" is required so Mailpit starts (see docker-compose.yml).
 services:
   api:
     environment:

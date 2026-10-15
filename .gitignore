@@ -1,5 +1,6 @@
 .DS_Store
 .env
+.env.prod
 .playwright-cli/
 output/
 var/images/

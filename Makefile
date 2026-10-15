@@ -1,5 +1,6 @@
-.PHONY: dev start stop dev-db stop-db check test test-e2e test-e2e-ai api-types api-lint migrate \
-	playground-up playground-down playground-logs test-api-playground test-e2e-playground test-playground
+.PHONY: dev start stop deploy deploy-remote check-prod-env dev-db stop-db check test test-e2e test-e2e-ai \
+	api-types api-lint migrate playground-up playground-down playground-logs \
+	test-api-playground test-e2e-playground test-playground
 
 PLAYGROUND_COMPOSE := docker compose -p manxu-playground -f docker-compose.playground.yml
 PLAYGROUND_API_URL := http://127.0.0.1:8001
@@ -14,6 +15,16 @@ start:
 
 stop:
 	./scripts/stop.sh
+
+deploy:
+	./scripts/deploy.sh
+
+deploy-remote:
+	@test -n "$(REMOTE)" || (echo 'Usage: make deploy-remote REMOTE=user@host [REMOTE_PATH=manxu-studio]'; exit 1)
+	./scripts/deploy-remote.sh "$(REMOTE)" "$(REMOTE_PATH)"
+
+check-prod-env:
+	./scripts/check-prod-env.sh
 
 dev-db:
 	docker compose up -d postgres
@@ -33,11 +44,11 @@ test:
 	pnpm --dir frontend test
 
 test-e2e:
-	docker compose -f docker-compose.yml -f docker-compose.e2e.yml up -d api worker frontend
+	docker compose --profile local -f docker-compose.yml -f docker-compose.e2e.yml up -d api worker frontend mailpit
 	pnpm --dir frontend test:e2e -- --grep-invert "AI plan"
 
 test-e2e-ai:
-	docker compose -f docker-compose.yml -f docker-compose.e2e.yml up -d api worker frontend
+	docker compose --profile local -f docker-compose.yml -f docker-compose.e2e.yml up -d api worker frontend mailpit
 	pnpm --dir frontend test:e2e:ai
 
 playground-up:

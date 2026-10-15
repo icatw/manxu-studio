@@ -39,6 +39,9 @@ services:
       timeout: 3s
       retries: 10
   mailpit:
+    # Local/dev only. Production overlay omits profile "local", so Mailpit does not start
+    # and Compose ignores this dependency on api.
+    profiles: ["local"]
     image: axllent/mailpit:v1.27
     ports:
       - "${MAILPIT_PORT:-8025}:8025"
