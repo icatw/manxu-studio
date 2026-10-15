@@ -6,7 +6,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "20261020_char_ref_lock"
-down_revision: str | None = "20261019_durable_image_tasks"
+down_revision: str | None = "20261018_task_idempotency"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
