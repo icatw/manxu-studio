@@ -22,7 +22,8 @@ Close the cross-layer generation-task ownership gap: server owns durable status;
 
 - Backend: `pytest tests/test_task_idempotency.py` (plus suite as available).
 - Frontend: `vitest run src/lib/project-store.test.ts`; typecheck/lint on touched modules.
-- Not verified: browser E2E resume after reload; live provider path; remote cancel API (still absent by design).
+- Playwright: `e2e/generation-resume.spec.ts` (list active tasks → poll → complete after reload); wired into playground CI.
+- Not verified: live provider path; remote cancel API (still absent by design).
 
 ## Residual
 
