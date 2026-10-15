@@ -26,7 +26,7 @@ function WorkspaceShell() {
   const { stage, setStage } = useStudio();
   return (
     <TooltipProvider>
-      <div className="flex h-dvh min-w-0 flex-col overflow-hidden">
+      <div className="flex h-dvh max-h-dvh min-h-0 min-w-0 flex-col overflow-hidden">
         <TopToolbar />
         <div className="border-b bg-sidebar lg:hidden">
           <EpisodeSwitcher />
@@ -44,7 +44,7 @@ function WorkspaceShell() {
             </button>
           ))}
         </nav>
-        <div className="flex min-h-0 flex-1 max-lg:flex-col">
+        <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden max-lg:flex-col">
           <SidebarNav />
           <main className="canvas-dots min-h-0 min-w-0 flex-1 overflow-y-auto">
             <StageView />

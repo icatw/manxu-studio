@@ -29,7 +29,7 @@ export function PanelInspector() {
   const panel = project.panels.find((p) => p.id === selectedPanelId)
 
   return (
-    <aside className="flex h-[38dvh] w-full shrink-0 flex-col border-t bg-sidebar lg:h-auto lg:w-80 lg:border-l lg:border-t-0" aria-label="属性面板">
+    <aside className="flex h-[38dvh] w-full shrink-0 flex-col border-t bg-sidebar lg:h-full lg:min-h-0 lg:w-80 lg:border-l lg:border-t-0" aria-label="属性面板">
       <div className="flex h-11 shrink-0 items-center justify-between border-b px-4">
         <h2 className="text-sm font-semibold">
           {stage === 'storyboard' && panel ? `第 ${panel.panelNumber} 格` : '属性'}
