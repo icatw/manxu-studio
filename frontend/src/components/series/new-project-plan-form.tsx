@@ -7,18 +7,16 @@ import { ButtonLink } from "@/components/ui/button-link";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { AUDIENCES, GENRES, VISUAL_STYLES } from "@/lib/catalogs";
 import { createProjectFromPlan, planProject, type ProjectPlanDraft } from "@/services/serial-api";
 
-const GENRES = ["玄幻", "都市", "悬疑", "科幻", "末日"] as const;
-const STYLES = ["国风玄幻", "电影感写实", "日系漫画", "赛博朋克"] as const;
-const AUDIENCES = ["青少年", "年轻成人", "全年龄", "女性向", "男性向"] as const;
 const CHAPTER_COUNTS = [3, 6, 8, 10, 12];
 
 export function NewProjectPlanForm() {
   const navigate = useNavigate();
   const [premise, setPremise] = useState("");
   const [genre, setGenre] = useState<string>(GENRES[0]);
-  const [style, setStyle] = useState<string>(STYLES[0]);
+  const [style, setStyle] = useState<string>(VISUAL_STYLES[0]);
   const [audience, setAudience] = useState<string>(AUDIENCES[1]);
   const [chapterCount, setChapterCount] = useState(6);
   const [planning, setPlanning] = useState(false);
@@ -92,7 +90,7 @@ export function NewProjectPlanForm() {
               <label className="grid gap-1.5 text-xs font-medium">
                 画风
                 <select className="h-9 rounded-md border bg-background px-2" value={style} onChange={(e) => setStyle(e.target.value)}>
-                  {STYLES.map((item) => <option key={item} value={item}>{item}</option>)}
+                  {VISUAL_STYLES.map((item) => <option key={item} value={item}>{item}</option>)}
                 </select>
               </label>
               <label className="grid gap-1.5 text-xs font-medium">

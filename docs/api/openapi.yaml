@@ -2429,7 +2429,7 @@ components:
           enum: [character_draft, scene_draft, scene_reference_images, storyboard_draft, story_pipeline, panel_image, panel_image_edit, export]
         status:
           type: string
-          enum: [queued, running, succeeded, failed, cancelled]
+          enum: [queued, running, succeeded, failed]
         progress:
           type: [integer, 'null']
           minimum: 0

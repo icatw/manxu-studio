@@ -3,9 +3,9 @@ from uuid import uuid4
 
 import pytest
 
-from app.api.routes.projects import _project_cover_image_url
 from app.db.models import EpisodeRecord, ExportRecord
-from app.services.workspace_tasks import _create_export
+from app.services.projects import project_cover_image_url as _project_cover_image_url
+from app.tasks.handlers.export import handle_export as _create_export
 
 
 class CoverSession:

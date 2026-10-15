@@ -12,6 +12,7 @@ from app.db.models import (
     PlotThreadRecord,
     ProjectRecord,
 )
+from app.providers import generate_structured_text
 from app.schemas.workspace import (
     ContinuityOpenThread,
     ContinuityPreviousSummary,
@@ -28,8 +29,7 @@ from app.schemas.workspace import (
     ReaderPanel,
 )
 from app.schemas.workspace import Project as ProjectSchema
-from app.services.text_generation import generate_structured_text
-from app.services.workspace_tasks import _configured_model
+from app.tasks.support import require_text_model as _configured_model
 
 
 class _PlanOutput(BaseModel):
@@ -107,12 +107,12 @@ async def plan_project(
         user_prompt=(
             f"创意：{body.premise}\n题材：{body.genre}\n画风：{body.art_style}\n"
             f"受众：{body.audience}\n目标话数：{body.chapter_count}\n"
-            "返回 {\"title\":string,\"world_setting\":string,"
-            "\"characters\":[{\"name\":string,\"role\":string,\"appearance\":string,"
-            "\"hairstyle\":string,\"outfit\":string,\"signature_traits\":[string],"
-            "\"personality\":string}],"
-            "\"chapters\":[{\"title\":string,\"synopsis\":string}],"
-            "\"threads\":[{\"text\":string,\"planted_in\":number|null,\"payoff_in\":number|null}]}。"
+            '返回 {"title":string,"world_setting":string,'
+            '"characters":[{"name":string,"role":string,"appearance":string,'
+            '"hairstyle":string,"outfit":string,"signature_traits":[string],'
+            '"personality":string}],'
+            '"chapters":[{"title":string,"synopsis":string}],'
+            '"threads":[{"text":string,"planted_in":number|null,"payoff_in":number|null}]}。'
             f"chapters 数量必须为 {body.chapter_count}。"
         ),
         response_model=_PlanOutput,
@@ -214,9 +214,7 @@ async def create_project_from_plan(
     )
 
 
-async def generate_episode_summary(
-    session: AsyncSession, episode_id: UUID
-) -> EpisodeSummaryResult:
+async def generate_episode_summary(session: AsyncSession, episode_id: UUID) -> EpisodeSummaryResult:
     episode = await session.get(EpisodeRecord, episode_id)
     if episode is None:
         raise ValueError("故事单元不存在")
@@ -249,12 +247,11 @@ async def generate_episode_summary(
         model=config.text_model,
         api_key=api_key,
         system_prompt=(
-            "你是连载编剧。根据本话分镜写 120–200 字前情摘要，"
-            "供下一话续写。只返回 JSON。"
+            "你是连载编剧。根据本话分镜写 120–200 字前情摘要，供下一话续写。只返回 JSON。"
         ),
         user_prompt=(
             f"作品：{project.title}\n本话：{episode.title}\n梗概：{episode.synopsis}\n"
-            f"分镜：{beats}\n返回 {{\"summary\":string}}。"
+            f'分镜：{beats}\n返回 {{"summary":string}}。'
         ),
         response_model=_SummaryOutput,
     )

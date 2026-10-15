@@ -9,6 +9,7 @@ import { ButtonLink } from "@/components/ui/button-link";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/lib/api/client";
+import { useCurrentAccount } from "@/hooks/use-current-account";
 import { createEpisode, createProject, deleteProject, listProjects } from "@/services/workspace-api";
 
 export function ProjectLibrary() {
@@ -18,7 +19,7 @@ export function ProjectLibrary() {
   const [synopsis, setSynopsis] = useState("");
   const [projectToDelete, setProjectToDelete] = useState<{ id: string; title: string } | null>(null);
   const projects = useQuery({ queryKey: ["projects"], queryFn: listProjects });
-  const account = useQuery({ queryKey: ["current-account"], queryFn: async () => (await api.GET("/auth/me")).data ?? null, retry: false });
+  const account = useCurrentAccount();
   const logout = useMutation({
     mutationFn: async () => {
       const { error } = await api.POST("/auth/logout");
