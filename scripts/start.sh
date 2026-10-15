@@ -18,6 +18,7 @@ if [[ ! -f .env ]]; then
   printf '%s\n' 'Created .env from .env.example. Add OAuth/model secrets before production use.'
 fi
 
-docker compose up -d --build
+docker compose --profile local up -d --build
 printf '%s\n' 'Manxu Studio is available at http://localhost:5173'
 printf '%s\n' 'API docs: http://localhost:8000/docs'
+printf '%s\n' 'Mailpit: http://localhost:8025'

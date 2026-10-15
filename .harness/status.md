@@ -1,8 +1,8 @@
 # 项目状态
 
 - 更新时间：2026-10-15
-- 当前阶段：生成归属收口（hydrate 合并 / resume / 停止跟踪）在分支 `feat/generation-ownership-close` 待合入
-- 代码阶段：邮箱/GitHub 登录、资源隔离、Redis/ARQ、providers/tasks 分层、应用服务层、定妆锁定、多话壳、连载层、Playwright E2E、playground Compose/fake-llm 已接入
+- 当前阶段：单机 VPS 一键部署（Compose + Caddy）已落地；演示录屏仍待做
+- 代码阶段：邮箱/GitHub 登录、资源隔离、Redis/ARQ、providers/tasks 分层、应用服务层、定妆锁定、多话壳、连载层、Playwright E2E、playground、生成归属收口、多人角色参考图、VPS 部署 overlay 已接入
 
 ## 当前事实
 
@@ -13,11 +13,11 @@
 - Phase 2 连载层：PRD 解冻 SERIAL-01..04 与 PROJ-04；作品设定集；伏笔 CRUD；AI 季策划与 from-plan 创建；话摘要与 continuity 注入分镜；作品总览 Tabs；独立阅读页。
 - 路由：`/projects` 作品库；`/projects/new` 策划；`/projects/:id` 总览；`/projects/:id/studio` 工作区；`/projects/:id/read/:episodeId` 阅读。
 - API 资源名仍为 Project/Episode；产品文案为作品/话。迁移 head：`20261021_serial_layer`。
-- Playwright：`frontend/e2e` + Mailpit 登录；`make test-e2e` / `make test-e2e-ai`；E2E 用 `docker-compose.e2e.yml` 把 SMTP 指到 Mailpit。
-- Playground：`docker-compose.playground.yml`（独立卷/端口、fake-llm、Mailpit）；`make test-api-playground` / `test-e2e-playground` / `test-playground`；前端映射 `15174`；`ALLOW_PRIVATE_MODEL_BASE_URLS` 仅 playground 开启。
-- 计划：`.harness/plans/completed/0013-architecture-debt-cleanup.md`；`.harness/plans/completed/0013-playground-api-e2e.md`；`.harness/plans/completed/0012-generation-ownership-close.md`。
-- 生成归属：`mergeHydratedProject`；进工作室 resume active panel tasks；本地 abort 为停止跟踪；idempotency 单测落在 `services.generations`。
-- 验证：架构债清理与 playground 已合入；ownership 收口待本分支 CI。
+- Playwright：`frontend/e2e` + Mailpit 登录；`make test-e2e` / `make test-e2e-ai`；E2E 用 `docker-compose.e2e.yml` + `--profile local`。
+- Playground：`docker-compose.playground.yml`（独立卷/端口、fake-llm、Mailpit）；`make test-api-playground` / `test-e2e-playground` / `test-playground`。
+- 部署：`docker-compose.prod.yml` + Caddy；`./scripts/deploy.sh` / `make deploy`；本地 `start.sh` 使用 `--profile local`（Mailpit）；图像第一期仍为 `image-data` 卷（ADR-003）。
+- 角色草稿：一次生成 2–6 人阵容并为每人出参考图（定妆锁定保留）。
+- 计划：`.harness/plans/completed/0014-multi-character-reference-images.md`；`.harness/plans/completed/0015-vps-compose-caddy-deploy.md`。
 
 ## 阶段与进度
 
@@ -34,11 +34,11 @@
 | 连载层 | 完成 | 策划/伏笔/摘要/设定集/阅读页 + Playwright 核心与 live AI E2E |
 | 架构债清理 | 完成 | 服务层抽取、cancelled 移除、Query 轮询、catalogs、Studio 拆分（#2） |
 | Playground 测试环境 | 完成 | 独立 Compose + fake-llm API 套件 + Playwright hang + CI job（#3） |
-| 生成归属收口 | 分支完成待合入 | hydrate 合并、resume、停止跟踪文案、idempotency 测试 |
-| 发布与交付 | 未开始 | 部署、演示录屏、运行说明 |
+| 生成归属收口 | 完成 | hydrate 合并、resume、停止跟踪、idempotency（#4） |
+| 发布与交付 | 进行中 | VPS 一键部署已具备；演示录屏与托管对象存储仍待 |
 
 ## 下一步
 
-1. 合入 `feat/generation-ownership-close` 后确认 CI。
+1. 在真实 VPS + 域名上跑通 `./scripts/deploy.sh` 冒烟（登录、生成、图片持久）。
 2. 配置 GitHub OAuth 后完成双账户隔离浏览器验证。
-3. 验证生成失败重试与 worker 重启恢复；可选浏览器 E2E resume。
+3. 演示录屏；后续再规划对象存储与托管 Postgres。
