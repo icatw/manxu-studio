@@ -1265,6 +1265,34 @@ paths:
         default:
           $ref: '#/components/responses/UnexpectedError'
 
+  /projects/{project_id}/exports:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+    post:
+      tags: [Exports, Generations, Projects]
+      operationId: createProjectAnthologyExport
+      summary: Export selected episodes as a multi-episode anthology ZIP or PDF
+      x-requirement-ids: [EXP-02]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnthologyExportRequest'
+      responses:
+        '202':
+          description: Anthology export task accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccessGenerationTask'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        default:
+          $ref: '#/components/responses/UnexpectedError'
+
   /exports/{asset_id}:
     parameters:
       - name: asset_id
@@ -1277,12 +1305,24 @@ paths:
       tags: [Exports]
       operationId: downloadExport
       summary: Download a completed export
-      x-requirement-ids: [EXP-01]
+      x-requirement-ids: [EXP-01, EXP-02]
       responses:
         '200':
-          description: Export file
+          description: Export file (PNG strip, paginated ZIP, PDF, or JSON)
           content:
             image/png:
+              schema:
+                type: string
+                format: binary
+            application/zip:
+              schema:
+                type: string
+                format: binary
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+            application/json:
               schema:
                 type: string
                 format: binary
@@ -2437,7 +2477,30 @@ components:
       properties:
         format:
           type: string
-          enum: [png, production_json]
+          enum: [png, png_zip, production_json]
+          description: >
+            png is one vertical strip; png_zip packs panels into page-sized PNGs
+            inside a ZIP (page-01.png …); production_json is editorial metadata.
+        include_unapproved_panels:
+          type: boolean
+          default: false
+    AnthologyExportRequest:
+      type: object
+      additionalProperties: false
+      required: [format, episode_ids]
+      properties:
+        format:
+          type: string
+          enum: [png_zip, pdf]
+          description: png_zip nests pages per episode; pdf is one multi-page document.
+        episode_ids:
+          type: array
+          minItems: 1
+          maxItems: 40
+          items:
+            type: string
+            format: uuid
+          description: Episodes to include, in the order provided.
         include_unapproved_panels:
           type: boolean
           default: false

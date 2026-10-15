@@ -16,8 +16,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm.attributes import flag_modified
 
 from app.core.config import get_settings
-from app.db.models import EpisodeRecord, ExportRecord, GenerationTaskRecord
+from app.db.models import EpisodeRecord, ExportRecord, GenerationTaskRecord, ProjectRecord
 from app.schemas.workspace import (
+    AnthologyExportRequest,
     ExportRequest,
     GenerationProviderResumeRequest,
     GenerationTask,
@@ -231,8 +232,62 @@ async def create_export(
         project_id=episode.project_id,
         episode_id=episode.id,
         task_type="export",
-        request_data={**body.model_dump(mode="json"), "episode_id": str(episode.id)},
+        request_data={
+            **body.model_dump(mode="json"),
+            "episode_id": str(episode.id),
+            "project_id": str(episode.project_id),
+            "scope": "episode",
+        },
     )
+
+
+async def create_anthology_export(
+    session: AsyncSession, *, project_id: UUID, owner_id: UUID, body: AnthologyExportRequest
+) -> GenerationTask:
+    project = await session.get(ProjectRecord, project_id)
+    if project is None:
+        raise not_found("项目")
+    episodes = list(
+        (
+            await session.scalars(
+                select(EpisodeRecord).where(
+                    EpisodeRecord.project_id == project_id,
+                    EpisodeRecord.id.in_(body.episode_ids),
+                )
+            )
+        ).all()
+    )
+    by_id = {episode.id: episode for episode in episodes}
+    missing = [str(item) for item in body.episode_ids if item not in by_id]
+    if missing:
+        raise HTTPException(status_code=422, detail="所选故事单元不属于该作品或不存在")
+    ordered_ids = [str(item) for item in body.episode_ids]
+    return await create_task(
+        session,
+        owner_id=owner_id,
+        project_id=project_id,
+        episode_id=None,
+        task_type="export",
+        request_data={
+            **body.model_dump(mode="json"),
+            "project_id": str(project_id),
+            "episode_ids": ordered_ids,
+            "scope": "anthology",
+        },
+    )
+
+
+def _ascii_export_filename(filename: str, content_type: str) -> str:
+    """RFC 6266 ASCII fallback; always keep a usable type suffix."""
+    suffix = Path(filename).suffix.lower()
+    if not suffix:
+        suffix = {
+            "image/png": ".png",
+            "application/json": ".json",
+            "application/zip": ".zip",
+            "application/pdf": ".pdf",
+        }.get(content_type, "")
+    return f"export{suffix}"
 
 
 async def download_export(session: AsyncSession, asset_id: UUID) -> Response:
@@ -240,7 +295,10 @@ async def download_export(session: AsyncSession, asset_id: UUID) -> Response:
     if record is None:
         raise not_found("导出文件")
     filename = Path(record.filename).name
-    content_disposition = f"attachment; filename=export; filename*=UTF-8''{quote(filename)}"
+    ascii_name = _ascii_export_filename(filename, record.content_type)
+    content_disposition = (
+        f'attachment; filename="{ascii_name}"; filename*=UTF-8\'\'{quote(filename)}'
+    )
     return Response(
         content=record.content,
         media_type=record.content_type,

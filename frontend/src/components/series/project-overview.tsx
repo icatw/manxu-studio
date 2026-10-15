@@ -1,14 +1,16 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router";
-import { ArrowLeft, BookOpen, Loader2, PenLine, Plus, ScrollText, Trash2 } from "lucide-react";
+import { ArrowLeft, BookOpen, Files, Loader2, PenLine, Plus, ScrollText, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ButtonLink } from "@/components/ui/button-link";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { api } from "@/lib/api/client";
+import { api, toApiError } from "@/lib/api/client";
+import { waitForGenerationTask } from "@/lib/generation-task";
+import { queryClient as appQueryClient } from "@/lib/query-client";
 import { createEpisode, deleteProject, listEpisodes } from "@/services/workspace-api";
 import {
   createPlotThread,
@@ -138,6 +140,7 @@ export function ProjectOverview() {
         {tab === "chapters" ? (
           <ChapterList
             projectId={projectId}
+            projectTitle={detail.title}
             episodes={episodes.data ?? []}
             onChanged={() => {
               void queryClient.invalidateQueries({ queryKey: ["episodes", projectId] });
@@ -169,17 +172,25 @@ export function ProjectOverview() {
 
 function ChapterList({
   projectId,
+  projectTitle,
   episodes,
   onChanged,
 }: {
   projectId: string;
+  projectTitle: string;
   episodes: { id: string; title: string; synopsis: string; summary?: string; position: number }[];
   onChanged: () => void;
 }) {
   const navigate = useNavigate();
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [exportOpen, setExportOpen] = useState(false);
+  const lastEpisode = episodes[episodes.length - 1];
+  const lastNeedsSummary = Boolean(lastEpisode && !(lastEpisode.summary ?? "").trim());
   const continueNext = useMutation({
     mutationFn: async () => {
+      if (lastNeedsSummary && lastEpisode) {
+        throw new Error(`请先为「${lastEpisode.title}」生成摘要，再续写下一话`);
+      }
       const next = episodes.length + 1;
       return createEpisode(projectId, {
         title: `第 ${next} 话`,
@@ -196,12 +207,29 @@ function ChapterList({
 
   return (
     <section className="flex flex-col gap-4">
-      <div className="flex justify-end">
-        <Button size="sm" onClick={() => continueNext.mutate()} disabled={continueNext.isPending}>
-          {continueNext.isPending ? <Loader2 className="animate-spin" data-icon="inline-start" /> : <Plus data-icon="inline-start" />}
-          续写下一话
-        </Button>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs text-muted-foreground">
+          下一话生成分镜前须完成上一话摘要；可在此导出跨话合集。
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <Button size="sm" variant="outline" disabled={episodes.length === 0} onClick={() => setExportOpen(true)}>
+            <Files data-icon="inline-start" />
+            导出合集
+          </Button>
+          <Button size="sm" onClick={() => continueNext.mutate()} disabled={continueNext.isPending}>
+            {continueNext.isPending ? <Loader2 className="animate-spin" data-icon="inline-start" /> : <Plus data-icon="inline-start" />}
+            续写下一话
+          </Button>
+        </div>
       </div>
+      {exportOpen ? (
+        <AnthologyExportPanel
+          projectId={projectId}
+          projectTitle={projectTitle}
+          episodes={episodes}
+          onClose={() => setExportOpen(false)}
+        />
+      ) : null}
       <ul className="flex flex-col divide-y rounded-xl border">
         {episodes.map((episode, index) => (
           <li key={episode.id} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center">
@@ -209,7 +237,11 @@ function ChapterList({
               <p className="text-xs tabular-nums text-muted-foreground">第 {index + 1} 话</p>
               <h3 className="font-medium">{episode.title}</h3>
               <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{episode.synopsis}</p>
-              {episode.summary ? <p className="mt-2 text-xs text-muted-foreground">摘要：{episode.summary}</p> : null}
+              {episode.summary ? (
+                <p className="mt-2 text-xs text-muted-foreground">摘要：{episode.summary}</p>
+              ) : (
+                <p className="mt-2 text-xs text-amber-700 dark:text-amber-400">尚未生成摘要（续写下一话前需要）</p>
+              )}
             </div>
             <div className="flex flex-wrap gap-2">
               <Button
@@ -230,7 +262,7 @@ function ChapterList({
                 }}
               >
                 <ScrollText data-icon="inline-start" />
-                生成摘要
+                {episode.summary ? "更新摘要" : "生成摘要"}
               </Button>
               <Button size="sm" variant="outline" onClick={() => navigate(`/projects/${projectId}/read/${episode.id}`)}>
                 <BookOpen data-icon="inline-start" />
@@ -245,6 +277,130 @@ function ChapterList({
         ))}
       </ul>
     </section>
+  );
+}
+
+function AnthologyExportPanel({
+  projectId,
+  projectTitle,
+  episodes,
+  onClose,
+}: {
+  projectId: string;
+  projectTitle: string;
+  episodes: { id: string; title: string; synopsis: string; summary?: string; position: number }[];
+  onClose: () => void;
+}) {
+  const [selected, setSelected] = useState<Set<string>>(() => new Set(episodes.map((item) => item.id)));
+  const [format, setFormat] = useState<"png_zip" | "pdf">("png_zip");
+  const [busy, setBusy] = useState(false);
+
+  const toggle = (id: string) => {
+    setSelected((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const runExport = async () => {
+    const episodeIds = episodes.filter((item) => selected.has(item.id)).map((item) => item.id);
+    if (episodeIds.length === 0) {
+      toast.error("请至少选择一话");
+      return;
+    }
+    setBusy(true);
+    try {
+      const { data, error } = await api.POST("/projects/{project_id}/exports", {
+        params: { path: { project_id: projectId } },
+        body: { format, episode_ids: episodeIds, include_unapproved_panels: true },
+      });
+      if (error || !data) throw toApiError(error, "无法创建合集导出任务");
+      const task = await waitForGenerationTask(appQueryClient, data.id);
+      const result = task.result;
+      if (!result || !("download_url" in result)) throw new Error("导出任务未返回下载地址");
+      const response = await fetch(result.download_url, { credentials: "include" });
+      if (!response.ok) throw new Error("下载文件失败");
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      const disposition = response.headers.get("content-disposition") ?? "";
+      const utf8Name = /filename\*=UTF-8''([^;]+)/i.exec(disposition)?.[1];
+      const asciiName = /filename="([^"]+)"/i.exec(disposition)?.[1];
+      const fromHeader = utf8Name ? decodeURIComponent(utf8Name) : asciiName;
+      const base = (projectTitle || "anthology").replace(/[\\/:*?"<>|]+/g, "_").trim() || "anthology";
+      const fallback = format === "pdf" ? `${base}-合集.pdf` : `${base}-合集.zip`;
+      const preferred = fromHeader || fallback;
+      anchor.download = preferred.match(/\.(zip|pdf)$/i) ? preferred : fallback;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
+      toast.success(format === "pdf" ? "合集 PDF 已导出" : "合集 ZIP 已导出");
+      onClose();
+    } catch (error) {
+      toast.error("合集导出失败", { description: error instanceof Error ? error.message : undefined });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="rounded-xl border bg-card p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-semibold">导出合集</h2>
+          <p className="mt-1 text-xs text-muted-foreground">勾选要收录的话，生成跨话分页 ZIP 或一本 PDF。</p>
+        </div>
+        <Button size="sm" variant="ghost" onClick={onClose} disabled={busy}>
+          取消
+        </Button>
+      </div>
+      <ul className="mt-3 flex max-h-56 flex-col gap-1 overflow-y-auto">
+        {episodes.map((episode, index) => (
+          <li key={episode.id}>
+            <label className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted/60">
+              <input
+                type="checkbox"
+                checked={selected.has(episode.id)}
+                onChange={() => toggle(episode.id)}
+                disabled={busy}
+              />
+              <span className="tabular-nums text-muted-foreground">#{index + 1}</span>
+              <span className="truncate">{episode.title}</span>
+            </label>
+          </li>
+        ))}
+      </ul>
+      <div className="mt-3 flex flex-wrap items-center gap-3">
+        <label className="flex items-center gap-1.5 text-xs">
+          <input
+            type="radio"
+            name="anthology-format"
+            checked={format === "png_zip"}
+            onChange={() => setFormat("png_zip")}
+            disabled={busy}
+          />
+          PNG ZIP
+        </label>
+        <label className="flex items-center gap-1.5 text-xs">
+          <input
+            type="radio"
+            name="anthology-format"
+            checked={format === "pdf"}
+            onChange={() => setFormat("pdf")}
+            disabled={busy}
+          />
+          PDF
+        </label>
+        <Button size="sm" className="ml-auto" disabled={busy || selected.size === 0} onClick={() => void runExport()}>
+          {busy ? <Loader2 className="animate-spin" data-icon="inline-start" /> : <Files data-icon="inline-start" />}
+          {busy ? "导出中…" : "开始导出"}
+        </Button>
+      </div>
+    </div>
   );
 }
 

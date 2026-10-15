@@ -835,6 +835,25 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/projects/{project_id}/exports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Export selected episodes as a multi-episode anthology ZIP or PDF */
+        post: operations["createProjectAnthologyExport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/exports/{asset_id}": {
         parameters: {
             query?: never;
@@ -1483,8 +1502,22 @@ export interface components {
             idempotency_key?: string;
         };
         ExportRequest: {
-            /** @enum {string} */
-            format: "png" | "production_json";
+            /**
+             * @description png is one vertical strip; png_zip packs panels into page-sized PNGs inside a ZIP (page-01.png …); production_json is editorial metadata.
+             * @enum {string}
+             */
+            format: "png" | "png_zip" | "production_json";
+            /** @default false */
+            include_unapproved_panels: boolean;
+        };
+        AnthologyExportRequest: {
+            /**
+             * @description png_zip nests pages per episode; pdf is one multi-page document.
+             * @enum {string}
+             */
+            format: "png_zip" | "pdf";
+            /** @description Episodes to include, in the order provided. */
+            episode_ids: string[];
             /** @default false */
             include_unapproved_panels: boolean;
         };
@@ -3082,6 +3115,35 @@ export interface operations {
             default: components["responses"]["UnexpectedError"];
         };
     };
+    createProjectAnthologyExport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AnthologyExportRequest"];
+            };
+        };
+        responses: {
+            /** @description Anthology export task accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiSuccessGenerationTask"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationError"];
+            default: components["responses"]["UnexpectedError"];
+        };
+    };
     downloadExport: {
         parameters: {
             query?: never;
@@ -3093,13 +3155,16 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Export file */
+            /** @description Export file (PNG strip, paginated ZIP, PDF, or JSON) */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "image/png": string;
+                    "application/zip": string;
+                    "application/pdf": string;
+                    "application/json": string;
                 };
             };
             404: components["responses"]["NotFound"];

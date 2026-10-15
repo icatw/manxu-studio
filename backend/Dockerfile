@@ -12,6 +12,11 @@ ENV UV_COMPILE_BYTECODE=1 \
 COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev --no-install-project
 
+# CJK fonts for export PNG titles / dialogue (PIL default font cannot render 中文).
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends fonts-wqy-microhei \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY alembic.ini ./
 COPY migrations ./migrations
 COPY app ./app

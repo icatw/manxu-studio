@@ -19,7 +19,10 @@
 - 角色草稿：一次生成 2–6 人阵容并为每人出参考图（定妆锁定保留）。默认 `cast_mode=append`（同名跳过、不删孤儿）；`replace` 仅危险整队重建。
 - 本话生成：已有作品角色库时默认 `regenerate_characters=false` 复用；故事页可「补充角色」追加或「重建作品角色库」。
 - 单资产重生：角色/场景卡片可「重生设定」「重出参考图」；支持批量补缺失参考图（`character_reference_images` / `scene_reference_images`）。
-- 计划：`.harness/plans/completed/0018-project-cast-reuse.md`；`.harness/plans/completed/0017-per-asset-regen.md`；`.harness/plans/completed/0014-multi-character-reference-images.md`；`.harness/plans/completed/0015-vps-compose-caddy-deploy.md`。
+- 导出：本话长图/分页 ZIP；作品总览「导出合集」（ZIP/PDF，EXP-02）。
+- 连载：第 N 话生成分镜前须有第 N-1 话非空摘要（409）；续写下一话前端同步校验。
+- 迁移 head：`20261022_export_project_scope`。
+- 计划：`.harness/plans/completed/0020-summary-gate-anthology-export.md`；`.harness/plans/completed/0019-episode-paged-export.md`；`.harness/plans/completed/0018-project-cast-reuse.md`。
 
 ## 阶段与进度
 

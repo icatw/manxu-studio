@@ -240,6 +240,7 @@ export function toPanelPatch(panel: StoryboardPanel) {
 }
 
 const PANEL_IMAGE_TASK_TYPES = new Set(["panel_image", "panel_image_edit"]);
+const STORY_TASK_TYPES = new Set(["story_pipeline", "storyboard_draft"]);
 
 /** Active panel-image tasks for an episode (newest first per API). */
 export async function listActiveEpisodePanelTasks(episodeId: string): Promise<TaskDto[]> {
@@ -251,6 +252,19 @@ export async function listActiveEpisodePanelTasks(episodeId: string): Promise<Ta
     (task) =>
       task.panel_id != null &&
       PANEL_IMAGE_TASK_TYPES.has(task.task_type) &&
+      (task.status === "queued" || task.status === "running"),
+  );
+}
+
+/** Active story/storyboard pipeline tasks for an episode (newest first). */
+export async function listActiveEpisodeStoryTasks(episodeId: string): Promise<TaskDto[]> {
+  const { data, error } = await api.GET("/episodes/{episode_id}/generation-tasks", {
+    params: { path: { episode_id: episodeId }, query: { active_only: true } },
+  });
+  const tasks = required(data, error);
+  return tasks.filter(
+    (task) =>
+      STORY_TASK_TYPES.has(task.task_type) &&
       (task.status === "queued" || task.status === "running"),
   );
 }
@@ -271,6 +285,7 @@ export async function generateStoryAssets(
     regenerateCharacters?: boolean;
     characterCastMode?: "append" | "replace";
     sceneCastMode?: "append" | "replace";
+    signal?: AbortSignal;
   } = {},
 ) {
   const { data, error } = await api.POST("/projects/{project_id}/story-generations", {
@@ -286,7 +301,7 @@ export async function generateStoryAssets(
       use_continuity: true,
     },
   });
-  const task = await waitForTask(required(data, error).id);
+  const task = await waitForTask(required(data, error).id, undefined, options.signal);
   const warnings =
     task.result && "warnings" in task.result && Array.isArray(task.result.warnings)
       ? task.result.warnings.filter((warning): warning is string => typeof warning === "string")

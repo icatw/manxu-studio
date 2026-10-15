@@ -28,7 +28,7 @@ export function StatusBar() {
           aria-hidden
         />
         {storyBusy ? (
-          <span>AI 正在生成角色、场景与分镜…</span>
+          <span>本话分镜生成中…切到其他话也不影响，回来可继续看进度</span>
         ) : counts.generating ? (
           <span>
             正在生成 {counts.generating} 格 · <span className="tabular-nums">{avgProgress}%</span>

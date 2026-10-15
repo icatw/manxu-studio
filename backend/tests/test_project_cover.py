@@ -48,7 +48,7 @@ async def test_project_cover_image_url_null_when_missing() -> None:
 async def test_production_json_export_includes_panel_fields() -> None:
     episode_id = uuid4()
     project_id = uuid4()
-    episode = SimpleNamespace(id=episode_id, title="第一话", synopsis="开场")
+    episode = SimpleNamespace(id=episode_id, project_id=project_id, title="第一话", synopsis="开场")
     panel = SimpleNamespace(
         id=uuid4(),
         episode_id=episode_id,

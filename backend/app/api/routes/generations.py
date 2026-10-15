@@ -7,9 +7,11 @@ from app.api.routes.workspace_common import SessionDep, create_workspace_router
 from app.core.security import (
     require_asset_owner,
     require_episode_owner,
+    require_project_owner_dependency,
     require_task_owner,
 )
 from app.schemas.workspace import (
+    AnthologyExportRequest,
     ExportRequest,
     GenerationProviderResumeRequest,
     GenerationTask,
@@ -90,6 +92,24 @@ async def create_episode_export(
 ) -> GenerationTask:
     return await generations_service.create_export(
         session, episode_id=episode_id, owner_id=request.state.account_id, body=body
+    )
+
+
+@router.post(
+    "/projects/{project_id}/exports",
+    operation_id="createProjectAnthologyExport",
+    response_model=GenerationTask,
+    status_code=202,
+    dependencies=[Depends(require_project_owner_dependency)],
+)
+async def create_project_anthology_export(
+    project_id: UUID,
+    body: AnthologyExportRequest,
+    request: Request,
+    session: SessionDep,
+) -> GenerationTask:
+    return await generations_service.create_anthology_export(
+        session, project_id=project_id, owner_id=request.state.account_id, body=body
     )
 
 

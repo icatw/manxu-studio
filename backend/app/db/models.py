@@ -199,10 +199,14 @@ class GenerationTaskRecord(Base):
 
 class ExportRecord(Base):
     __tablename__ = "exports"
+    __table_args__ = (Index("exports_project_idx", "project_id"),)
 
     id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
-    episode_id: Mapped[UUID] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("episodes.id", ondelete="CASCADE"), nullable=False
+    project_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), nullable=False
+    )
+    episode_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("episodes.id", ondelete="CASCADE"), nullable=True
     )
     format: Mapped[str] = mapped_column(String(24), nullable=False)
     filename: Mapped[str] = mapped_column(String(160), nullable=False)

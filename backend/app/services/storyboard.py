@@ -19,6 +19,7 @@ from app.schemas.workspace import (
     StoryboardPanelPatch,
     StoryPipelineRequest,
 )
+from app.services.continuity_gate import require_previous_episode_summary
 from app.services.generations import create_task as _create_task
 
 
@@ -59,6 +60,7 @@ async def generate_storyboard(
     episode = await session.get(EpisodeRecord, body.episode_id)
     if episode is None or episode.project_id != project_id:
         raise _not_found("故事单元")
+    await require_previous_episode_summary(session, episode)
     return await _create_task(
         session,
         owner_id=owner_id,
@@ -79,6 +81,7 @@ async def generate_story_pipeline(
     episode = await session.get(EpisodeRecord, body.episode_id)
     if episode is None or episode.project_id != project_id:
         raise _not_found("故事单元")
+    await require_previous_episode_summary(session, episode)
     return await _create_task(
         session,
         owner_id=owner_id,
@@ -148,6 +151,9 @@ async def reorder_panels(
     for position, row in enumerate(ordered):
         row.position = position
     await session.commit()
+    # commit expires attributes; refresh before reading in async (no lazy IO).
+    for row in ordered:
+        await session.refresh(row)
     return [StoryboardPanel.model_validate(_panel_view(row)) for row in ordered]
 
 

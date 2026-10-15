@@ -28,7 +28,6 @@ async def test_download_export_supports_utf8_filename() -> None:
 
     assert response.body == b"png-content"
     assert response.media_type == "image/png"
-    assert (
-        "filename*=UTF-8''%E9%9B%BE%E6%B8%AF%E6%9D%A5%E4%BF%A1.png"
-        in response.headers["content-disposition"]
-    )
+    disposition = response.headers["content-disposition"]
+    assert 'filename="export.png"' in disposition
+    assert "filename*=UTF-8''%E9%9B%BE%E6%B8%AF%E6%9D%A5%E4%BF%A1.png" in disposition

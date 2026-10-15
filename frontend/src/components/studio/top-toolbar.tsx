@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useNavigate } from 'react-router'
-import { ArrowLeft, Check, CloudOff, Download, Eye, FileJson, Loader2, Redo2, Settings2, Sparkles, Undo2 } from 'lucide-react'
+import { ArrowLeft, Check, CloudOff, Download, Eye, FileJson, Files, Loader2, Redo2, Settings2, Sparkles, Undo2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { api } from '@/lib/api/client'
@@ -45,14 +45,15 @@ function SaveIndicator() {
 export function TopToolbar() {
   const { project, dispatch, canUndo, canRedo, undo, redo, setPreviewOpen, storyBusy, generateFromStory, episodeId, projectId } = useStudio()
   const navigate = useNavigate()
-  const [exportingFormat, setExportingFormat] = useState<'png' | 'production_json' | null>(null)
+  type ExportFormat = 'png' | 'png_zip' | 'production_json'
+  const [exportingFormat, setExportingFormat] = useState<ExportFormat | null>(null)
   const [confirmOpen, setConfirmOpen] = useState(false)
 
   const hasPanels = project.panels.length > 0
   const hasWork = project.panels.some((p) => p.imageUrl || p.dialogue)
   const exporting = exportingFormat !== null
 
-  const handleExport = async (format: 'png' | 'production_json') => {
+  const handleExport = async (format: ExportFormat) => {
     if (!hasPanels) {
       toast.error('没有可导出的分镜')
       return
@@ -67,17 +68,28 @@ export function TopToolbar() {
       const task = await waitForGenerationTask(queryClient, data.id)
       const result = task.result
       if (!result || !('download_url' in result)) throw new Error('导出任务未返回下载地址')
-      const response = await fetch(result.download_url)
+      const response = await fetch(result.download_url, { credentials: 'include' })
       if (!response.ok) throw new Error('下载文件失败')
       const blob = await response.blob()
       const url = URL.createObjectURL(blob)
       const anchor = document.createElement('a')
       anchor.href = url
-      const baseName = project.story.title || 'storyboard'
-      anchor.download = format === 'png' ? `${baseName}.png` : `${baseName}-production.json`
+      const disposition = response.headers.get('content-disposition') ?? ''
+      const utf8Name = /filename\*=UTF-8''([^;]+)/i.exec(disposition)?.[1]
+      const asciiName = /filename="([^"]+)"/i.exec(disposition)?.[1]
+      const fromHeader = utf8Name ? decodeURIComponent(utf8Name) : asciiName
+      const fallbackBase = (project.story.title || 'storyboard').replace(/[\\/:*?"<>|]+/g, '_').trim() || 'storyboard'
+      const fallback =
+        format === 'png' ? `${fallbackBase}.png` : format === 'png_zip' ? `${fallbackBase}.zip` : `${fallbackBase}-production.json`
+      const preferred = fromHeader || fallback
+      anchor.download = preferred.match(/\.(png|zip|json)$/i) ? preferred : fallback
+      document.body.appendChild(anchor)
       anchor.click()
+      anchor.remove()
       URL.revokeObjectURL(url)
-      toast.success(format === 'png' ? 'PNG 已导出' : '制作资料已导出')
+      toast.success(
+        format === 'png' ? '长图 PNG 已导出' : format === 'png_zip' ? '分页 ZIP 已导出' : '制作资料已导出',
+      )
     } catch (error) {
       toast.error('导出失败', { description: error instanceof Error ? error.message : undefined })
     } finally {
@@ -150,13 +162,25 @@ export function TopToolbar() {
           variant="outline"
           size="icon-sm"
           className="md:w-auto md:px-2.5"
-          aria-label="导出 PNG"
-          title="导出 PNG"
+          aria-label="导出长图 PNG"
+          title="导出本话竖向长图 PNG"
           onClick={() => void handleExport('png')}
           disabled={!hasPanels || exporting}
         >
           {exportingFormat === 'png' ? <Loader2 className="animate-spin" data-icon="inline-start" /> : <Download data-icon="inline-start" />}
-          <span className="hidden md:inline">导出 PNG</span>
+          <span className="hidden md:inline">长图</span>
+        </Button>
+        <Button
+          variant="outline"
+          size="icon-sm"
+          className="md:w-auto md:px-2.5"
+          aria-label="导出分页 ZIP"
+          title="按页高自动分页，导出 PNG ZIP（page-01.png…）"
+          onClick={() => void handleExport('png_zip')}
+          disabled={!hasPanels || exporting}
+        >
+          {exportingFormat === 'png_zip' ? <Loader2 className="animate-spin" data-icon="inline-start" /> : <Files data-icon="inline-start" />}
+          <span className="hidden md:inline">分页 ZIP</span>
         </Button>
         <Button
           variant="outline"

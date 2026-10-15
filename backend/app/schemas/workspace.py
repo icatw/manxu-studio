@@ -378,7 +378,13 @@ class GenerationTask(APIModel):
 
 
 class ExportRequest(APIModel):
-    format: Literal["png", "production_json"]
+    format: Literal["png", "png_zip", "production_json"]
+    include_unapproved_panels: bool = False
+
+
+class AnthologyExportRequest(APIModel):
+    format: Literal["png_zip", "pdf"]
+    episode_ids: list[UUID] = Field(min_length=1, max_length=40)
     include_unapproved_panels: bool = False
 
 

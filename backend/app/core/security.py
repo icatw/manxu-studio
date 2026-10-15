@@ -166,10 +166,7 @@ async def require_asset_owner(
 ) -> UUID:
     export = await session.get(ExportRecord, asset_id)
     if export:
-        episode = await session.get(EpisodeRecord, export.episode_id)
-        if episode is None:
-            raise HTTPException(404, "资源不存在")
-        project = await session.get(ProjectRecord, episode.project_id)
+        project = await session.get(ProjectRecord, export.project_id)
         await _owned_project(project, account)
         return asset_id
     version = await session.scalar(

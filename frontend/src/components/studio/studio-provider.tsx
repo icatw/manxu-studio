@@ -23,10 +23,12 @@ import {
 } from "@/hooks/use-studio-persist";
 import { historyReducer, createHistory, type ProjectAction } from "@/lib/project-store";
 import { api, toApiError } from "@/lib/api/client";
-import { imageGenerationService } from "@/services/image-generation-service";
+import { waitForGenerationTask } from "@/lib/generation-task";
+import { imageGenerationService, isAbortError } from "@/services/image-generation-service";
 import {
   generateCharacterAssets,
   generateStoryAssets,
+  listActiveEpisodeStoryTasks,
   toComicProject,
   type WorkspaceData,
 } from "@/services/workspace-api";
@@ -96,6 +98,7 @@ export function StudioProvider({
   const [selectedPanelId, setSelectedPanelId] = useState<string | null>(initialProject.panels[0]?.id ?? null);
   const [storyBusy, setStoryBusy] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const storyAbortRef = useRef<AbortController | null>(null);
 
   const { saveState, setSaveState, lastSavedAt, setLastSavedAt } = useStudioAutosave({
     project,
@@ -160,6 +163,64 @@ export function StudioProvider({
     return () => window.removeEventListener("keydown", onKey);
   }, [undo, redo]);
 
+  const applyStoryTaskSuccess = useCallback(
+    async (warnings: string[], regenerateCharacters: boolean, resumed: boolean) => {
+      await queryClient.invalidateQueries({ queryKey: ["workspace", workspace.project.id] });
+      await onReload();
+      setStage(regenerateCharacters ? "characters" : "storyboard");
+      if (warnings.length) {
+        toast.warning(resumed ? "后台生成已完成" : "AI 文字设定已生成", {
+          description: warnings.join(" "),
+        });
+      } else if (resumed) {
+        toast.success("本话生成已完成", { description: "切走期间任务已在后台跑完，结果已刷新。" });
+      } else if (regenerateCharacters) {
+        toast.success("AI 角色、场景与分镜草稿已生成", { description: "结果已保存，可继续编辑。" });
+      } else {
+        toast.success("本话分镜已生成", { description: "已复用作品角色库；结果已保存。" });
+      }
+    },
+    [onReload, queryClient, workspace.project.id],
+  );
+
+  // Remounting StudioProvider on episode switch clears local storyBusy; resume server-owned pipeline tasks.
+  useEffect(() => {
+    const controller = new AbortController();
+    storyAbortRef.current = controller;
+    void (async () => {
+      try {
+        const active = (await listActiveEpisodeStoryTasks(workspace.episode.id))[0];
+        if (!active || controller.signal.aborted) return;
+        setStoryBusy(true);
+        const task = await waitForGenerationTask(queryClient, active.id, { signal: controller.signal });
+        if (controller.signal.aborted) return;
+        const warnings =
+          task.result && "warnings" in task.result && Array.isArray(task.result.warnings)
+            ? task.result.warnings.filter((warning): warning is string => typeof warning === "string")
+            : [];
+        // Pipeline result only fills character_ids when the character stage ran.
+        const regenerateCharacters = Boolean(
+          task.result &&
+            "character_ids" in task.result &&
+            Array.isArray(task.result.character_ids) &&
+            task.result.character_ids.length > 0,
+        );
+        await applyStoryTaskSuccess(warnings, regenerateCharacters, true);
+      } catch (error) {
+        if (isAbortError(error) || controller.signal.aborted) return;
+        toast.error("分镜生成失败", {
+          description: error instanceof Error ? error.message : "请稍后重试",
+        });
+      } finally {
+        if (!controller.signal.aborted) setStoryBusy(false);
+      }
+    })();
+    return () => {
+      controller.abort();
+      if (storyAbortRef.current === controller) storyAbortRef.current = null;
+    };
+  }, [applyStoryTaskSuccess, queryClient, workspace.episode.id]);
+
   const generateFromStory = useCallback(
     async ({
       regenerateCharacters = true,
@@ -175,33 +236,31 @@ export function StudioProvider({
         setStage("story");
         return;
       }
+      const signal = storyAbortRef.current?.signal;
       setStoryBusy(true);
       try {
         const { warnings } = await generateStoryAssets(
           workspace.project.id,
           workspace.episode.id,
           project.story.panelCount,
-          { regenerateCharacters, characterCastMode, sceneCastMode },
+          { regenerateCharacters, characterCastMode, sceneCastMode, signal },
         );
-        await queryClient.invalidateQueries({ queryKey: ["workspace", workspace.project.id] });
-        await onReload();
-        setStage(regenerateCharacters ? "characters" : "storyboard");
-        if (warnings.length) {
-          toast.warning("AI 文字设定已生成", {
-            description: warnings.filter((warning): warning is string => typeof warning === "string").join(" "),
-          });
-        } else if (regenerateCharacters) {
-          toast.success("AI 角色、场景与分镜草稿已生成", { description: "结果已保存，可继续编辑。" });
-        } else {
-          toast.success("本话分镜已生成", { description: "已复用作品角色库；结果已保存。" });
-        }
+        if (signal?.aborted) return;
+        await applyStoryTaskSuccess(warnings, regenerateCharacters, false);
       } catch (error) {
+        if (isAbortError(error) || signal?.aborted) return;
         toast.error("分镜生成失败", { description: error instanceof Error ? error.message : "请稍后重试" });
       } finally {
-        setStoryBusy(false);
+        if (!signal?.aborted) setStoryBusy(false);
       }
     },
-    [onReload, project.story.panelCount, project.story.synopsis, queryClient, workspace.episode.id, workspace.project.id],
+    [
+      applyStoryTaskSuccess,
+      project.story.panelCount,
+      project.story.synopsis,
+      workspace.episode.id,
+      workspace.project.id,
+    ],
   );
 
   const appendProjectCharacters = useCallback(async () => {
@@ -210,12 +269,14 @@ export function StudioProvider({
       setStage("story");
       return;
     }
+    const signal = storyAbortRef.current?.signal;
     setStoryBusy(true);
     try {
       const { task, warnings } = await generateCharacterAssets(workspace.project.id, {
         castMode: "append",
         guidance: `本话梗概：${project.story.synopsis}`,
       });
+      if (signal?.aborted) return;
       await queryClient.invalidateQueries({ queryKey: ["workspace", workspace.project.id] });
       await onReload();
       setStage("characters");
@@ -232,9 +293,10 @@ export function StudioProvider({
         toast.success("未发现需追加的新人", { description: "作品角色库保持不变。" });
       }
     } catch (error) {
+      if (isAbortError(error) || signal?.aborted) return;
       toast.error("补充角色失败", { description: error instanceof Error ? error.message : "请稍后重试" });
     } finally {
-      setStoryBusy(false);
+      if (!signal?.aborted) setStoryBusy(false);
     }
   }, [onReload, project.story.synopsis, queryClient, workspace.project.id]);
 
