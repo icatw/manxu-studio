@@ -14,7 +14,7 @@ from app.db.models import (
     SceneRecord,
 )
 from app.providers import generate_image, generate_structured_text
-from app.providers.errors import RecoverableProviderError
+from app.providers.errors import ProviderControlError
 from app.tasks.prompts import SCENE_DRAFT
 from app.tasks.provider_jobs import (
     bind_image_job,
@@ -170,8 +170,8 @@ async def generate_scenes(
                 )
                 scene.reference_asset_id = asset_id
                 await session.commit()
-            except RecoverableProviderError:
-                # Transient image errors must not finish as succeeded; runtime requeues.
+            except ProviderControlError:
+                # Recoverable / ambiguous submit must not finish as succeeded warnings.
                 raise
             except Exception as error:
                 warnings.append(f"{scene.name}参考图生成失败，可稍后单独重试。")

@@ -5,7 +5,7 @@ from uuid import uuid4
 import pytest
 
 from app.providers import local_store, qwen_image
-from app.providers.errors import RecoverableProviderError
+from app.providers.errors import AmbiguousProviderSubmitError, RecoverableProviderError
 
 
 class FakeResponse:
@@ -233,6 +233,95 @@ async def test_qwen_image_resume_probe_5xx_does_not_resubmit(
     monkeypatch.setattr(local_store, "get_settings", lambda: settings)
 
     with pytest.raises(RecoverableProviderError, match="查询 Qwen Image 任务失败"):
+        await qwen_image.generate_image(
+            api_key="private",
+            model="qwen-image-3.0-pro",
+            prompt="resume",
+            asset_id=uuid4(),
+            resume_task_id="existing-remote-task",
+        )
+
+    assert client.submitted is None
+
+
+@pytest.mark.asyncio
+async def test_qwen_image_submit_5xx_is_ambiguous_not_auto_retried(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    class SubmitFailClient(FakeClient):
+        async def post(self, url: str, **kwargs: object) -> FakeResponse:
+            self.submitted = {"url": url, **kwargs}
+            return FakeResponse(status_code=503, body={"message": "Unavailable"})
+
+    client = SubmitFailClient()
+    settings = SimpleNamespace(
+        qwen_image_base_url="https://dashscope.aliyuncs.com/api/v1",
+        image_storage_dir=str(tmp_path),
+    )
+    monkeypatch.setattr(qwen_image.httpx, "AsyncClient", lambda **kwargs: client)
+    monkeypatch.setattr(qwen_image, "validate_public_https_url", _skip_url_validation)
+    monkeypatch.setattr(qwen_image, "get_settings", lambda: settings)
+    monkeypatch.setattr(local_store, "get_settings", lambda: settings)
+
+    with pytest.raises(AmbiguousProviderSubmitError, match="提交结果不确定"):
+        await qwen_image.generate_image(
+            api_key="private",
+            model="qwen-image-3.0-pro",
+            prompt="create",
+            asset_id=uuid4(),
+        )
+
+
+@pytest.mark.asyncio
+async def test_qwen_image_submit_429_is_recoverable(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    class RateLimitedSubmitClient(FakeClient):
+        async def post(self, url: str, **kwargs: object) -> FakeResponse:
+            self.submitted = {"url": url, **kwargs}
+            return FakeResponse(status_code=429, body={"message": "Too Many Requests"})
+
+    client = RateLimitedSubmitClient()
+    settings = SimpleNamespace(
+        qwen_image_base_url="https://dashscope.aliyuncs.com/api/v1",
+        image_storage_dir=str(tmp_path),
+    )
+    monkeypatch.setattr(qwen_image.httpx, "AsyncClient", lambda **kwargs: client)
+    monkeypatch.setattr(qwen_image, "validate_public_https_url", _skip_url_validation)
+    monkeypatch.setattr(qwen_image, "get_settings", lambda: settings)
+    monkeypatch.setattr(local_store, "get_settings", lambda: settings)
+
+    with pytest.raises(RecoverableProviderError, match="提交限流"):
+        await qwen_image.generate_image(
+            api_key="private",
+            model="qwen-image-3.0-pro",
+            prompt="create",
+            asset_id=uuid4(),
+        )
+
+
+@pytest.mark.asyncio
+async def test_qwen_image_probe_401_is_permanent(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    class AuthFailProbeClient(FakeClient):
+        async def get(self, url: str, **_: object) -> FakeResponse:
+            self.get_count += 1
+            if "/tasks/" in url:
+                return FakeResponse(status_code=401, body={"message": "Unauthorized"})
+            return FakeResponse()
+
+    client = AuthFailProbeClient()
+    settings = SimpleNamespace(
+        qwen_image_base_url="https://dashscope.aliyuncs.com/api/v1",
+        image_storage_dir=str(tmp_path),
+    )
+    monkeypatch.setattr(qwen_image.httpx, "AsyncClient", lambda **kwargs: client)
+    monkeypatch.setattr(qwen_image, "validate_public_https_url", _skip_url_validation)
+    monkeypatch.setattr(qwen_image, "get_settings", lambda: settings)
+    monkeypatch.setattr(local_store, "get_settings", lambda: settings)
+
+    with pytest.raises(ValueError, match="请检查图像 API Key"):
         await qwen_image.generate_image(
             api_key="private",
             model="qwen-image-3.0-pro",

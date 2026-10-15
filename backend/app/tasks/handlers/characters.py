@@ -8,7 +8,7 @@ from app.core.logging import api_logger
 from app.core.security import decrypt_secret
 from app.db.models import CharacterRecord, GenerationTaskRecord, ProjectRecord
 from app.providers import generate_image, generate_structured_text
-from app.providers.errors import RecoverableProviderError
+from app.providers.errors import ProviderControlError
 from app.tasks.prompts import CHARACTER_DRAFT
 from app.tasks.provider_jobs import (
     bind_image_job,
@@ -143,8 +143,8 @@ async def generate_characters(session: AsyncSession, task: GenerationTaskRecord)
             character.reference_asset_id = asset_id
             await session.commit()
             await report_progress(session, task, 95)
-        except RecoverableProviderError:
-            # Transient image errors must not finish as succeeded; runtime requeues.
+        except ProviderControlError:
+            # Recoverable / ambiguous submit must not finish as succeeded warnings.
             raise
         except Exception as error:
             warning = "角色文字设定已生成，但参考图生成失败；可在设置中检查图像模型后重试。"

@@ -25,12 +25,14 @@ def test_strip_resumable_checkpoints_removes_provider_pipeline_and_text_state() 
             "provider_jobs": {"scene:1": {"remote_task_id": "old"}},
             "pipeline_stages": {"characters": {"done": True}},
             "text_checkpoints": {"characters": {"done": True, "character_ids": ["c1"]}},
+            "recovery_attempts": 3,
         }
     )
     assert cleaned == {"episode_id": "ep-1", "panel_count": 4}
     assert "provider_jobs" not in cleaned
     assert "pipeline_stages" not in cleaned
     assert "text_checkpoints" not in cleaned
+    assert "recovery_attempts" not in cleaned
 
 
 @pytest.mark.asyncio

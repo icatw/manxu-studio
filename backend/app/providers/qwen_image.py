@@ -7,7 +7,7 @@ import httpx
 
 from app.core.config import get_settings
 from app.core.security import validate_public_https_url
-from app.providers.errors import RecoverableProviderError
+from app.providers.errors import AmbiguousProviderSubmitError, RecoverableProviderError
 from app.providers.local_store import LocalObjectStore
 
 OnSubmitted = Callable[[str], Awaitable[None]]
@@ -15,8 +15,13 @@ _TERMINAL_REMOTE = frozenset({"FAILED", "CANCELED", "UNKNOWN"})
 
 
 def _raise_query_failure(status_code: int) -> None:
-    # Any non-success query while a remote job may exist must stay resumable.
-    raise RecoverableProviderError(f"查询 Qwen Image 任务失败（HTTP {status_code}）")
+    message = f"查询 Qwen Image 任务失败（HTTP {status_code}）"
+    if status_code in {401, 403}:
+        raise ValueError(f"{message}，请检查图像 API Key")
+    if status_code == 429 or status_code >= 500:
+        raise RecoverableProviderError(message)
+    # Other 4xx are permanent (bad request / not allowed), not auto-retried.
+    raise ValueError(message)
 
 
 def normalize_dashscope_api_base(configured_base_url: str) -> str:
@@ -74,27 +79,42 @@ class QwenImageProvider:
                     _raise_query_failure(probe.status_code)
 
             if not task_id:
+                # DashScope has no idempotency key: each POST may create a billable job.
+                # Only auto-retry submits that clearly were not accepted (e.g. 429).
                 endpoint = f"{api_root}/services/aigc/image-generation/generation"
-                response = await client.post(
-                    endpoint,
-                    headers=headers,
-                    json={
-                        "model": model,
-                        "input": {"messages": [{"role": "user", "content": [{"text": prompt}]}]},
-                        "parameters": {"size": "1024*1024", "prompt_extend": True},
-                    },
-                )
+                payload = {
+                    "model": model,
+                    "input": {"messages": [{"role": "user", "content": [{"text": prompt}]}]},
+                    "parameters": {"size": "1024*1024", "prompt_extend": True},
+                }
+                try:
+                    response = await client.post(endpoint, headers=headers, json=payload)
+                except httpx.TimeoutException as error:
+                    raise AmbiguousProviderSubmitError(
+                        "Qwen Image 提交超时，远端可能已创建任务；请勿自动重提，避免重复计费"
+                    ) from error
+                except httpx.RequestError as error:
+                    raise AmbiguousProviderSubmitError(
+                        "Qwen Image 提交网络异常，远端可能已创建任务；请勿自动重提，避免重复计费"
+                    ) from error
                 if not response.is_success:
                     if response.status_code in {401, 403}:
                         raise ValueError("Qwen Image 认证失败，请检查图像 API Key")
-                    if response.status_code == 429 or response.status_code >= 500:
+                    if response.status_code == 429:
                         raise RecoverableProviderError(
-                            f"Qwen Image 提交失败（HTTP {response.status_code}）"
+                            f"Qwen Image 提交限流（HTTP {response.status_code}）"
+                        )
+                    if response.status_code >= 500:
+                        raise AmbiguousProviderSubmitError(
+                            f"Qwen Image 提交结果不确定（HTTP {response.status_code}）；"
+                            "远端可能已创建任务，请人工确认后处理，避免重复计费"
                         )
                     raise ValueError(f"Qwen Image 提交失败（HTTP {response.status_code}）")
                 task_id = response.json().get("output", {}).get("task_id")
                 if not task_id:
-                    raise ValueError("Qwen Image 未返回异步任务编号")
+                    raise AmbiguousProviderSubmitError(
+                        "Qwen Image 提交成功但未返回任务编号；请勿自动重提，避免重复计费"
+                    )
                 if on_submitted is not None:
                     await on_submitted(str(task_id))
 
@@ -125,7 +145,9 @@ class QwenImageProvider:
             await validate_public_https_url(image_url)
             download = await client.get(image_url)
             if not download.is_success:
-                raise RecoverableProviderError("下载 Qwen Image 结果失败")
+                if download.status_code == 429 or download.status_code >= 500:
+                    raise RecoverableProviderError("下载 Qwen Image 结果失败")
+                raise ValueError("下载 Qwen Image 结果失败")
             content_type = download.headers.get("content-type", "").split(";", 1)[0].lower()
             extensions = {"image/png": ".png", "image/jpeg": ".jpg", "image/webp": ".webp"}
             extension = extensions.get(content_type)

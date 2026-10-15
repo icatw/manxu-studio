@@ -3,7 +3,7 @@ from uuid import uuid4
 
 import pytest
 
-from app.providers.errors import RecoverableProviderError
+from app.providers.errors import AmbiguousProviderSubmitError, RecoverableProviderError
 from app.tasks import runtime
 from app.tasks.provider_jobs import bind_image_job
 from app.tasks.support import report_progress
@@ -52,26 +52,13 @@ async def test_bind_image_job_persists_remote_task_id() -> None:
     assert len(commits) >= 2
 
 
-@pytest.mark.asyncio
-async def test_runtime_requeues_recoverable_provider_error(
+def _runtime_fakes(
     monkeypatch: pytest.MonkeyPatch,
+    *,
+    task: SimpleNamespace,
+    project: SimpleNamespace,
+    handler_error: BaseException,
 ) -> None:
-    task_id = uuid4()
-    task = SimpleNamespace(
-        id=task_id,
-        status="running",
-        task_type="character_draft",
-        project_id=uuid4(),
-        owner_id=uuid4(),
-        progress=55,
-        request_data={"provider_jobs": {"character:1": {"remote_task_id": "keep-me"}}},
-        updated_at=None,
-        result=None,
-        error=None,
-    )
-    project = SimpleNamespace(owner_id=task.owner_id)
-    interrupted: list[str] = []
-
     class FakeLockConnection:
         async def scalar(self, _query: object) -> bool:
             return True
@@ -108,20 +95,106 @@ async def test_runtime_requeues_recoverable_provider_error(
             return None
 
     async def handler(_session: object, _task: object) -> dict[str, object]:
-        raise RecoverableProviderError("查询 Qwen Image 任务失败（HTTP 503）")
-
-    async def mark_interrupted(marked_id: object) -> None:
-        interrupted.append(str(marked_id))
-        task.status = "queued"
+        raise handler_error
 
     monkeypatch.setattr(runtime, "engine", FakeEngine())
     monkeypatch.setattr(runtime, "SessionFactory", FakeSession)
     monkeypatch.setattr(runtime, "get_handler", lambda _task_type: handler)
-    monkeypatch.setattr(runtime, "_mark_interrupted", mark_interrupted)
+
+
+@pytest.mark.asyncio
+async def test_runtime_requeues_recoverable_provider_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    task_id = uuid4()
+    task = SimpleNamespace(
+        id=task_id,
+        status="running",
+        task_type="character_draft",
+        project_id=uuid4(),
+        owner_id=uuid4(),
+        progress=55,
+        request_data={"provider_jobs": {"character:1": {"remote_task_id": "keep-me"}}},
+        updated_at=None,
+        result=None,
+        error=None,
+    )
+    project = SimpleNamespace(owner_id=task.owner_id)
+    _runtime_fakes(
+        monkeypatch,
+        task=task,
+        project=project,
+        handler_error=RecoverableProviderError("查询 Qwen Image 任务失败（HTTP 503）"),
+    )
 
     await runtime.run_generation_task(task_id)
 
-    assert interrupted == [str(task_id)]
     assert task.status == "queued"
-    assert task.error is None
+    assert task.request_data["recovery_attempts"] == 1
+    assert task.error is not None
+    assert task.error["code"] == "RECOVERING"
     assert task.request_data["provider_jobs"]["character:1"]["remote_task_id"] == "keep-me"
+
+
+@pytest.mark.asyncio
+async def test_runtime_fails_after_recovery_limit(monkeypatch: pytest.MonkeyPatch) -> None:
+    task_id = uuid4()
+    task = SimpleNamespace(
+        id=task_id,
+        status="running",
+        task_type="character_draft",
+        project_id=uuid4(),
+        owner_id=uuid4(),
+        progress=55,
+        request_data={"recovery_attempts": runtime.MAX_RECOVERY_ATTEMPTS},
+        updated_at=None,
+        result=None,
+        error=None,
+    )
+    project = SimpleNamespace(owner_id=task.owner_id)
+    _runtime_fakes(
+        monkeypatch,
+        task=task,
+        project=project,
+        handler_error=RecoverableProviderError("still failing"),
+    )
+
+    await runtime.run_generation_task(task_id)
+
+    assert task.status == "failed"
+    assert task.request_data["recovery_attempts"] == runtime.MAX_RECOVERY_ATTEMPTS + 1
+    assert task.error is not None
+    assert task.error["code"] == "RECOVERY_EXHAUSTED"
+
+
+@pytest.mark.asyncio
+async def test_runtime_fails_ambiguous_submit_without_requeue(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    task_id = uuid4()
+    task = SimpleNamespace(
+        id=task_id,
+        status="running",
+        task_type="character_draft",
+        project_id=uuid4(),
+        owner_id=uuid4(),
+        progress=55,
+        request_data={"provider_jobs": {"character:1": {"asset_id": str(uuid4())}}},
+        updated_at=None,
+        result=None,
+        error=None,
+    )
+    project = SimpleNamespace(owner_id=task.owner_id)
+    _runtime_fakes(
+        monkeypatch,
+        task=task,
+        project=project,
+        handler_error=AmbiguousProviderSubmitError("提交结果不确定"),
+    )
+
+    await runtime.run_generation_task(task_id)
+
+    assert task.status == "failed"
+    assert task.error is not None
+    assert task.error["code"] == "PROVIDER_SUBMIT_AMBIGUOUS"
+    assert "recovery_attempts" not in task.request_data

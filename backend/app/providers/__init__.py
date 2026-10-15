@@ -1,6 +1,10 @@
 """Vendor adapters for text, image, and object storage."""
 
-from app.providers.errors import RecoverableProviderError
+from app.providers.errors import (
+    AmbiguousProviderSubmitError,
+    ProviderControlError,
+    RecoverableProviderError,
+)
 from app.providers.local_store import LocalObjectStore
 from app.providers.openai_compatible import (
     OpenAICompatibleTextProvider,
@@ -14,8 +18,10 @@ from app.providers.qwen_image import (
 )
 
 __all__ = [
+    "AmbiguousProviderSubmitError",
     "LocalObjectStore",
     "OpenAICompatibleTextProvider",
+    "ProviderControlError",
     "QwenImageProvider",
     "RecoverableProviderError",
     "generate_image",
