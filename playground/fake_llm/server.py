@@ -56,6 +56,33 @@ def _summary_payload() -> dict[str, object]:
     }
 
 
+def _character_draft_payload() -> dict[str, object]:
+    return {
+        "characters": [
+            {
+                "name": "阿澜",
+                "role": "馆员 / 男主",
+                "appearance": "瘦高青年，深蓝长袍，眼神沉静",
+                "hairstyle": "黑色短发",
+                "outfit": "绣银线的馆员袍",
+                "signature_traits": ["怀表形钥匙"],
+                "personality": "克制、好奇",
+                "reference_image_prompt": "全身立绘，深蓝馆员袍，黑色短发，怀表钥匙，纯净浅色背景",
+            },
+            {
+                "name": "汐",
+                "role": "失踪旅人 / 女主",
+                "appearance": "银发少女，神情直率",
+                "hairstyle": "及肩银发",
+                "outfit": "旅行斗篷",
+                "signature_traits": ["发光笔记本"],
+                "personality": "直率",
+                "reference_image_prompt": "全身立绘，旅行斗篷，及肩银发，发光笔记本，纯净浅色背景",
+            },
+        ]
+    }
+
+
 def _extract_chapter_count(text: str) -> int:
     match = re.search(r"目标话数[：:]\s*(\d+)", text) or re.search(
         r"chapters 数量必须为\s*(\d+)", text
@@ -71,6 +98,8 @@ def _completion_content(system_prompt: str, user_prompt: str) -> str:
         return json.dumps(_plan_payload(_extract_chapter_count(combined)), ensure_ascii=False)
     if "摘要" in combined or "summary" in combined.lower():
         return json.dumps(_summary_payload(), ensure_ascii=False)
+    if "reference_image_prompt" in combined or "角色阵容" in combined:
+        return json.dumps(_character_draft_payload(), ensure_ascii=False)
     return json.dumps({"ok": True, "echo": user_prompt[:200]}, ensure_ascii=False)
 
 
