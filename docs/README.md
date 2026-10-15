@@ -34,6 +34,7 @@
 ### 交付
 
 - [验收清单](delivery/acceptance.md)：端到端验收条件和演示路径。
+- [单机 VPS 部署](delivery/deploy-vps.md)：Compose + Caddy 一键部署、备份与更新。
 
 ## 状态
 

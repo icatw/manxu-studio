@@ -1,0 +1,84 @@
+# Production overlay for a single-VPS deploy.
+# Usage: docker compose -f docker-compose.yml -f docker-compose.prod.yml --env-file .env.prod up -d --build --wait
+#
+# Requires Docker Compose v2.24+ (!reset / !override). Do not enable the "local" profile
+# (Mailpit stays off). Images stay on the shared image-data volume for phase 1.
+
+x-backend-env-prod: &backend-env-prod
+  APP_ENV: production
+  DATABASE_URL: postgresql+asyncpg://manxu:${POSTGRES_PASSWORD}@postgres:5432/manxu
+  REDIS_URL: redis://redis:6379/0
+  SMTP_HOST: ${SMTP_HOST}
+  SMTP_PORT: ${SMTP_PORT:-587}
+  SMTP_USERNAME: ${SMTP_USERNAME:-}
+  SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+  SMTP_STARTTLS: ${SMTP_STARTTLS:-true}
+  SMTP_FROM: ${SMTP_FROM}
+  IMAGE_STORAGE_DIR: /app/var/images
+  CORS_ORIGINS: ${CORS_ORIGINS}
+  FRONTEND_BASE_URL: ${FRONTEND_BASE_URL}
+  GITHUB_CALLBACK_URL: ${GITHUB_CALLBACK_URL:-}
+  SESSION_COOKIE_SECURE: "true"
+  ALLOW_PRIVATE_MODEL_BASE_URLS: "false"
+
+services:
+  postgres:
+    ports: !reset []
+    environment:
+      POSTGRES_DB: manxu
+      POSTGRES_USER: manxu
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U manxu -d manxu"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    ports: !reset []
+
+  api:
+    ports: !reset []
+    env_file: !override
+      - path: .env.prod
+        required: true
+    environment: *backend-env-prod
+    depends_on: !override
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  worker:
+    env_file: !override
+      - path: .env.prod
+        required: true
+    environment: *backend-env-prod
+
+  frontend:
+    ports: !reset []
+
+  caddy:
+    image: caddy:2.10-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      DOMAIN: ${DOMAIN}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      frontend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "caddy", "version"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  caddy-data:
+  caddy-config:
