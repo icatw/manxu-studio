@@ -1,14 +1,21 @@
-export const GENRES = ['玄幻', '都市', '悬疑', '科幻', '末日'] as const
-export type Genre = (typeof GENRES)[number]
+export {
+  AUDIENCES,
+  GENRES,
+  PANEL_COUNTS,
+  VISUAL_STYLES,
+  type AudienceOption,
+  type GenreOption,
+  type PanelCountOption,
+  type VisualStyleOption,
+} from '@/lib/catalogs'
 
-export const VISUAL_STYLES = ['国风玄幻', '电影感写实', '日系漫画', '赛博朋克'] as const
-export type VisualStyle = (typeof VISUAL_STYLES)[number]
+import type { AspectRatioOption, PanelCountOption } from '@/lib/catalogs'
 
-export const AUDIENCES = ['青少年', '年轻成人', '全年龄', '女性向', '男性向'] as const
-export type Audience = (typeof AUDIENCES)[number]
-
-export const PANEL_COUNTS = [2, 4, 6, 8, 10] as const
-export type PanelCount = (typeof PANEL_COUNTS)[number]
+/** Runtime story fields are free strings from the API; option types remain for selects. */
+export type Genre = string
+export type VisualStyle = string
+export type Audience = string
+export type PanelCount = PanelCountOption | number
 
 export interface StoryIdea {
   title: string
@@ -17,7 +24,7 @@ export interface StoryIdea {
   style: VisualStyle
   audience: Audience
   panelCount: PanelCount
-  aspectRatio?: '16:9' | '4:3' | '1:1' | '3:4'
+  aspectRatio?: AspectRatioOption
 }
 
 export type AssetSource = 'example' | 'demo' | 'ai'

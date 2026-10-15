@@ -18,6 +18,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
+from app.core.models_catalog import DEFAULT_IMAGE_MODEL
 from app.db.base import Base
 
 
@@ -296,7 +297,7 @@ class AccountModelConfigRecord(Base):
     text_base_url: Mapped[str] = mapped_column(Text, nullable=False, default="")
     text_api_key_encrypted: Mapped[bytes | None] = mapped_column(LargeBinary)
     image_model: Mapped[str] = mapped_column(
-        String(80), nullable=False, default="qwen-image-3.0-pro"
+        String(80), nullable=False, default=DEFAULT_IMAGE_MODEL
     )
     image_base_url: Mapped[str] = mapped_column(
         Text, nullable=False, default="https://dashscope.aliyuncs.com/api/v1"

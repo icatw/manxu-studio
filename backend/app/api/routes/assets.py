@@ -1,27 +1,12 @@
 from uuid import UUID
 
 from fastapi import Depends, Request
-from sqlalchemy import select
 
-from app.api.routes.workspace_common import (
-    SessionDep,
-    create_workspace_router,
-)
-from app.api.routes.workspace_common import (
-    create_task as _create_task,
-)
-from app.api.routes.workspace_common import (
-    not_found as _not_found,
-)
+from app.api.routes.workspace_common import SessionDep, create_workspace_router
 from app.core.security import (
     require_character_owner,
     require_project_owner_dependency,
     require_scene_owner,
-)
-from app.db.models import (
-    CharacterRecord,
-    ProjectRecord,
-    SceneRecord,
 )
 from app.schemas.workspace import (
     Character,
@@ -32,24 +17,9 @@ from app.schemas.workspace import (
     SceneGenerationRequest,
     ScenePatch,
 )
+from app.services import assets as assets_service
 
 router = create_workspace_router(tags=["Characters", "Scenes"])
-
-
-def _scene_view(record: SceneRecord) -> Scene:
-    profile = dict(record.profile)
-    profile.pop("name", None)
-    return Scene.model_validate(
-        {
-            "id": record.id,
-            "project_id": record.project_id,
-            "name": record.name,
-            "profile": profile,
-            "reference_asset_id": record.reference_asset_id,
-            "status": record.status,
-            "version": record.version,
-        }
-    )
 
 
 @router.get(
@@ -59,12 +29,7 @@ def _scene_view(record: SceneRecord) -> Scene:
     dependencies=[Depends(require_project_owner_dependency)],
 )
 async def list_characters(project_id: UUID, session: SessionDep) -> list[Character]:
-    if await session.get(ProjectRecord, project_id) is None:
-        raise _not_found("项目")
-    rows = await session.scalars(
-        select(CharacterRecord).where(CharacterRecord.project_id == project_id)
-    )
-    return [Character.model_validate(item) for item in rows]
+    return await assets_service.list_characters(session, project_id)
 
 
 @router.patch(
@@ -76,18 +41,7 @@ async def list_characters(project_id: UUID, session: SessionDep) -> list[Charact
 async def update_character(
     character_id: UUID, body: CharacterPatch, session: SessionDep
 ) -> Character:
-    record = await session.get(CharacterRecord, character_id)
-    if record is None:
-        raise _not_found("角色")
-    values = body.model_dump(exclude_unset=True)
-    if "profile" in values and values["profile"] is not None:
-        values["profile"] = body.profile.model_dump() if body.profile else None
-    for key, value in values.items():
-        setattr(record, key, value)
-    record.version += 1
-    await session.commit()
-    await session.refresh(record)
-    return Character.model_validate(record)
+    return await assets_service.update_character(session, character_id, body)
 
 
 @router.post(
@@ -103,14 +57,8 @@ async def generate_characters(
     request: Request,
     session: SessionDep,
 ) -> GenerationTask:
-    if await session.get(ProjectRecord, project_id) is None:
-        raise _not_found("项目")
-    return await _create_task(
-        session,
-        owner_id=request.state.account_id,
-        project_id=project_id,
-        task_type="character_draft",
-        request_data=body.model_dump(mode="json"),
+    return await assets_service.generate_characters(
+        session, project_id=project_id, owner_id=request.state.account_id, body=body
     )
 
 
@@ -121,10 +69,7 @@ async def generate_characters(
     dependencies=[Depends(require_project_owner_dependency)],
 )
 async def list_scenes(project_id: UUID, session: SessionDep) -> list[Scene]:
-    if await session.get(ProjectRecord, project_id) is None:
-        raise _not_found("项目")
-    rows = await session.scalars(select(SceneRecord).where(SceneRecord.project_id == project_id))
-    return [_scene_view(item) for item in rows]
+    return await assets_service.list_scenes(session, project_id)
 
 
 @router.patch(
@@ -134,18 +79,7 @@ async def list_scenes(project_id: UUID, session: SessionDep) -> list[Scene]:
     dependencies=[Depends(require_scene_owner)],
 )
 async def update_scene(scene_id: UUID, body: ScenePatch, session: SessionDep) -> Scene:
-    record = await session.get(SceneRecord, scene_id)
-    if record is None:
-        raise _not_found("场景")
-    values = body.model_dump(exclude_unset=True)
-    if "profile" in values and values["profile"] is not None:
-        values["profile"] = body.profile.model_dump() if body.profile else None
-    for key, value in values.items():
-        setattr(record, key, value)
-    record.version += 1
-    await session.commit()
-    await session.refresh(record)
-    return _scene_view(record)
+    return await assets_service.update_scene(session, scene_id, body)
 
 
 @router.post(
@@ -161,12 +95,6 @@ async def generate_scenes(
     request: Request,
     session: SessionDep,
 ) -> GenerationTask:
-    if await session.get(ProjectRecord, project_id) is None:
-        raise _not_found("项目")
-    return await _create_task(
-        session,
-        owner_id=request.state.account_id,
-        project_id=project_id,
-        task_type="scene_reference_images" if body.image_only else "scene_draft",
-        request_data=body.model_dump(mode="json"),
+    return await assets_service.generate_scenes(
+        session, project_id=project_id, owner_id=request.state.account_id, body=body
     )

@@ -4,7 +4,6 @@ from uuid import UUID
 from fastapi import Depends, HTTPException, Request, Response
 from sqlalchemy import select
 
-from app.api.routes.projects import _project_view
 from app.api.routes.workspace_common import SessionDep, create_workspace_router
 from app.api.routes.workspace_common import not_found as _not_found
 from app.core.security import require_episode_owner, require_project_owner_dependency
@@ -22,6 +21,7 @@ from app.schemas.workspace import (
     ProjectPlanRequest,
 )
 from app.services import serial_service
+from app.services.projects import project_view as _project_view
 
 router = create_workspace_router(tags=["Serial"])
 
@@ -49,9 +49,7 @@ async def plan_project(
 async def create_project_from_plan(
     body: ProjectFromPlanCreate, request: Request, session: SessionDep
 ) -> ProjectFromPlanResult:
-    result = await serial_service.create_project_from_plan(
-        session, request.state.account_id, body
-    )
+    result = await serial_service.create_project_from_plan(session, request.state.account_id, body)
     record = await session.get(ProjectRecord, result.project.id)
     if record is None:
         raise _not_found("项目")
@@ -134,9 +132,7 @@ async def update_plot_thread(
     operation_id="deletePlotThread",
     status_code=204,
 )
-async def delete_plot_thread(
-    thread_id: UUID, request: Request, session: SessionDep
-) -> Response:
+async def delete_plot_thread(thread_id: UUID, request: Request, session: SessionDep) -> Response:
     record = await session.get(PlotThreadRecord, thread_id)
     if record is None:
         raise _not_found("伏笔")
@@ -154,9 +150,7 @@ async def delete_plot_thread(
     response_model=EpisodeSummaryResult,
     dependencies=[Depends(require_episode_owner)],
 )
-async def generate_episode_summary(
-    episode_id: UUID, session: SessionDep
-) -> EpisodeSummaryResult:
+async def generate_episode_summary(episode_id: UUID, session: SessionDep) -> EpisodeSummaryResult:
     if await session.get(EpisodeRecord, episode_id) is None:
         raise _not_found("故事单元")
     try:

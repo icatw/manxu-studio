@@ -152,8 +152,9 @@ class QwenImageProvider:
                         ) from error
 
             image_url = ""
-            for _ in range(120):
-                await asyncio.sleep(5)
+            settings = get_settings()
+            for _ in range(settings.image_task_poll_max_attempts):
+                await asyncio.sleep(settings.image_task_poll_interval_seconds)
                 try:
                     task_response = await client.get(
                         f"{api_root}/tasks/{task_id}",

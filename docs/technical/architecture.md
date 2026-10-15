@@ -23,33 +23,38 @@ shadcn/ui 的组件源码安装到项目中，便于 AI 编程工具直接理解
 - 展示项目与创作步骤。
 - 管理画布选择、面板展开、未提交输入等短期 UI 状态。
 - 通过生成的 OpenAPI 类型化客户端访问 FastAPI。
-- 使用 TanStack Query 缓存项目数据、提交更新并查询生成任务状态。
+- 使用 TanStack Query 缓存项目数据、提交更新，并以共享 `queryClient` 轮询生成任务（`lib/generation-task.ts` / `hooks/use-generation-task.ts`）。
+- 选题/受众/画幅等 UI 选项集中在 `lib/catalogs.ts`；镜头与 API 枚举映射在 `lib/domain-mappings.ts`。
+- Studio 持久化与 hydrate 在 `hooks/use-studio-persist.ts`；`StudioProvider` 只编排上下文。
 - 不持有模型供应商密钥，不直接调用供应商 API。
 
 ## 后端职责
 
 - 身份与项目访问控制（认证方式在部署阶段确认）。
-- 项目、故事、角色、场景、分镜、版本和任务的业务规则。
+- 项目、故事、角色、场景、分镜、版本和任务的业务规则（应用服务层，路由保持薄）。
 - 调用文本/图像模型并适配供应商差异。
 - 校验结构化输出、记录模型/提示词版本和结果。
-- 处理异步图像任务、重试、取消、对象存储和导出。
+- 处理异步图像任务、重试、对象存储和导出（任务状态无 `cancelled`；SLA 由 Settings 统一配置）。
 
 ## 推荐代码边界
 
 ```text
 frontend/
   src/
-    components/          # 页面与工作室 UI（后续可再拆 features/）
+    components/          # 页面与工作室 UI
+    hooks/               # 账户、生成任务、Studio 持久化等
     services/            # 薄 API 编排；不持有供应商密钥
     lib/api/             # OpenAPI 生成类型与 HTTP 客户端
-    lib/domain-mappings.ts  # 展示层枚举/标签映射（集中，避免散落 if）
+    lib/catalogs.ts      # 选题/受众/画风/画幅选项（单一来源）
+    lib/domain-mappings.ts  # API↔展示枚举映射
+    lib/generation-task.ts  # 任务查询与 Query 轮询
 backend/
   app/
-    api/                 # HTTP routers 与依赖（不写 prompt / 不调供应商）
+    api/                 # HTTP routers 与依赖（委托 services）
     schemas/             # Pydantic 请求/响应
     providers/           # 文本/图像/对象存储适配器
     tasks/               # 任务类型、注册表、handler、runtime
-    services/            # 队列、兼容门面
+    services/            # 应用服务（projects/assets/storyboard/generations/auth…）+ 队列
     worker.py            # ARQ worker 入口
   tests/
 docs/
@@ -65,11 +70,11 @@ CI 需要执行 YAML/OpenAPI 规范校验、从契约生成前端类型、检查
 
 ## 生成任务执行
 
-HTTP 请求创建持久化任务并立即返回任务 ID。任务执行器负责供应商调用、轮询或回调、结果存储和状态更新；前端按退避间隔查询任务，后续如需更即时的状态再评估 SSE/WebSocket。队列技术在真实并发和部署环境明确后选择，不预先锁定特定队列。
+HTTP 请求创建持久化任务并立即返回任务 ID。任务执行器负责供应商调用、轮询或回调、结果存储和状态更新；前端经 TanStack Query 按退避间隔查询任务（含 `RATE_LIMITED` 退避），后续如需更即时的状态再评估 SSE/WebSocket。队列使用 Redis + ARQ；作业超时、陈旧判定与轮询相关 SLA 由 `Settings` 统一提供。
 
 ## 配置与安全
 
-- 模型、数据库、对象存储凭据只存在服务端环境变量或密钥管理服务。
+- 模型、数据库、对象存储凭据只存在服务端环境变量或密钥管理服务；默认图像模型名等产品常量由配置/目录单源提供。
 - `.env.example` 仅列变量名称和无效示例值，不放可用凭据。
 - 上传图片验证大小、MIME 和文件内容；使用不可预测对象键。
 - 记录模型调用元数据，不记录不必要的敏感信息。
@@ -81,7 +86,7 @@ HTTP 请求创建持久化任务并立即返回任务 ID。任务执行器负责
 
 - 文本和图像模型的具体供应商/模型与地域可用性。
 - 部署平台、认证方案、PostgreSQL 托管和对象存储供应商。
-- 生成任务使用轮询还是服务端推送，以及所需队列产品。
+- 生成任务是否需要服务端推送（当前以 Query 轮询为准）。
 - 导出制作包的最终格式和是否支持多页排版。
 
 ## 技术参考

@@ -1,10 +1,11 @@
 import { BookOpenText, Clapperboard, ImageIcon, LogOut, Settings, Users } from "lucide-react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
 import { api } from "@/lib/api/client";
 import { Button } from "@/components/ui/button";
 import { ButtonLink } from "@/components/ui/button-link";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { useCurrentAccount } from "@/hooks/use-current-account";
 import { cn } from "@/lib/utils";
 import { SHOT_TYPE_LABELS, type StudioStage } from "@/types/storyboard";
 import { EpisodeSwitcher } from "./episode-switcher";
@@ -21,7 +22,7 @@ const STAGES: { id: StudioStage; label: string; icon: typeof BookOpenText }[] = 
 export function SidebarNav() {
   const { project, stage, setStage, selectedPanelId, selectPanel, projectId } = useStudio();
   const navigate = useNavigate();
-  const account = useQuery({ queryKey: ["current-account"], queryFn: async () => (await api.GET("/auth/me")).data ?? null, retry: false });
+  const account = useCurrentAccount();
   const logout = useMutation({ mutationFn: async () => {
     const { error } = await api.POST("/auth/logout");
     if (error) throw new Error("登出失败");

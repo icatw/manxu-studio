@@ -1,7 +1,8 @@
 import type { AssetSource } from '@/types/story'
 import type { AspectRatio } from '@/types/storyboard'
 import { api } from '@/lib/api/client'
-import { waitForTask } from '@/services/workspace-api'
+import { waitForGenerationTask } from '@/lib/generation-task'
+import { queryClient } from '@/lib/query-client'
 
 export interface ImageGenerationRequest {
   panelId: string
@@ -53,7 +54,7 @@ export class ServerImageGenerationService implements ImageGenerationService {
       signal,
     })
     if (error || !submitted) throw new ImageGenerationError('无法提交图像任务，请检查 API 服务')
-    const task = await waitForTask(submitted.id, onProgress, signal)
+    const task = await waitForGenerationTask(queryClient, submitted.id, { onProgress, signal })
     const { data: versions, error: versionsError } = await api.GET('/panels/{panel_id}/image-versions', {
       params: { path: { panel_id: panelId } },
       signal,

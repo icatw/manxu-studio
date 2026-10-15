@@ -346,7 +346,7 @@ class GenerationTask(APIModel):
         "panel_image_edit",
         "export",
     ]
-    status: Literal["queued", "running", "succeeded", "failed", "cancelled"]
+    status: Literal["queued", "running", "succeeded", "failed"]
     progress: int | None = None
     result: dict[str, object] | None = None
     error: dict[str, object] | None = None
