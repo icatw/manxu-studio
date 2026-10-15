@@ -97,7 +97,8 @@ cp .env.prod.example .env.prod
 ./scripts/deploy.sh
 ```
 
-说明见 [`docs/delivery/deploy-vps.md`](docs/delivery/deploy-vps.md)。若主机已有 nginx 占用 80/443，需要改成「内部端口 + 反代」方案，不能直接套默认 Caddy 占端口。
+说明见 [`docs/delivery/deploy-vps.md`](docs/delivery/deploy-vps.md)。  
+若主机已有 nginx 占用 80/443（如共用腾讯云机），用 nginx 边缘方案，**不要起 Caddy**：见 [`docs/delivery/deploy-tencent-nginx.md`](docs/delivery/deploy-tencent-nginx.md) 与 `docker-compose.prod.nginx.yml`。
 
 ## 检查
 

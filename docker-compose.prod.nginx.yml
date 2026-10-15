@@ -1,0 +1,21 @@
+# Production overlay when the host already runs nginx on 80/443.
+# Do NOT start the Caddy service. Bind frontend only to loopback.
+#
+# Usage:
+#   docker compose \
+#     -f docker-compose.yml \
+#     -f docker-compose.prod.yml \
+#     -f docker-compose.prod.nginx.yml \
+#     --env-file .env.prod \
+#     up -d --build --wait
+#
+# Then point host nginx at 127.0.0.1:${FRONTEND_HOST_PORT:-13080}.
+
+services:
+  caddy:
+    profiles: ["disabled-caddy"]
+    ports: !reset []
+
+  frontend:
+    ports: !override
+      - "127.0.0.1:${FRONTEND_HOST_PORT:-13080}:80"
