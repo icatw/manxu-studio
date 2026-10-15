@@ -640,8 +640,33 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Retry a failed generation as a new task */
+        /**
+         * Retry a failed generation as a new task
+         * @description Creates a new task after stripping provider/pipeline checkpoints. Rejected with 409 when the failure code is PROVIDER_SUBMIT_AMBIGUOUS or RECOVERY_EXHAUSTED; use provider-resumes instead.
+         */
         post: operations["retryGenerationTask"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/generation-tasks/{task_id}/provider-resumes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                task_id: components["parameters"]["TaskId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Resume a provider-protected failed task without discarding checkpoints
+         * @description Requeues the same task while keeping provider/text checkpoints. Required for PROVIDER_SUBMIT_AMBIGUOUS and RECOVERY_EXHAUSTED failures. For ambiguous submits, either bind a confirmed remote_task_id or set acknowledge_resubmit=true to accept possible duplicate billing.
+         */
+        post: operations["resumeProviderGenerationTask"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1083,6 +1108,17 @@ export interface components {
             format: "png" | "production_json";
             /** @default false */
             include_unapproved_panels: boolean;
+        };
+        GenerationProviderResumeRequest: {
+            /** @description Confirmed DashScope/async task id to bind before resume */
+            remote_task_id?: string | null;
+            /** @description Provider job checkpoint key, e.g. character:<uuid> */
+            job_key?: string | null;
+            /**
+             * @description Explicitly allow a new image submit when no remote_task_id is known; may duplicate billing.
+             * @default false
+             */
+            acknowledge_resubmit: boolean;
         };
         GenerationTask: {
             /** Format: uuid */
@@ -2345,6 +2381,36 @@ export interface operations {
             };
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
+            default: components["responses"]["UnexpectedError"];
+        };
+    };
+    resumeProviderGenerationTask: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                task_id: components["parameters"]["TaskId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GenerationProviderResumeRequest"];
+            };
+        };
+        responses: {
+            /** @description Same task requeued for provider-safe resume */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiSuccessGenerationTask"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["ValidationError"];
             default: components["responses"]["UnexpectedError"];
         };
     };

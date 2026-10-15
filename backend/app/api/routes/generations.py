@@ -1,10 +1,13 @@
 import asyncio
+from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any, cast
 from urllib.parse import quote
 from uuid import UUID
 
 from fastapi import Depends, HTTPException, Request, Response
 from fastapi.responses import FileResponse
+from sqlalchemy.orm.attributes import flag_modified
 
 from app.api.routes.workspace_common import (
     SessionDep,
@@ -32,9 +35,18 @@ from app.db.models import (
 )
 from app.schemas.workspace import (
     ExportRequest,
+    GenerationProviderResumeRequest,
     GenerationTask,
 )
+from app.services.task_queue import enqueue_generation_task
 from app.tasks.checkpoints import strip_resumable_checkpoints
+from app.tasks.retry_policy import (
+    PROVIDER_PROTECTED_ERROR_CODES,
+    bind_remote_task_id,
+    blocks_ordinary_retry,
+    task_error_code,
+)
+from app.tasks.runtime import RECOVERY_ATTEMPTS_KEY
 
 router = create_workspace_router(tags=["Generations", "Exports"])
 
@@ -67,6 +79,15 @@ async def retry_generation_task(
         raise _not_found("生成任务")
     if previous.status != "failed":
         raise HTTPException(status_code=409, detail="只有失败的任务可以重试")
+    if blocks_ordinary_retry(previous.error):
+        code = task_error_code(previous.error) or "unknown"
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"失败码 {code} 可能已创建远端图像任务，禁止清除检查点的普通重试；"
+                "请使用供应商续跑接口绑定远端任务或显式确认重新提交"
+            ),
+        )
     return await _create_task(
         session,
         owner_id=request.state.account_id,
@@ -77,6 +98,82 @@ async def retry_generation_task(
         request_data=strip_resumable_checkpoints(previous.request_data),
         retry_of_task_id=previous.id,
     )
+
+
+@router.post(
+    "/generation-tasks/{task_id}/provider-resumes",
+    operation_id="resumeProviderGenerationTask",
+    response_model=GenerationTask,
+    status_code=202,
+    dependencies=[Depends(require_task_owner)],
+)
+async def resume_provider_generation_task(
+    task_id: UUID,
+    body: GenerationProviderResumeRequest,
+    session: SessionDep,
+) -> GenerationTask:
+    """Requeue the same failed task while preserving provider checkpoints."""
+    task = await session.get(GenerationTaskRecord, task_id)
+    if task is None:
+        raise _not_found("生成任务")
+    if task.status != "failed":
+        raise HTTPException(status_code=409, detail="只有失败的任务可以续跑")
+    code = task_error_code(task.error)
+    if code not in PROVIDER_PROTECTED_ERROR_CODES:
+        raise HTTPException(
+            status_code=409,
+            detail="当前失败不需要供应商续跑，请使用普通重试",
+        )
+
+    request_data = task.request_data if isinstance(task.request_data, dict) else {}
+    if not isinstance(task.request_data, dict):
+        task.request_data = request_data
+
+    if code == "PROVIDER_SUBMIT_AMBIGUOUS":
+        remote_task_id = (body.remote_task_id or "").strip() or None
+        if remote_task_id:
+            try:
+                bind_remote_task_id(
+                    request_data,
+                    remote_task_id=remote_task_id,
+                    job_key=body.job_key,
+                )
+            except ValueError as error:
+                raise HTTPException(status_code=409, detail=str(error)) from error
+        elif not body.acknowledge_resubmit:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "提交结果不确定：请提供已确认的 remote_task_id 以续跑，"
+                    "或设置 acknowledge_resubmit=true 接受可能的重复计费后重新提交"
+                ),
+            )
+    elif body.remote_task_id:
+        # Optional bind/repair for exhausted recoveries that lost a remote id binding.
+        try:
+            bind_remote_task_id(
+                cast(dict[str, Any], request_data),
+                remote_task_id=body.remote_task_id.strip(),
+                job_key=body.job_key,
+            )
+        except ValueError as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+
+    request_data[RECOVERY_ATTEMPTS_KEY] = 0
+    try:
+        flag_modified(task, "request_data")
+    except Exception:
+        pass
+    task.status = "queued"
+    task.error = None
+    task.updated_at = datetime.now(UTC)
+    await session.commit()
+    await session.refresh(task)
+    try:
+        await enqueue_generation_task(task.id, reclaim_if_blocked=True)
+    except Exception as error:
+        raise HTTPException(503, "生成队列暂时不可用，任务已保存并将在服务恢复后重试") from error
+    return _task_view(task)
 
 
 @router.post(

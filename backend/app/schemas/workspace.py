@@ -226,3 +226,11 @@ class GenerationTask(APIModel):
 class ExportRequest(APIModel):
     format: Literal["png", "production_json"]
     include_unapproved_panels: bool = False
+
+
+class GenerationProviderResumeRequest(APIModel):
+    """Explicit resume for failures that may already own a remote provider job."""
+
+    remote_task_id: str | None = None
+    job_key: str | None = None
+    acknowledge_resubmit: bool = False

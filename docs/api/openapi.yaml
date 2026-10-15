@@ -956,6 +956,10 @@ paths:
       tags: [Generations]
       operationId: retryGenerationTask
       summary: Retry a failed generation as a new task
+      description: >
+        Creates a new task after stripping provider/pipeline checkpoints.
+        Rejected with 409 when the failure code is PROVIDER_SUBMIT_AMBIGUOUS or
+        RECOVERY_EXHAUSTED; use provider-resumes instead.
       x-requirement-ids: [GEN-03]
       responses:
         '202':
@@ -968,6 +972,41 @@ paths:
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/Conflict'
+        default:
+          $ref: '#/components/responses/UnexpectedError'
+
+  /generation-tasks/{task_id}/provider-resumes:
+    parameters:
+      - $ref: '#/components/parameters/TaskId'
+    post:
+      tags: [Generations]
+      operationId: resumeProviderGenerationTask
+      summary: Resume a provider-protected failed task without discarding checkpoints
+      description: >
+        Requeues the same task while keeping provider/text checkpoints.
+        Required for PROVIDER_SUBMIT_AMBIGUOUS and RECOVERY_EXHAUSTED failures.
+        For ambiguous submits, either bind a confirmed remote_task_id or set
+        acknowledge_resubmit=true to accept possible duplicate billing.
+      x-requirement-ids: [GEN-03]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenerationProviderResumeRequest'
+      responses:
+        '202':
+          description: Same task requeued for provider-safe resume
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccessGenerationTask'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
         default:
           $ref: '#/components/responses/UnexpectedError'
 
@@ -1907,6 +1946,24 @@ components:
         include_unapproved_panels:
           type: boolean
           default: false
+    GenerationProviderResumeRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        remote_task_id:
+          type: [string, 'null']
+          maxLength: 128
+          description: Confirmed DashScope/async task id to bind before resume
+        job_key:
+          type: [string, 'null']
+          maxLength: 128
+          description: Provider job checkpoint key, e.g. character:<uuid>
+        acknowledge_resubmit:
+          type: boolean
+          default: false
+          description: >
+            Explicitly allow a new image submit when no remote_task_id is known;
+            may duplicate billing.
     GenerationTask:
       type: object
       additionalProperties: false

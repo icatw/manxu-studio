@@ -40,7 +40,7 @@
 5. 校验产物后保存并标记 `succeeded`；失败记录可展示的错误摘要。
 6. 客户端可离开页面；重新进入后按任务 ID 恢复状态。
 
-重试建立新任务并记录 `retry_of_task_id`。使用幂等键避免网络重试造成重复执行。供应商临时 URL 仅作为传输地址，不作为长期引用。
+普通重试建立新任务并记录 `retry_of_task_id`，同时清除 provider/pipeline 检查点。若失败码为 `PROVIDER_SUBMIT_AMBIGUOUS` 或 `RECOVERY_EXHAUSTED`，禁止该路径；须使用 `provider-resumes` 在同一任务上续跑（绑定已知远端任务 ID，或显式确认重新提交）。使用幂等键避免网络重试造成重复执行。供应商临时 URL 仅作为传输地址，不作为长期引用。
 
 ## 提示词与评估
 
