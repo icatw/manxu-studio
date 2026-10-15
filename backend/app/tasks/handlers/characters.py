@@ -129,9 +129,7 @@ async def generate_characters(session: AsyncSession, task: GenerationTaskRecord)
         )
         await report_progress(session, task, 45)
 
-    keep_reference = bool(
-        character.reference_locked and character.reference_asset_id is not None
-    )
+    keep_reference = bool(character.reference_locked and character.reference_asset_id is not None)
     if checkpoint is not None:
         keep_reference = bool(checkpoint.get("reference_locked_preserved", keep_reference))
 
