@@ -62,6 +62,8 @@ export type PanelContentField =
   | 'imagePrompt'
   | 'characterIds'
   | 'aspectRatio'
+  | 'composition'
+  | 'storyPurpose'
 
 export type StudioStage = 'story' | 'characters' | 'scenes' | 'storyboard'
 

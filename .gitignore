@@ -13,5 +13,8 @@ __pycache__/
 htmlcov/
 node_modules/
 dist/
+frontend/playwright-report/
+frontend/test-results/
+frontend/blob-report/
 .idea/
 .vscode/

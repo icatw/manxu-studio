@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useNavigate } from 'react-router'
-import { ArrowLeft, Check, CloudOff, Download, Eye, Loader2, Redo2, Settings2, Sparkles, Undo2 } from 'lucide-react'
+import { ArrowLeft, Check, CloudOff, Download, Eye, FileJson, Loader2, Redo2, Settings2, Sparkles, Undo2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { api } from '@/lib/api/client'
@@ -42,24 +42,25 @@ function SaveIndicator() {
 }
 
 export function TopToolbar() {
-  const { project, dispatch, canUndo, canRedo, undo, redo, setPreviewOpen, storyBusy, generateFromStory, episodeId } = useStudio()
+  const { project, dispatch, canUndo, canRedo, undo, redo, setPreviewOpen, storyBusy, generateFromStory, episodeId, projectId } = useStudio()
   const navigate = useNavigate()
-  const [exporting, setExporting] = useState(false)
+  const [exportingFormat, setExportingFormat] = useState<'png' | 'production_json' | null>(null)
   const [confirmOpen, setConfirmOpen] = useState(false)
 
   const hasPanels = project.panels.length > 0
   const hasWork = project.panels.some((p) => p.imageUrl || p.dialogue)
+  const exporting = exportingFormat !== null
 
-  const handleExport = async () => {
+  const handleExport = async (format: 'png' | 'production_json') => {
     if (!hasPanels) {
       toast.error('没有可导出的分镜')
       return
     }
-    setExporting(true)
+    setExportingFormat(format)
     try {
       const { data, error } = await api.POST('/episodes/{episode_id}/exports', {
         params: { path: { episode_id: episodeId } },
-        body: { format: 'png', include_unapproved_panels: true },
+        body: { format, include_unapproved_panels: true },
       })
       if (error || !data) throw new Error('无法创建导出任务')
       const task = await waitForTask(data.id)
@@ -71,14 +72,15 @@ export function TopToolbar() {
       const url = URL.createObjectURL(blob)
       const anchor = document.createElement('a')
       anchor.href = url
-      anchor.download = `${project.story.title || 'storyboard'}.png`
+      const baseName = project.story.title || 'storyboard'
+      anchor.download = format === 'png' ? `${baseName}.png` : `${baseName}-production.json`
       anchor.click()
       URL.revokeObjectURL(url)
-      toast.success('PNG 已导出')
+      toast.success(format === 'png' ? 'PNG 已导出' : '制作资料已导出')
     } catch (error) {
       toast.error('导出失败', { description: error instanceof Error ? error.message : undefined })
     } finally {
-      setExporting(false)
+      setExportingFormat(null)
     }
   }
 
@@ -90,7 +92,7 @@ export function TopToolbar() {
   return (
     <header className="flex h-12 shrink-0 items-center gap-3 border-b bg-sidebar px-3">
       <div className="flex items-center gap-2 pr-1">
-        <Button variant="ghost" size="icon-sm" aria-label="返回作品库" title="返回作品库" onClick={() => navigate('/projects')}>
+        <Button variant="ghost" size="icon-sm" aria-label="返回作品总览" title="返回作品总览" onClick={() => navigate(`/projects/${projectId}`)}>
           <ArrowLeft />
         </Button>
         <div
@@ -143,9 +145,29 @@ export function TopToolbar() {
           <Eye data-icon="inline-start" />
           <span className="hidden md:inline">预览</span>
         </Button>
-        <Button variant="outline" size="icon-sm" className="md:w-auto md:px-2.5" aria-label="导出 PNG" title="导出 PNG" onClick={handleExport} disabled={!hasPanels || exporting}>
-          {exporting ? <Loader2 className="animate-spin" data-icon="inline-start" /> : <Download data-icon="inline-start" />}
+        <Button
+          variant="outline"
+          size="icon-sm"
+          className="md:w-auto md:px-2.5"
+          aria-label="导出 PNG"
+          title="导出 PNG"
+          onClick={() => void handleExport('png')}
+          disabled={!hasPanels || exporting}
+        >
+          {exportingFormat === 'png' ? <Loader2 className="animate-spin" data-icon="inline-start" /> : <Download data-icon="inline-start" />}
           <span className="hidden md:inline">导出 PNG</span>
+        </Button>
+        <Button
+          variant="outline"
+          size="icon-sm"
+          className="md:w-auto md:px-2.5"
+          aria-label="导出制作资料"
+          title="导出制作资料 JSON"
+          onClick={() => void handleExport('production_json')}
+          disabled={!hasPanels || exporting}
+        >
+          {exportingFormat === 'production_json' ? <Loader2 className="animate-spin" data-icon="inline-start" /> : <FileJson data-icon="inline-start" />}
+          <span className="hidden md:inline">制作资料</span>
         </Button>
         <Button size="icon-sm" className="ml-1 md:h-8 md:w-auto md:px-2.5" aria-label="生成分镜" title="生成分镜" onClick={handleGenerate} disabled={storyBusy}>
           {storyBusy ? <Loader2 className="animate-spin" data-icon="inline-start" /> : <Sparkles data-icon="inline-start" />}

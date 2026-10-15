@@ -3,6 +3,9 @@ import { StudioWorkspace } from "./components/studio/studio-workspace";
 import { ProjectLibrary } from "./components/studio/project-library";
 import { AccountGate } from "./components/auth/account-gate";
 import { SettingsPage } from "./components/settings-page";
+import { NewProjectPlanForm } from "./components/series/new-project-plan-form";
+import { ProjectOverview } from "./components/series/project-overview";
+import { ReaderPage } from "./components/series/reader-page";
 
 export default function App() {
   return (
@@ -11,15 +14,18 @@ export default function App() {
         <Route path="/login" element={<Navigate to="/projects" replace />} />
         <Route path="/" element={<ProjectLibrary />} />
         <Route path="/projects" element={<ProjectLibrary />} />
+        <Route path="/projects/new" element={<NewProjectPlanForm />} />
         <Route path="/settings" element={<SettingsPage />} />
-        <Route path="/projects/:projectId" element={<ProjectRoute />} />
+        <Route path="/projects/:projectId/studio" element={<StudioRoute />} />
+        <Route path="/projects/:projectId/read/:episodeId" element={<ReaderPage />} />
+        <Route path="/projects/:projectId" element={<ProjectOverview />} />
         <Route path="*" element={<ProjectLibrary />} />
       </Routes>
     </AccountGate>
   );
 }
 
-function ProjectRoute() {
+function StudioRoute() {
   const { projectId } = useParams();
   return projectId ? <StudioWorkspace projectId={projectId} /> : <ProjectLibrary />;
 }

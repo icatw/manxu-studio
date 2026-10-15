@@ -14,6 +14,8 @@
     "lint": "eslint .",
     "typecheck": "tsc -b --pretty",
     "test": "vitest run",
+    "test:e2e": "playwright test",
+    "test:e2e:ai": "E2E_LIVE_AI=1 playwright test e2e/serial-ai.spec.ts",
     "api:types": "openapi-typescript ../docs/api/openapi.yaml -o src/lib/api/schema.d.ts",
     "api:lint": "redocly lint ../docs/api/openapi.yaml --config redocly.yaml"
   },
@@ -32,6 +34,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.37.0",
+    "@playwright/test": "1.56.1",
     "@redocly/cli": "^1.34.0",
     "@tailwindcss/vite": "^4.1.14",
     "@testing-library/jest-dom": "^6.9.1",

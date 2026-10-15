@@ -56,6 +56,127 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/projects/plan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** AI season plan from a premise */
+        post: operations["planProject"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/from-plan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create a project from a confirmed plan draft */
+        post: operations["createProjectFromPlan"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{project_id}/continuity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Continuity context for the next episode */
+        get: operations["getProjectContinuity"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{project_id}/plot-threads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List plot threads for a project */
+        get: operations["listPlotThreads"];
+        put?: never;
+        /** Create a plot thread */
+        post: operations["createPlotThread"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/plot-threads/{thread_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete a plot thread */
+        delete: operations["deletePlotThread"];
+        options?: never;
+        head?: never;
+        /** Update a plot thread */
+        patch: operations["updatePlotThread"];
+        trace?: never;
+    };
+    "/episodes/{episode_id}/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Generate or refresh an episode summary */
+        post: operations["generateEpisodeSummary"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/episodes/{episode_id}/reader": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Reader payload for an episode */
+        get: operations["getEpisodeReader"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/github/start": {
         parameters: {
             query?: never;
@@ -772,6 +893,27 @@ export interface components {
         ApiSuccessProjectPage: components["schemas"]["ApiSuccessEnvelope"] & {
             data?: components["schemas"]["ProjectPage"];
         };
+        ApiSuccessProjectPlanDraft: components["schemas"]["ApiSuccessEnvelope"] & {
+            data?: components["schemas"]["ProjectPlanDraft"];
+        };
+        ApiSuccessProjectFromPlanResult: components["schemas"]["ApiSuccessEnvelope"] & {
+            data?: components["schemas"]["ProjectFromPlanResult"];
+        };
+        ApiSuccessProjectContinuity: components["schemas"]["ApiSuccessEnvelope"] & {
+            data?: components["schemas"]["ProjectContinuity"];
+        };
+        ApiSuccessPlotThread: components["schemas"]["ApiSuccessEnvelope"] & {
+            data?: components["schemas"]["PlotThread"];
+        };
+        ApiSuccessPlotThreadList: components["schemas"]["ApiSuccessEnvelope"] & {
+            data?: components["schemas"]["PlotThread"][];
+        };
+        ApiSuccessEpisodeSummaryResult: components["schemas"]["ApiSuccessEnvelope"] & {
+            data?: components["schemas"]["EpisodeSummaryResult"];
+        };
+        ApiSuccessEpisodeReader: components["schemas"]["ApiSuccessEnvelope"] & {
+            data?: components["schemas"]["EpisodeReader"];
+        };
         ApiSuccessEpisode: components["schemas"]["ApiSuccessEnvelope"] & {
             data?: components["schemas"]["Episode"];
         };
@@ -905,14 +1047,157 @@ export interface components {
             art_style?: string;
             /** @enum {string} */
             aspect_ratio?: "portrait" | "landscape" | "square";
+            world_setting?: string;
+            style_rules?: string;
+            negative_prompt?: string;
+            style_seed?: number | null;
+            /** Format: uuid */
+            cover_asset_id?: string | null;
         };
         Project: components["schemas"]["ProjectCreate"] & {
             /** Format: uuid */
             id: string;
+            /** @default  */
+            world_setting: string;
+            /** @default  */
+            style_rules: string;
+            /** @default  */
+            negative_prompt: string;
+            style_seed?: number | null;
+            /** Format: uuid */
+            cover_asset_id?: string | null;
             /** Format: date-time */
             created_at: string;
             /** Format: date-time */
             updated_at: string;
+            /** @description Cover asset URL or derived first panel image */
+            readonly cover_image_url?: string | null;
+        };
+        ProjectPlanRequest: {
+            premise: string;
+            genre: string;
+            art_style: string;
+            /** @default 年轻成人 */
+            audience: string;
+            /** @default 6 */
+            chapter_count: number;
+            /**
+             * @default portrait
+             * @enum {string}
+             */
+            aspect_ratio: "portrait" | "landscape" | "square";
+        };
+        PlannedCharacter: {
+            name: string;
+            role: string;
+            /** @default  */
+            appearance: string;
+            /** @default  */
+            hairstyle: string;
+            /** @default  */
+            outfit: string;
+            signature_traits?: string[];
+            /** @default  */
+            personality: string;
+        };
+        PlannedEpisode: {
+            title: string;
+            synopsis: string;
+        };
+        PlannedThread: {
+            text: string;
+            planted_in?: number | null;
+            payoff_in?: number | null;
+        };
+        ProjectPlanDraft: {
+            title: string;
+            premise: string;
+            genre: string;
+            art_style: string;
+            audience: string;
+            world_setting: string;
+            characters: components["schemas"]["PlannedCharacter"][];
+            chapters: components["schemas"]["PlannedEpisode"][];
+            threads: components["schemas"]["PlannedThread"][];
+            /**
+             * @default portrait
+             * @enum {string}
+             */
+            aspect_ratio: "portrait" | "landscape" | "square";
+        };
+        ProjectFromPlanCreate: components["schemas"]["ProjectPlanDraft"];
+        ProjectFromPlanResult: {
+            project: components["schemas"]["Project"];
+            episode_ids: string[];
+        };
+        PlotThreadCreate: {
+            text: string;
+            /** Format: uuid */
+            planted_in_episode_id?: string | null;
+            /** Format: uuid */
+            payoff_in_episode_id?: string | null;
+            /** @default false */
+            resolved: boolean;
+        };
+        PlotThreadPatch: {
+            text?: string;
+            /** Format: uuid */
+            planted_in_episode_id?: string | null;
+            /** Format: uuid */
+            payoff_in_episode_id?: string | null;
+            resolved?: boolean;
+        };
+        PlotThread: components["schemas"]["PlotThreadCreate"] & {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            project_id: string;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+        };
+        ContinuityPreviousSummary: {
+            /** Format: uuid */
+            episode_id: string;
+            position: number;
+            title: string;
+            summary: string;
+        };
+        ContinuityOpenThread: {
+            /** Format: uuid */
+            id: string;
+            text: string;
+            /** Format: uuid */
+            payoff_in_episode_id?: string | null;
+        };
+        ProjectContinuity: {
+            world_setting: string;
+            previous_summaries: components["schemas"]["ContinuityPreviousSummary"][];
+            open_threads: components["schemas"]["ContinuityOpenThread"][];
+        };
+        EpisodeSummaryResult: {
+            /** Format: uuid */
+            episode_id: string;
+            summary: string;
+        };
+        ReaderPanel: {
+            /** Format: uuid */
+            id: string;
+            position: number;
+            image_url?: string | null;
+            /** @default  */
+            dialogue: string;
+            /** @default  */
+            action: string;
+        };
+        EpisodeReader: {
+            episode: components["schemas"]["Episode"];
+            panels: components["schemas"]["ReaderPanel"][];
+            /** Format: uuid */
+            previous_episode_id?: string | null;
+            /** Format: uuid */
+            next_episode_id?: string | null;
         };
         ProjectPage: {
             items: components["schemas"]["Project"][];
@@ -928,6 +1213,7 @@ export interface components {
             title?: string;
             synopsis?: string;
             panel_count?: number;
+            summary?: string;
         };
         Episode: components["schemas"]["EpisodeCreate"] & {
             /** Format: uuid */
@@ -936,6 +1222,8 @@ export interface components {
             project_id: string;
             position: number;
             panel_count: number;
+            /** @default  */
+            summary: string;
             /** Format: date-time */
             created_at: string;
             /** Format: date-time */
@@ -951,6 +1239,7 @@ export interface components {
             profile?: components["schemas"]["CharacterProfile"];
             /** @enum {string} */
             status?: "draft" | "in_review" | "approved";
+            reference_locked?: boolean;
         };
         CharacterProfile: {
             /** @enum {string} */
@@ -984,6 +1273,11 @@ export interface components {
             };
             /** Format: uuid */
             reference_asset_id?: string | null;
+            /**
+             * @description When true, character draft regeneration must keep the reference image
+             * @default false
+             */
+            reference_locked: boolean;
             /** @enum {string} */
             status: "draft" | "in_review" | "approved";
             version: number;
@@ -1030,6 +1324,11 @@ export interface components {
             pacing: "fast" | "balanced" | "slow";
             /** @default true */
             use_approved_assets: boolean;
+            /**
+             * @description Inject previous episode summaries and open plot threads
+             * @default true
+             */
+            use_continuity: boolean;
         };
         StoryPipelineRequest: {
             /** Format: uuid */
@@ -1374,6 +1673,233 @@ export interface operations {
                 };
             };
             422: components["responses"]["ValidationError"];
+            default: components["responses"]["UnexpectedError"];
+        };
+    };
+    planProject: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProjectPlanRequest"];
+            };
+        };
+        responses: {
+            /** @description Plan draft */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiSuccessProjectPlanDraft"];
+                };
+            };
+            422: components["responses"]["ValidationError"];
+            default: components["responses"]["UnexpectedError"];
+        };
+    };
+    createProjectFromPlan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProjectFromPlanCreate"];
+            };
+        };
+        responses: {
+            /** @description Project created from plan */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiSuccessProjectFromPlanResult"];
+                };
+            };
+            422: components["responses"]["ValidationError"];
+            default: components["responses"]["UnexpectedError"];
+        };
+    };
+    getProjectContinuity: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Continuity payload */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiSuccessProjectContinuity"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            default: components["responses"]["UnexpectedError"];
+        };
+    };
+    listPlotThreads: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Plot threads */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiSuccessPlotThreadList"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            default: components["responses"]["UnexpectedError"];
+        };
+    };
+    createPlotThread: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlotThreadCreate"];
+            };
+        };
+        responses: {
+            /** @description Thread created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiSuccessPlotThread"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationError"];
+            default: components["responses"]["UnexpectedError"];
+        };
+    };
+    deletePlotThread: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                thread_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: components["responses"]["NotFound"];
+            default: components["responses"]["UnexpectedError"];
+        };
+    };
+    updatePlotThread: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                thread_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlotThreadPatch"];
+            };
+        };
+        responses: {
+            /** @description Thread updated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiSuccessPlotThread"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            default: components["responses"]["UnexpectedError"];
+        };
+    };
+    generateEpisodeSummary: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                episode_id: components["parameters"]["EpisodeId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Summary saved */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiSuccessEpisodeSummaryResult"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            default: components["responses"]["UnexpectedError"];
+        };
+    };
+    getEpisodeReader: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                episode_id: components["parameters"]["EpisodeId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Reader page */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiSuccessEpisodeReader"];
+                };
+            };
+            404: components["responses"]["NotFound"];
             default: components["responses"]["UnexpectedError"];
         };
     };

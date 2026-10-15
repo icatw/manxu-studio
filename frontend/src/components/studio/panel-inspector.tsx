@@ -228,6 +228,28 @@ function PanelFields({ panel }: { panel: StoryboardPanel }) {
       </div>
 
       <div className="flex flex-col gap-1.5">
+        <FieldLabel htmlFor={id('composition')}>构图描述</FieldLabel>
+        <Textarea
+          id={id('composition')}
+          value={panel.composition ?? ''}
+          rows={2}
+          onChange={(e) => update({ composition: e.target.value })}
+          placeholder="镜头构图、主体位置与画面层次"
+        />
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <FieldLabel htmlFor={id('storyPurpose')}>剧情作用</FieldLabel>
+        <Textarea
+          id={id('storyPurpose')}
+          value={panel.storyPurpose ?? ''}
+          rows={2}
+          onChange={(e) => update({ storyPurpose: e.target.value })}
+          placeholder="这一格在叙事中推进什么"
+        />
+      </div>
+
+      <div className="flex flex-col gap-1.5">
         <FieldLabel htmlFor={id('emotion')}>情绪</FieldLabel>
         <Input id={id('emotion')} value={panel.emotion} onChange={(e) => update({ emotion: e.target.value })} />
       </div>

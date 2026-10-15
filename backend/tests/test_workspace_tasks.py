@@ -34,7 +34,13 @@ async def test_storyboard_replacement_flushes_deletes_before_inserts(
     project_id = uuid4()
     existing_panel = object()
     episode = SimpleNamespace(synopsis="A story")
-    project = SimpleNamespace(owner_id=uuid4(), title="Title", genre="幻想", art_style="漫画")
+    project = SimpleNamespace(
+        owner_id=uuid4(),
+        title="Title",
+        genre="幻想",
+        art_style="漫画",
+        world_setting="",
+    )
     results = iter([[], [], [existing_panel]])
 
     class FakeSession:
@@ -87,12 +93,16 @@ async def test_storyboard_replacement_flushes_deletes_before_inserts(
             ]
         )
 
+    async def empty_continuity(session: object, project_id_arg: object) -> SimpleNamespace:
+        return SimpleNamespace(world_setting="", previous_summaries=[], open_threads=[])
+
     monkeypatch.setattr(storyboard_handler, "require_text_model", configured_model)
     monkeypatch.setattr(storyboard_handler, "decrypt_secret", lambda _: "secret")
     monkeypatch.setattr(storyboard_handler, "generate_structured_text", generate_text)
+    monkeypatch.setattr("app.services.serial_service.build_continuity", empty_continuity)
 
     task = SimpleNamespace(
-        request_data={"episode_id": str(episode_id), "panel_count": 1},
+        request_data={"episode_id": str(episode_id), "panel_count": 1, "use_continuity": True},
         project_id=project_id,
     )
 

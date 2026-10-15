@@ -17,6 +17,7 @@ from app.core.security import (
 )
 from app.db.models import (
     EpisodeRecord,
+    PanelRecord,
     ProjectRecord,
 )
 from app.schemas.workspace import (
@@ -30,6 +31,29 @@ from app.schemas.workspace import (
 )
 
 router = create_workspace_router(tags=["Projects", "Episodes"])
+
+
+async def _project_cover_image_url(session: SessionDep, record: ProjectRecord) -> str | None:
+    if record.cover_asset_id is not None:
+        return f"/api/v1/assets/{record.cover_asset_id}"
+    image_url = await session.scalar(
+        select(PanelRecord.current_image_url)
+        .join(EpisodeRecord, EpisodeRecord.id == PanelRecord.episode_id)
+        .where(
+            EpisodeRecord.project_id == record.id,
+            PanelRecord.current_image_url.is_not(None),
+            PanelRecord.current_image_url != "",
+        )
+        .order_by(EpisodeRecord.position.asc(), PanelRecord.position.asc())
+        .limit(1)
+    )
+    return str(image_url) if image_url else None
+
+
+async def _project_view(session: SessionDep, record: ProjectRecord) -> Project:
+    project = Project.model_validate(record)
+    project.cover_image_url = await _project_cover_image_url(session, record)
+    return project
 
 
 @router.get("/projects", operation_id="listProjects", response_model=ProjectPage)
@@ -49,9 +73,8 @@ async def list_projects(
         query = query.where(ProjectRecord.id < cursor)
     rows = list((await session.scalars(query)).all())
     next_cursor = str(rows[limit - 1].id) if len(rows) > limit else None
-    return ProjectPage(
-        items=[Project.model_validate(row) for row in rows[:limit]], next_cursor=next_cursor
-    )
+    items = [await _project_view(session, row) for row in rows[:limit]]
+    return ProjectPage(items=items, next_cursor=next_cursor)
 
 
 @router.post("/projects", operation_id="createProject", response_model=Project, status_code=201)
@@ -60,7 +83,7 @@ async def create_project(body: ProjectCreate, request: Request, session: Session
     session.add(record)
     await session.commit()
     await session.refresh(record)
-    return Project.model_validate(record)
+    return await _project_view(session, record)
 
 
 @router.get(
@@ -73,7 +96,7 @@ async def get_project(project_id: UUID, session: SessionDep) -> Project:
     record = await session.get(ProjectRecord, project_id)
     if record is None:
         raise _not_found("项目")
-    return Project.model_validate(record)
+    return await _project_view(session, record)
 
 
 @router.patch(
@@ -91,7 +114,7 @@ async def update_project(project_id: UUID, body: ProjectPatch, session: SessionD
     record.updated_at = datetime.now(UTC)
     await session.commit()
     await session.refresh(record)
-    return Project.model_validate(record)
+    return await _project_view(session, record)
 
 
 @router.delete(

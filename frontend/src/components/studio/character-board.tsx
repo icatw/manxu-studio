@@ -1,7 +1,7 @@
 'use client'
 
 import Image from '@/components/ui/image'
-import { ArrowRight, CheckCircle2, CircleAlert, UserRound } from 'lucide-react'
+import { ArrowRight, CheckCircle2, CircleAlert, Lock, LockOpen, UserRound } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -42,11 +42,15 @@ function CharacterCard({ character }: { character: Character }) {
           </div>
         )}
         <span className="absolute right-2 top-2 rounded bg-neutral-950/70 px-2 py-1 text-[10px] text-neutral-100">
-          {character.referenceImageUrl ? ASSET_SOURCE_SHORT.ai : '暂无 AI 参考图'}
+          {character.referenceLocked
+            ? '定妆已锁定'
+            : character.referenceImageUrl
+              ? ASSET_SOURCE_SHORT.ai
+              : '暂无 AI 参考图'}
         </span>
       </div>
       <div className="flex min-w-0 flex-1 flex-col gap-3 p-4">
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <label htmlFor={id('name')} className="sr-only">
             角色名
           </label>
@@ -71,6 +75,29 @@ function CharacterCard({ character }: { character: Character }) {
               待确认
             </span>
           )}
+          <Button
+            type="button"
+            variant={character.referenceLocked ? 'secondary' : 'outline'}
+            size="sm"
+            disabled={!character.referenceImageUrl && !character.referenceLocked}
+            title={
+              character.referenceLocked
+                ? '已锁定：重新生成角色草稿时会保留这张定妆照'
+                : '锁定后，重新生成角色草稿不会替换这张参考图，分镜出图会附带一致性约束'
+            }
+            onClick={() => {
+              if (!character.referenceImageUrl && !character.referenceLocked) {
+                toast.error('请先生成角色参考图再锁定')
+                return
+              }
+              const next = !character.referenceLocked
+              update({ referenceLocked: next })
+              toast.success(next ? '定妆照已锁定' : '已解除定妆锁定')
+            }}
+          >
+            {character.referenceLocked ? <Lock data-icon="inline-start" /> : <LockOpen data-icon="inline-start" />}
+            {character.referenceLocked ? '已锁定' : '锁定定妆'}
+          </Button>
         </div>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           {FIELDS.map(({ key, label, multiline }) => (

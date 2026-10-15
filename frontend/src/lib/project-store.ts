@@ -60,13 +60,23 @@ function applyContent(project: ComicProject, action: ProjectAction): ComicProjec
       return { ...project, title: action.title }
     case 'updateStory':
       return { ...project, story: { ...project.story, ...action.patch } }
-    case 'updateCharacter':
+    case 'updateCharacter': {
+      const patchKeys = Object.keys(action.patch)
+      const lockOnly = patchKeys.length === 1 && patchKeys[0] === 'referenceLocked'
       return {
         ...project,
-        characters: project.characters.map((c) =>
-          c.id === action.id ? { ...c, ...action.patch, confirmed: action.patch.confirmed ?? false } : c,
-        ),
+        characters: project.characters.map((c) => {
+          if (c.id !== action.id) return c
+          const confirmed =
+            action.patch.confirmed !== undefined
+              ? action.patch.confirmed
+              : lockOnly
+                ? c.confirmed
+                : false
+          return { ...c, ...action.patch, confirmed }
+        }),
       }
+    }
     case 'confirmCharacters':
       return { ...project, characters: project.characters.map((c) => ({ ...c, confirmed: true })) }
     case 'updateScene':

@@ -103,25 +103,44 @@ async def generate_characters(session: AsyncSession, task: GenerationTaskRecord)
         )
         if not existing:
             session.add(character)
+        keep_reference = (
+            bool(existing)
+            and bool(character.reference_locked)
+            and character.reference_asset_id is not None
+        )
         character.name = generated.name
         character.profile = cast(dict[str, object], profile)
         character.status = "draft"
         character.version = character.version + 1 if existing else 1
-        character.reference_asset_id = None
+        if not keep_reference:
+            character.reference_asset_id = None
         await session.flush()
-        # New text must not resume an image job submitted for a previous profile.
-        await clear_image_job(session, task, f"character:{character.id}")
+        if not keep_reference:
+            # New text must not resume an image job submitted for a previous profile.
+            await clear_image_job(session, task, f"character:{character.id}")
         await persist_text_checkpoint(
             session,
             task,
             "characters",
-            {"character_ids": [str(character.id)]},
+            {
+                "character_ids": [str(character.id)],
+                "reference_locked_preserved": keep_reference,
+            },
         )
         await report_progress(session, task, 45)
 
+    keep_reference = bool(
+        character.reference_locked and character.reference_asset_id is not None
+    )
+    if checkpoint is not None:
+        keep_reference = bool(checkpoint.get("reference_locked_preserved", keep_reference))
+
     warning: str | None = None
     image_prompt = str(character.profile.get("image_prompt", "")).strip()
-    if image_api_key:
+    if keep_reference:
+        await report_progress(session, task, 95)
+        warning = "角色文字设定已更新；定妆照已锁定，未替换参考图。"
+    elif image_api_key:
         image_job = await bind_image_job(session, task, f"character:{character.id}")
         await report_progress(session, task, 55)
         try:
@@ -162,6 +181,7 @@ async def generate_characters(session: AsyncSession, task: GenerationTaskRecord)
         "character_ids": [str(character.id)],
         "generation_source": "ai",
         "reference_image_generated": bool(character.reference_asset_id),
+        "reference_locked_preserved": keep_reference,
         "prompt_template": {"name": CHARACTER_DRAFT.name, "version": CHARACTER_DRAFT.version},
     }
     if warning:

@@ -1,0 +1,19 @@
+# Use with: docker compose -f docker-compose.yml -f docker-compose.e2e.yml up -d
+# Forces API mail delivery into Mailpit so Playwright can read login codes.
+services:
+  api:
+    environment:
+      SMTP_HOST: mailpit
+      SMTP_PORT: "1025"
+      SMTP_STARTTLS: "false"
+      SMTP_USERNAME: ""
+      SMTP_PASSWORD: ""
+      SMTP_FROM: noreply@manxu.dev
+  worker:
+    environment:
+      SMTP_HOST: mailpit
+      SMTP_PORT: "1025"
+      SMTP_STARTTLS: "false"
+      SMTP_USERNAME: ""
+      SMTP_PASSWORD: ""
+      SMTP_FROM: noreply@manxu.dev

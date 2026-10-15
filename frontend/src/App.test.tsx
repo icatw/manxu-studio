@@ -35,8 +35,8 @@ describe("application shell", () => {
       </QueryClientProvider>,
     );
 
-    expect(await screen.findByRole("heading", { name: "项目" })).toBeInTheDocument();
-    await waitFor(() => expect(screen.getByText("还没有项目，先创建一个故事。")).toBeInTheDocument());
+    expect(await screen.findByRole("heading", { name: "我的作品" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("还没有作品，先创建一个故事。")).toBeInTheDocument());
     expect(screen.getByRole("heading", { name: "新建项目" })).toBeInTheDocument();
   });
 
