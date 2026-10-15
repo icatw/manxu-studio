@@ -12,9 +12,10 @@ class PromptTemplate:
 
 CHARACTER_DRAFT = PromptTemplate(
     name="character_draft",
-    version="2026-10-15",
+    version="2026-10-15b",
     system=(
-        "你是专业漫剧编剧和角色设计师。根据用户故事设计一个核心主角，"
+        "你是专业漫剧编剧和角色设计师。根据用户故事设计完整可复用角色阵容"
+        "（主角、重要配角，必要时含反派），通常 2 到 6 人，不要只返回单一主角。"
         "所有字段必须具体、互相一致，避免泛化套话。只返回符合 JSON schema 的 JSON。"
     ),
 )

@@ -1,4 +1,4 @@
-from typing import Any, cast
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import select
@@ -17,9 +17,23 @@ from app.tasks.provider_jobs import (
     text_checkpoint,
 )
 from app.tasks.registry import register
-from app.tasks.schemas import CharacterGenerationOutput
+from app.tasks.schemas import CharacterGenerationOutput, GeneratedCharacter
 from app.tasks.support import report_progress, require_text_model
 from app.tasks.types import TaskType
+
+
+def _profile_from_generated(generated: GeneratedCharacter) -> dict[str, object]:
+    return {
+        "generation_source": "ai",
+        "role": generated.role,
+        "appearance": generated.appearance,
+        "hairstyle": generated.hairstyle,
+        "outfit": generated.outfit,
+        "signature_traits": generated.signature_traits,
+        "personality": generated.personality,
+        "visual_traits": [generated.hairstyle, *generated.signature_traits],
+        "image_prompt": generated.reference_image_prompt,
+    }
 
 
 @register(TaskType.CHARACTER_DRAFT)
@@ -58,15 +72,18 @@ async def generate_characters(session: AsyncSession, task: GenerationTaskRecord)
     await session.commit()
 
     checkpoint = text_checkpoint(task, "characters")
+    locked_preserved_flags: list[bool] = []
     if checkpoint is not None:
-        character_ids = [UUID(str(item)) for item in checkpoint.get("character_ids", [])]
-        character = None
-        if character_ids:
-            character = await session.get(CharacterRecord, character_ids[0])
-        if character is None and existing:
-            character = existing[0]
-        if character is None:
+        checkpoint_ids = [UUID(str(item)) for item in checkpoint.get("character_ids", [])]
+        by_id = {character.id: character for character in existing}
+        generated_characters = [
+            by_id[character_id] for character_id in checkpoint_ids if character_id in by_id
+        ]
+        if not generated_characters:
             raise ValueError("角色文字设定检查点存在，但角色记录已丢失")
+        raw_flags = checkpoint.get("reference_locked_preserved")
+        if isinstance(raw_flags, list):
+            locked_preserved_flags = [bool(item) for item in raw_flags]
         await report_progress(session, task, 45)
     else:
         await report_progress(session, task, 15)
@@ -77,70 +94,85 @@ async def generate_characters(session: AsyncSession, task: GenerationTaskRecord)
             system_prompt=CHARACTER_DRAFT.system,
             user_prompt=(
                 f"故事标题：{title}\n故事梗概：{synopsis}\n题材：{genre}\n画风：{art_style}\n"
-                '返回对象格式：{"character": {"name": string, "role": string, '
-                '"appearance": string, "hairstyle": string, "outfit": string, '
-                '"signature_traits": [string], "personality": string, '
-                '"reference_image_prompt": string}}。参考图提示词描述单人全身立绘、'
+                "根据剧情设计完整可复用角色阵容（主角、重要配角、必要时反派），"
+                "通常 2 到 6 人，避免只返回单一主角。\n"
+                '返回对象格式：{"characters":[{"name":string,"role":string,'
+                '"appearance":string,"hairstyle":string,"outfit":string,'
+                '"signature_traits":[string],"personality":string,'
+                '"reference_image_prompt":string}]}。参考图提示词描述单人全身立绘、'
                 "纯净背景、清晰服装和辨识特征，不要出现文字或水印。"
             ),
             response_model=CharacterGenerationOutput,
         )
-        generated = output.character
         await report_progress(session, task, 35)
-        profile = {
-            "generation_source": "ai",
-            "role": generated.role,
-            "appearance": generated.appearance,
-            "hairstyle": generated.hairstyle,
-            "outfit": generated.outfit,
-            "signature_traits": generated.signature_traits,
-            "personality": generated.personality,
-            "visual_traits": [generated.hairstyle, *generated.signature_traits],
-            "image_prompt": generated.reference_image_prompt,
-        }
-        character = (
-            existing[0] if existing else CharacterRecord(project_id=project.id, status="draft")
-        )
-        if not existing:
-            session.add(character)
-        keep_reference = (
-            bool(existing)
-            and bool(character.reference_locked)
-            and character.reference_asset_id is not None
-        )
-        character.name = generated.name
-        character.profile = cast(dict[str, object], profile)
-        character.status = "draft"
-        character.version = character.version + 1 if existing else 1
-        if not keep_reference:
-            character.reference_asset_id = None
-        await session.flush()
-        if not keep_reference:
-            # New text must not resume an image job submitted for a previous profile.
-            await clear_image_job(session, task, f"character:{character.id}")
+        generated_characters = []
+        for index, generated in enumerate(output.characters):
+            character = (
+                existing[index]
+                if index < len(existing)
+                else CharacterRecord(project_id=project.id, status="draft")
+            )
+            if index >= len(existing):
+                session.add(character)
+            keep_reference = (
+                index < len(existing)
+                and bool(character.reference_locked)
+                and character.reference_asset_id is not None
+            )
+            character.name = generated.name
+            character.profile = _profile_from_generated(generated)
+            character.status = "draft"
+            character.version = character.version + 1 if index < len(existing) else 1
+            if not keep_reference:
+                character.reference_asset_id = None
+            await session.flush()
+            if not keep_reference:
+                # New text must not resume an image job submitted for a previous profile.
+                await clear_image_job(session, task, f"character:{character.id}")
+            locked_preserved_flags.append(keep_reference)
+            generated_characters.append(character)
         await persist_text_checkpoint(
             session,
             task,
             "characters",
             {
-                "character_ids": [str(character.id)],
-                "reference_locked_preserved": keep_reference,
+                "character_ids": [str(character.id) for character in generated_characters],
+                "reference_locked_preserved": locked_preserved_flags,
             },
         )
         await report_progress(session, task, 45)
 
-    keep_reference = bool(character.reference_locked and character.reference_asset_id is not None)
-    if checkpoint is not None:
-        keep_reference = bool(checkpoint.get("reference_locked_preserved", keep_reference))
-
-    warning: str | None = None
-    image_prompt = str(character.profile.get("image_prompt", "")).strip()
-    if keep_reference:
+    character_ids = [str(character.id) for character in generated_characters]
+    warnings: list[str] = []
+    if not image_api_key:
+        warnings.append("角色文字设定已生成；账户尚未配置图像模型密钥，因此没有生成参考图。")
         await report_progress(session, task, 95)
-        warning = "角色文字设定已更新；定妆照已锁定，未替换参考图。"
-    elif image_api_key:
+        return {
+            "character_ids": character_ids,
+            "generation_source": "ai",
+            "reference_images_generated": 0,
+            "reference_image_generated": False,
+            "reference_locked_preserved": any(locked_preserved_flags),
+            "warnings": warnings,
+            "prompt_template": {"name": CHARACTER_DRAFT.name, "version": CHARACTER_DRAFT.version},
+        }
+
+    images_generated = 0
+    total = max(len(generated_characters), 1)
+    for index, character in enumerate(generated_characters):
+        keep_reference = bool(
+            character.reference_locked and character.reference_asset_id is not None
+        )
+        if index < len(locked_preserved_flags):
+            keep_reference = locked_preserved_flags[index] or keep_reference
+        if keep_reference:
+            images_generated += 1
+            warnings.append(f"{character.name}文字设定已更新；定妆照已锁定，未替换参考图。")
+            await report_progress(session, task, 45 + round(50 * (index + 1) / total))
+            continue
+
+        image_prompt = str(character.profile.get("image_prompt", "")).strip()
         image_job = await bind_image_job(session, task, f"character:{character.id}")
-        await report_progress(session, task, 55)
         try:
             await generate_image(
                 api_key=image_api_key,
@@ -159,29 +191,31 @@ async def generate_characters(session: AsyncSession, task: GenerationTaskRecord)
             )
         except ProviderControlError:
             raise
-        except ValueError as error:
-            warning = "角色文字设定已生成，但参考图生成失败；可在设置中检查图像模型后重试。"
+        except ValueError:
+            warnings.append(
+                f"{character.name}文字设定已生成，但参考图生成失败；可在设置中检查图像模型后重试。"
+            )
             api_logger.warning(
                 "character_reference_generation_failed",
                 extra={
                     "event": "character_reference_generation_failed",
                     "task_id": str(task.id),
-                    "error_type": type(error).__name__,
+                    "character_id": str(character.id),
+                    "error_type": "ValueError",
                 },
             )
         else:
             character.reference_asset_id = image_job.asset_id
             await session.commit()
-            await report_progress(session, task, 95)
-    else:
-        warning = "角色文字设定已生成；账户尚未配置图像模型密钥，因此没有生成参考图。"
-    result: dict[str, Any] = {
-        "character_ids": [str(character.id)],
+            images_generated += 1
+        await report_progress(session, task, 45 + round(50 * (index + 1) / total))
+
+    return {
+        "character_ids": character_ids,
         "generation_source": "ai",
-        "reference_image_generated": bool(character.reference_asset_id),
-        "reference_locked_preserved": keep_reference,
+        "reference_images_generated": images_generated,
+        "reference_image_generated": images_generated > 0,
+        "reference_locked_preserved": any(locked_preserved_flags),
+        "warnings": warnings,
         "prompt_template": {"name": CHARACTER_DRAFT.name, "version": CHARACTER_DRAFT.version},
     }
-    if warning:
-        result["warnings"] = [warning]
-    return result
