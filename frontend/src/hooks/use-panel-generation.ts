@@ -4,67 +4,67 @@ import { useCallback, useEffect, useRef, useState, type Dispatch, type RefObject
 import { toast } from 'sonner'
 import type { ProjectAction } from '@/lib/project-store'
 import { imageGenerationService, isAbortError, type ImageGenerationService } from '@/services/image-generation-service'
+import { listActiveEpisodePanelTasks } from '@/services/workspace-api'
 import type { ComicProject } from '@/types/storyboard'
 
 interface Options {
   projectRef: RefObject<ComicProject>
+  episodeId: string
   dispatch: Dispatch<ProjectAction>
   service?: ImageGenerationService
   concurrency?: number
   onGenerated?: () => void
 }
 
-export type GenerationOutcome = 'completed' | 'failed' | 'cancelled' | 'skipped'
+export type GenerationOutcome = 'completed' | 'failed' | 'stopped' | 'skipped'
 
 export function usePanelGeneration({
   projectRef,
+  episodeId,
   dispatch,
   service = imageGenerationService,
   concurrency = 2,
   onGenerated,
 }: Options) {
   const controllers = useRef(new Map<string, AbortController>())
-  const doneSuffix = ''
   const [batchRunning, setBatchRunning] = useState(false)
   const batchCancelled = useRef(false)
   const concurrencyRef = useRef(concurrency)
   concurrencyRef.current = concurrency
+  const resumedEpisodeRef = useRef<string | null>(null)
 
   useEffect(() => {
     const map = controllers.current
     return () => map.forEach((c) => c.abort())
   }, [])
 
-  const generatePanel = useCallback(
-    async (panelId: string): Promise<GenerationOutcome> => {
-      if (controllers.current.has(panelId)) return 'skipped'
+  const runPanel = useCallback(
+    async (
+      panelId: string,
+      controller: AbortController,
+      submittedTaskId?: string,
+    ): Promise<GenerationOutcome> => {
       const panel = projectRef.current.panels.find((p) => p.id === panelId)
       if (!panel) return 'skipped'
-
-      const controller = new AbortController()
-      controllers.current.set(panelId, controller)
       const previous = { imageUrl: panel.imageUrl, hadImage: Boolean(panel.imageUrl) }
-
-      dispatch({
-        type: 'panelRuntime',
-        id: panelId,
-        patch: { status: 'generating', progress: 0, errorMessage: null },
-      })
 
       const referenceImageUrls = projectRef.current.characters
         .filter((c) => panel.characterIds.includes(c.id))
         .map((c) => c.referenceImageUrl)
 
       try {
-        const result = await service.generate({
+        const request = {
           panelId,
           prompt: panel.imagePrompt,
           aspectRatio: panel.aspectRatio,
           referenceImageUrls,
           signal: controller.signal,
-          onProgress: (progress) =>
-            dispatch({ type: 'panelRuntime', id: panelId, patch: { progress } }),
-        })
+          onProgress: (progress: number) =>
+            dispatch({ type: 'panelRuntime', id: panelId, patch: { progress, status: 'generating' as const } }),
+        }
+        const result = submittedTaskId
+          ? await service.complete(request, submittedTaskId)
+          : await service.generate(request)
         dispatch({
           type: 'panelGenerated',
           id: panelId,
@@ -86,7 +86,7 @@ export function usePanelGeneration({
             id: panelId,
             patch: { status: previous.hadImage ? 'completed' : 'draft', progress: previous.hadImage ? 100 : 0 },
           })
-          return 'cancelled'
+          return 'stopped'
         }
         const message = error instanceof Error ? error.message : '未知错误'
         dispatch({
@@ -102,6 +102,58 @@ export function usePanelGeneration({
     [dispatch, onGenerated, projectRef, service],
   )
 
+  const generatePanel = useCallback(
+    async (panelId: string, submittedTaskId?: string): Promise<GenerationOutcome> => {
+      if (controllers.current.has(panelId)) return 'skipped'
+      const panel = projectRef.current.panels.find((p) => p.id === panelId)
+      if (!panel) return 'skipped'
+
+      const controller = new AbortController()
+      controllers.current.set(panelId, controller)
+      dispatch({
+        type: 'panelRuntime',
+        id: panelId,
+        patch: { status: 'generating', progress: 0, errorMessage: null },
+      })
+      try {
+        return await runPanel(panelId, controller, submittedTaskId)
+      } finally {
+        controllers.current.delete(panelId)
+      }
+    },
+    [dispatch, projectRef, runPanel],
+  )
+
+  const resumeActive = useCallback(async () => {
+    if (resumedEpisodeRef.current === episodeId) return
+    resumedEpisodeRef.current = episodeId
+    try {
+      const tasks = await listActiveEpisodePanelTasks(episodeId)
+      const latestByPanel = new Map<string, string>()
+      for (const task of tasks) {
+        if (!task.panel_id) continue
+        if (!latestByPanel.has(task.panel_id)) latestByPanel.set(task.panel_id, task.id)
+      }
+      await Promise.all(
+        [...latestByPanel.entries()].map(async ([panelId, taskId]) => {
+          if (controllers.current.has(panelId)) return
+          const outcome = await generatePanel(panelId, taskId)
+          const n = projectRef.current.panels.find((p) => p.id === panelId)?.panelNumber
+          if (outcome === 'completed' && n != null) toast.success(`第 ${n} 格已完成`)
+          if (outcome === 'failed' && n != null) {
+            toast.error(`第 ${n} 格生成失败`, { description: '可在面板或底部状态栏重试' })
+          }
+        }),
+      )
+    } catch {
+      resumedEpisodeRef.current = null
+    }
+  }, [episodeId, generatePanel, projectRef])
+
+  useEffect(() => {
+    void resumeActive()
+  }, [resumeActive])
+
   const generateOne = useCallback(
     async (panelId: string) => {
       const panel = projectRef.current.panels.find((p) => p.id === panelId)
@@ -112,11 +164,15 @@ export function usePanelGeneration({
       }
       const outcome = await generatePanel(panelId)
       const n = projectRef.current.panels.find((p) => p.id === panelId)?.panelNumber ?? panel.panelNumber
-      if (outcome === 'completed') toast.success(`第 ${n} 格已完成${doneSuffix}`)
+      if (outcome === 'completed') toast.success(`第 ${n} 格已完成`)
       if (outcome === 'failed') toast.error(`第 ${n} 格生成失败`, { description: '可在面板或底部状态栏重试' })
-      if (outcome === 'cancelled') toast(`已取消第 ${n} 格的生成任务`)
+      if (outcome === 'stopped') {
+        toast(`已停止跟踪第 ${n} 格的生成进度`, {
+          description: '服务端任务仍会继续，刷新后可恢复进度',
+        })
+      }
     },
-    [generatePanel, projectRef, doneSuffix],
+    [generatePanel, projectRef],
   )
 
   const generateAll = useCallback(async () => {
@@ -141,10 +197,16 @@ export function usePanelGeneration({
 
     const done = outcomes.filter((o) => o === 'completed').length
     const failed = outcomes.filter((o) => o === 'failed').length
-    if (batchCancelled.current) toast('批量生成已取消', { description: `已完成 ${done} 格` })
-    else if (failed) toast.warning(`批量生成结束：${done} 格完成，${failed} 格失败`, { description: '失败的分镜可单独重试' })
-    else toast.success(`全部 ${done} 格已完成${doneSuffix}`)
-  }, [batchRunning, generatePanel, projectRef, doneSuffix])
+    if (batchCancelled.current) {
+      toast('已停止跟踪批量生成进度', {
+        description: `本地已完成 ${done} 格；服务端未完成的任务仍会继续`,
+      })
+    } else if (failed) {
+      toast.warning(`批量生成结束：${done} 格完成，${failed} 格失败`, { description: '失败的分镜可单独重试' })
+    } else {
+      toast.success(`全部 ${done} 格已完成`)
+    }
+  }, [batchRunning, generatePanel, projectRef])
 
   const cancelPanel = useCallback((panelId: string) => {
     controllers.current.get(panelId)?.abort()
@@ -157,6 +219,8 @@ export function usePanelGeneration({
 
   const isPanelBusy = useCallback((panelId: string) => controllers.current.has(panelId), [])
 
+  const busyPanelIds = useCallback(() => new Set(controllers.current.keys()), [])
+
   return {
     providerName: service.providerName,
     batchRunning,
@@ -165,6 +229,7 @@ export function usePanelGeneration({
     cancelPanel,
     cancelAll,
     isPanelBusy,
+    busyPanelIds,
   }
 }
 

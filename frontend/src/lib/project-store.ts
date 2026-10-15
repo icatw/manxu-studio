@@ -37,6 +37,64 @@ function renumber(panels: StoryboardPanel[]) {
   return panels.map((p, i) => (p.panelNumber === i + 1 ? p : { ...p, panelNumber: i + 1 }))
 }
 
+/** Merge server workspace into the editor without clobbering dirty fields or in-flight runtime. */
+export function mergeHydratedProject(
+  current: ComicProject,
+  server: ComicProject,
+  options: { dirty: boolean; busyPanelIds: ReadonlySet<string> },
+): ComicProject {
+  if (!options.dirty && options.busyPanelIds.size === 0) return server
+
+  const currentPanels = new Map(current.panels.map((panel) => [panel.id, panel]))
+  const serverPanels = new Map(server.panels.map((panel) => [panel.id, panel]))
+  const orderedIds = options.dirty
+    ? [
+        ...current.panels.map((panel) => panel.id),
+        ...server.panels.filter((panel) => !currentPanels.has(panel.id)).map((panel) => panel.id),
+      ]
+    : server.panels.map((panel) => panel.id)
+
+  const panels = orderedIds.flatMap((id) => {
+    const local = currentPanels.get(id)
+    const remote = serverPanels.get(id)
+    if (!remote) return options.dirty && local ? [local] : []
+    if (!local) return [remote]
+    const busy = options.busyPanelIds.has(id)
+    if (options.dirty) {
+      return [
+        {
+          ...local,
+          imageUrl: busy ? (local.imageUrl ?? remote.imageUrl) : remote.imageUrl,
+          imageSource: busy ? (local.imageSource ?? remote.imageSource) : remote.imageSource,
+          generatedAt: busy ? (local.generatedAt ?? remote.generatedAt) : remote.generatedAt,
+          status: busy ? local.status : remote.status,
+          progress: busy ? local.progress : remote.progress,
+          errorMessage: busy ? local.errorMessage : remote.errorMessage,
+        },
+      ]
+    }
+    if (busy) {
+      return [
+        {
+          ...remote,
+          status: local.status,
+          progress: local.progress,
+          errorMessage: local.errorMessage,
+          imageUrl: local.imageUrl ?? remote.imageUrl,
+          imageSource: local.imageSource ?? remote.imageSource,
+          generatedAt: local.generatedAt ?? remote.generatedAt,
+        },
+      ]
+    }
+    return [remote]
+  })
+
+  if (options.dirty) {
+    return { ...current, panels: renumber(panels), updatedAt: server.updatedAt }
+  }
+  return { ...server, panels: renumber(panels) }
+}
+
 function patchPanel(project: ComicProject, id: string, patch: Partial<StoryboardPanel>): ComicProject {
   return {
     ...project,
