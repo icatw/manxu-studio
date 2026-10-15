@@ -11,11 +11,11 @@ import {
   type ReactNode,
   type RefObject,
 } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { usePanelGeneration, type PanelGeneration } from "@/hooks/use-panel-generation";
 import { historyReducer, createHistory, type ProjectAction } from "@/lib/project-store";
-import { api } from "@/lib/api/client";
+import { api, toApiError } from "@/lib/api/client";
 import { aspectRatioToApi } from "@/lib/domain-mappings";
 import { imageGenerationService } from "@/services/image-generation-service";
 import {
@@ -206,10 +206,20 @@ export function StudioProvider({
   const workspaceSignature = JSON.stringify(workspace);
   const workspaceSignatureRef = useRef(workspaceSignature);
 
+  const modelConfig = useQuery({
+    queryKey: ["model-config"],
+    queryFn: async () => {
+      const { data, error } = await api.GET("/model-config");
+      if (error || !data) throw toApiError(error, "无法读取模型配置");
+      return data;
+    },
+    staleTime: 60_000,
+  });
   const generation = usePanelGeneration({
     projectRef,
     dispatch,
     service: imageGenerationService,
+    concurrency: Math.max(1, modelConfig.data?.image_concurrency ?? 2),
     onGenerated: () => void queryClient.invalidateQueries({ queryKey: ["workspace", workspace.project.id] }),
   });
   const isAnyGenerating = project.panels.some((panel) => panel.status === "generating");

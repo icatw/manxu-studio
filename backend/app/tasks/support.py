@@ -6,17 +6,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.models import AccountModelConfigRecord, GenerationTaskRecord
 
 
-async def report_progress(
-    session: AsyncSession, task: GenerationTaskRecord, progress: int
-) -> None:
-    task.progress = progress
+async def report_progress(session: AsyncSession, task: GenerationTaskRecord, progress: int) -> None:
+    current = getattr(task, "progress", None) or 0
+    task.progress = max(current, progress)
     task.updated_at = datetime.now(UTC)
     await session.commit()
 
 
-async def require_text_model(
-    session: AsyncSession, owner_id: UUID
-) -> AccountModelConfigRecord:
+async def require_text_model(session: AsyncSession, owner_id: UUID) -> AccountModelConfigRecord:
     config = await session.get(AccountModelConfigRecord, owner_id)
     if (
         config is None
@@ -28,9 +25,7 @@ async def require_text_model(
     return config
 
 
-async def require_image_model(
-    session: AsyncSession, owner_id: UUID
-) -> AccountModelConfigRecord:
+async def require_image_model(session: AsyncSession, owner_id: UUID) -> AccountModelConfigRecord:
     config = await session.get(AccountModelConfigRecord, owner_id)
     if config is None or not config.image_api_key_encrypted:
         raise ValueError("请先在模型设置中配置图像模型 API Key")

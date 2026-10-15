@@ -10,6 +10,17 @@ from app.tasks.registry import get_handler
 from app.tasks.types import failure_for
 
 
+def _problem(*, title: str, status: int, detail: str, code: str | None = None) -> dict[str, object]:
+    problem: dict[str, object] = {
+        "title": title,
+        "status": status,
+        "detail": detail,
+    }
+    if code:
+        problem["code"] = code
+    return problem
+
+
 async def run_generation_task(task_id: UUID) -> None:
     lock_id = int.from_bytes(task_id.bytes[:8], byteorder="big", signed=True)
     async with engine.connect() as lock_connection:
@@ -26,16 +37,19 @@ async def run_generation_task(task_id: UUID) -> None:
                 project = await session.get(ProjectRecord, task.project_id)
                 if project is None or project.owner_id != task.owner_id:
                     task.status = "failed"
-                    task.error = {
-                        "title": "生成任务失败",
-                        "detail": "项目归属已变化",
-                        "status": 404,
-                    }
+                    task.error = _problem(
+                        title="生成任务失败",
+                        status=404,
+                        detail="项目归属已变化",
+                        code="NOT_FOUND",
+                    )
                     task.updated_at = datetime.now(UTC)
                     await session.commit()
                     return
                 task.status = "running"
-                task.progress = 5
+                # Preserve progress across worker timeouts / requeues.
+                if task.progress is None or task.progress < 5:
+                    task.progress = 5
                 task.updated_at = datetime.now(UTC)
                 await session.commit()
 
@@ -71,11 +85,14 @@ async def run_generation_task(task_id: UUID) -> None:
                     task = await session.get(GenerationTaskRecord, task_id)
                     if task is not None:
                         task.status = "failed"
-                        task.error = {
-                            "code": failure["code"],
-                            "message": failure["message"],
-                            "failure_id": failure_id,
-                        }
+                        problem = _problem(
+                            title=failure["message"],
+                            status=500,
+                            detail=failure["message"],
+                            code=failure["code"],
+                        )
+                        problem["failure_id"] = failure_id
+                        task.error = problem
                         task.updated_at = datetime.now(UTC)
                         await session.commit()
         finally:

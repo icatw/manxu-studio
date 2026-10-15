@@ -1,5 +1,5 @@
 from typing import Any, cast
-from uuid import UUID, uuid4
+from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,6 +15,7 @@ from app.db.models import (
 )
 from app.providers import generate_image, generate_structured_text
 from app.tasks.prompts import SCENE_DRAFT
+from app.tasks.provider_jobs import bind_image_job
 from app.tasks.registry import register
 from app.tasks.schemas import SceneGenerationOutput
 from app.tasks.support import report_progress, require_text_model
@@ -80,7 +81,7 @@ async def generate_scenes(
             system_prompt=SCENE_DRAFT.system,
             user_prompt=(
                 f"作品：{title}\n梗概：{synopsis}\n题材：{genre}\n画风：{art_style}\n"
-                f"补充要求：{guidance or '无'}\n返回格式：{{\"scenes\":[{{\"name\":string,"
+                f'补充要求：{guidance or "无"}\n返回格式：{{"scenes":[{{"name":string,'
                 '"description":string,"lighting":string,"palette":string,'
                 '"visual_traits":[string]}}]}。'
             ),
@@ -113,7 +114,9 @@ async def generate_scenes(
         if not image_only:
             await report_progress(session, task, 55)
         for index, scene in enumerate(scenes_to_render):
-            asset_id = uuid4()
+            asset_id, resume_task_id, on_submitted = await bind_image_job(
+                session, task, f"scene:{scene.id}"
+            )
             profile = scene.profile
             visual_traits = profile.get("visual_traits", [])
             visual_traits = visual_traits if isinstance(visual_traits, list) else []
@@ -138,6 +141,8 @@ async def generate_scenes(
                     prompt=prompt,
                     asset_id=asset_id,
                     base_url=image_base_url,
+                    resume_task_id=resume_task_id,
+                    on_submitted=on_submitted,
                 )
                 scene.reference_asset_id = asset_id
                 await session.commit()

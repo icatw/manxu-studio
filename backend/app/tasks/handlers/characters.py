@@ -1,5 +1,4 @@
 from typing import Any, cast
-from uuid import uuid4
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,6 +8,7 @@ from app.core.security import decrypt_secret
 from app.db.models import CharacterRecord, GenerationTaskRecord, ProjectRecord
 from app.providers import generate_image, generate_structured_text
 from app.tasks.prompts import CHARACTER_DRAFT
+from app.tasks.provider_jobs import bind_image_job
 from app.tasks.registry import register
 from app.tasks.schemas import CharacterGenerationOutput
 from app.tasks.support import report_progress, require_text_model
@@ -22,9 +22,7 @@ async def handle_character_draft(
     return await generate_characters(session, task)
 
 
-async def generate_characters(
-    session: AsyncSession, task: GenerationTaskRecord
-) -> dict[str, Any]:
+async def generate_characters(session: AsyncSession, task: GenerationTaskRecord) -> dict[str, Any]:
     existing = list(
         (
             await session.scalars(
@@ -94,7 +92,9 @@ async def generate_characters(
     warning: str | None = None
     await report_progress(session, task, 45)
     if image_api_key:
-        asset_id = uuid4()
+        asset_id, resume_task_id, on_submitted = await bind_image_job(
+            session, task, f"character:{character.id}"
+        )
         try:
             await report_progress(session, task, 55)
             await generate_image(
@@ -107,6 +107,8 @@ async def generate_characters(
                 ),
                 asset_id=asset_id,
                 base_url=image_base_url,
+                resume_task_id=resume_task_id,
+                on_submitted=on_submitted,
             )
             character.reference_asset_id = asset_id
             await session.commit()

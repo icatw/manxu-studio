@@ -1,4 +1,5 @@
 import asyncio
+from collections.abc import Awaitable, Callable
 from urllib.parse import urlsplit, urlunsplit
 from uuid import UUID
 
@@ -7,6 +8,8 @@ import httpx
 from app.core.config import get_settings
 from app.core.security import validate_public_https_url
 from app.providers.local_store import LocalObjectStore
+
+OnSubmitted = Callable[[str], Awaitable[None]]
 
 
 def normalize_dashscope_api_base(configured_base_url: str) -> str:
@@ -34,12 +37,13 @@ class QwenImageProvider:
         prompt: str,
         asset_id: UUID,
         base_url: str | None = None,
+        resume_task_id: str | None = None,
+        on_submitted: OnSubmitted | None = None,
     ) -> str:
         settings = get_settings()
         configured_base_url = base_url or settings.qwen_image_base_url
         await validate_public_https_url(configured_base_url)
         api_root = normalize_dashscope_api_base(configured_base_url)
-        endpoint = f"{api_root}/services/aigc/image-generation/generation"
         headers = {
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
@@ -47,22 +51,28 @@ class QwenImageProvider:
         }
         timeout = httpx.Timeout(45, connect=10)
         async with httpx.AsyncClient(timeout=timeout, follow_redirects=False) as client:
-            response = await client.post(
-                endpoint,
-                headers=headers,
-                json={
-                    "model": model,
-                    "input": {"messages": [{"role": "user", "content": [{"text": prompt}]}]},
-                    "parameters": {"size": "1024*1024", "prompt_extend": True},
-                },
-            )
-            if not response.is_success:
-                if response.status_code in {401, 403}:
-                    raise ValueError("Qwen Image 认证失败，请检查图像 API Key")
-                raise ValueError(f"Qwen Image 提交失败（HTTP {response.status_code}）")
-            task_id = response.json().get("output", {}).get("task_id")
-            if not task_id:
-                raise ValueError("Qwen Image 未返回异步任务编号")
+            if resume_task_id:
+                task_id = resume_task_id
+            else:
+                endpoint = f"{api_root}/services/aigc/image-generation/generation"
+                response = await client.post(
+                    endpoint,
+                    headers=headers,
+                    json={
+                        "model": model,
+                        "input": {"messages": [{"role": "user", "content": [{"text": prompt}]}]},
+                        "parameters": {"size": "1024*1024", "prompt_extend": True},
+                    },
+                )
+                if not response.is_success:
+                    if response.status_code in {401, 403}:
+                        raise ValueError("Qwen Image 认证失败，请检查图像 API Key")
+                    raise ValueError(f"Qwen Image 提交失败（HTTP {response.status_code}）")
+                task_id = response.json().get("output", {}).get("task_id")
+                if not task_id:
+                    raise ValueError("Qwen Image 未返回异步任务编号")
+                if on_submitted is not None:
+                    await on_submitted(str(task_id))
 
             image_url = ""
             for _ in range(120):
@@ -105,7 +115,14 @@ default_image_provider = QwenImageProvider()
 
 
 async def generate_image(
-    *, api_key: str, model: str, prompt: str, asset_id: UUID, base_url: str | None = None
+    *,
+    api_key: str,
+    model: str,
+    prompt: str,
+    asset_id: UUID,
+    base_url: str | None = None,
+    resume_task_id: str | None = None,
+    on_submitted: OnSubmitted | None = None,
 ) -> str:
     return await default_image_provider.generate(
         api_key=api_key,
@@ -113,6 +130,8 @@ async def generate_image(
         prompt=prompt,
         asset_id=asset_id,
         base_url=base_url,
+        resume_task_id=resume_task_id,
+        on_submitted=on_submitted,
     )
 
 

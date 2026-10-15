@@ -1,19 +1,17 @@
 from typing import Any
-from uuid import uuid4
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import decrypt_secret
 from app.db.models import GenerationTaskRecord, ImageVersionRecord, PanelRecord, ProjectRecord
 from app.providers import generate_image
+from app.tasks.provider_jobs import bind_image_job
 from app.tasks.registry import register
 from app.tasks.support import require_image_model
 from app.tasks.types import TaskType
 
 
-async def generate_panel_image(
-    session: AsyncSession, task: GenerationTaskRecord
-) -> dict[str, Any]:
+async def generate_panel_image(session: AsyncSession, task: GenerationTaskRecord) -> dict[str, Any]:
     if task.panel_id is None:
         raise ValueError("缺少目标分镜")
     panel = await session.get(PanelRecord, task.panel_id)
@@ -41,7 +39,9 @@ async def generate_panel_image(
     api_key = decrypt_secret(config.image_api_key_encrypted)
     image_model = config.image_model
     image_base_url = config.image_base_url
-    asset_id = uuid4()
+    asset_id, resume_task_id, on_submitted = await bind_image_job(
+        session, task, f"panel:{panel.id}"
+    )
     await session.commit()
     image_url = await generate_image(
         api_key=api_key,
@@ -49,6 +49,8 @@ async def generate_panel_image(
         prompt=prompt,
         asset_id=asset_id,
         base_url=image_base_url,
+        resume_task_id=resume_task_id,
+        on_submitted=on_submitted,
     )
     version = ImageVersionRecord(panel_id=panel.id, asset_id=asset_id, image_url=image_url)
     session.add(version)

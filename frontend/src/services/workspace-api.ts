@@ -274,7 +274,17 @@ export async function waitForTask(
     onProgress?.(task.progress ?? 0);
     if (task.status === "succeeded") return task;
     if (task.status === "failed") {
-      const detail = task.error && "detail" in task.error ? task.error.detail : undefined;
+      const error = task.error;
+      const detail =
+        error && typeof error === "object"
+          ? "detail" in error && typeof error.detail === "string"
+            ? error.detail
+            : "message" in error && typeof error.message === "string"
+              ? error.message
+              : "title" in error && typeof error.title === "string"
+                ? error.title
+                : undefined
+          : undefined;
       throw new Error(typeof detail === "string" ? detail : "任务失败，请重试");
     }
     if (task.status === "cancelled") throw new Error("任务已取消");

@@ -26,6 +26,8 @@ class ImageProvider(Protocol):
         prompt: str,
         asset_id: UUID,
         base_url: str | None = None,
+        resume_task_id: str | None = None,
+        on_submitted: object | None = None,
     ) -> str: ...
 
 

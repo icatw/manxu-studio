@@ -6,6 +6,7 @@ from arq import cron
 from arq.connections import ArqRedis, RedisSettings
 from sqlalchemy import or_, select
 
+from app.core.config import get_settings
 from app.db.models import GenerationTaskRecord
 from app.db.session import SessionFactory
 from app.services.task_queue import redis_settings
@@ -41,6 +42,6 @@ class WorkerSettings:
     on_startup = requeue_pending_generation_tasks
     cron_jobs = [cron(requeue_pending_generation_tasks, second={0}, run_at_startup=True)]
     redis_settings: RedisSettings = redis_settings()
-    max_jobs = 2
+    max_jobs = max(1, get_settings().image_model_concurrency)
     job_timeout = 900
     health_check_interval = 30

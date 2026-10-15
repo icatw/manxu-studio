@@ -1379,7 +1379,14 @@ components:
         image_model: { type: string }
         image_base_url: { type: string }
         image_api_key_configured: { type: boolean }
-        image_concurrency: { type: integer, minimum: 1, maximum: 16 }
+        image_concurrency:
+          type: integer
+          minimum: 1
+          maximum: 16
+          description: >-
+            Server-configured parallel image job limit (IMAGE_MODEL_CONCURRENCY).
+            Controls ARQ worker max_jobs and the studio batch concurrency hint;
+            not editable via PUT /model-config.
         image_negative_prompt: { type: string }
         image_status: { type: string, enum: [not_configured, configured, connected, error] }
         image_models:

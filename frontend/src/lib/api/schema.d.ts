@@ -849,6 +849,7 @@ export interface components {
             image_model: string;
             image_base_url: string;
             image_api_key_configured: boolean;
+            /** @description Server-configured parallel image job limit (IMAGE_MODEL_CONCURRENCY). Controls ARQ worker max_jobs and the studio batch concurrency hint; not editable via PUT /model-config. */
             image_concurrency: number;
             image_negative_prompt: string;
             /** @enum {string} */

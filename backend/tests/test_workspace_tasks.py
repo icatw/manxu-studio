@@ -181,15 +181,13 @@ async def test_character_generation_calls_text_and_image_models_and_marks_ai_ori
         character_handler,
         "decrypt_secret",
         lambda encrypted: (
-            "decrypted-text-key"
-            if encrypted == b"text-encrypted"
-            else "decrypted-image-key"
+            "decrypted-text-key" if encrypted == b"text-encrypted" else "decrypted-image-key"
         ),
     )
     monkeypatch.setattr(character_handler, "generate_structured_text", generate_text)
     monkeypatch.setattr(character_handler, "generate_image", generate_image)
 
-    task = SimpleNamespace(id=task_id, project_id=project_id, progress=5)
+    task = SimpleNamespace(id=task_id, project_id=project_id, progress=5, request_data={})
     result = await character_handler.generate_characters(FakeSession(), task)  # type: ignore[arg-type]
 
     assert [name for name, _ in calls] == ["text", "image"]
@@ -284,6 +282,7 @@ async def test_scene_generation_persists_only_scene_profile_fields(
         request_data={"episode_id": str(episode_id)},
         progress=5,
     )
+    # ensure mutable request_data for provider job checkpoints
     result = await scene_handler.generate_scenes(FakeSession(), task)  # type: ignore[arg-type]
 
     assert result["scene_ids"] == [str(created[0].id)]
