@@ -795,6 +795,7 @@ export interface components {
             provider: "email" | "github";
             /** Format: email */
             email: string | null;
+            /** @description GitHub identities are verified after OAuth; email identities are verified after a successful email code. */
             verified: boolean;
         };
         ModelConfigUpdate: {
@@ -907,10 +908,16 @@ export interface components {
             status?: "draft" | "in_review" | "approved";
         };
         CharacterProfile: {
+            /** @enum {string} */
+            generation_source: "ai" | "manual";
+            role: string;
             appearance: string;
+            hairstyle: string;
             outfit: string;
+            signature_traits: string[];
             personality: string;
             visual_traits: string[];
+            image_prompt: string;
         };
         Character: {
             /** Format: uuid */
@@ -919,10 +926,16 @@ export interface components {
             project_id: string;
             name: string;
             profile: {
+                /** @enum {string} */
+                generation_source: "ai" | "manual";
+                role: string;
                 appearance: string;
+                hairstyle: string;
                 outfit: string;
+                signature_traits: string[];
                 personality: string;
                 visual_traits: string[];
+                image_prompt: string;
             };
             /** Format: uuid */
             reference_asset_id?: string | null;
@@ -934,6 +947,7 @@ export interface components {
             /** Format: uuid */
             episode_id?: string | null;
             guidance?: string;
+            image_only?: boolean;
         };
         SceneProfile: {
             description: string;
@@ -1040,7 +1054,7 @@ export interface components {
             /** Format: uuid */
             id: string;
             /** @enum {string} */
-            task_type: "character_draft" | "scene_draft" | "storyboard_draft" | "panel_image" | "panel_image_edit" | "export";
+            task_type: "character_draft" | "scene_draft" | "scene_reference_images" | "storyboard_draft" | "panel_image" | "panel_image_edit" | "export";
             /** @enum {string} */
             status: "queued" | "running" | "succeeded" | "failed" | "cancelled";
             progress?: number | null;
@@ -1055,6 +1069,7 @@ export interface components {
         };
         CharacterGenerationResult: {
             character_ids: string[];
+            warnings?: string[];
         };
         StoryboardGenerationResult: {
             /** Format: uuid */
@@ -1069,6 +1084,8 @@ export interface components {
         };
         SceneGenerationResult: {
             scene_ids: string[];
+            reference_images_generated?: number;
+            warnings?: string[];
         };
         PanelImageVersion: {
             /** Format: uuid */

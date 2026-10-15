@@ -2,9 +2,11 @@ import asyncio
 import io
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import cast
 from uuid import UUID, uuid4
 
 from PIL import Image, ImageDraw, ImageFont, ImageOps
+from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -24,9 +26,53 @@ from app.db.models import (
 )
 from app.db.session import SessionFactory, engine
 from app.services.qwen_image import generate_qwen_image
+from app.services.text_generation import generate_structured_text
 
 SAMPLE_DIR = Path(__file__).parents[1] / "static" / "samples"
 SAMPLE_IMAGES = ["panel-1.png", "panel-2.png", "panel-3.png", "panel-4.png"]
+
+
+class GeneratedCharacter(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    role: str = Field(min_length=1, max_length=240)
+    appearance: str = Field(min_length=1, max_length=2000)
+    hairstyle: str = Field(min_length=1, max_length=500)
+    outfit: str = Field(min_length=1, max_length=1000)
+    signature_traits: list[str] = Field(min_length=1, max_length=8)
+    personality: str = Field(min_length=1, max_length=1000)
+    reference_image_prompt: str = Field(min_length=1, max_length=3000)
+
+
+class CharacterGenerationOutput(BaseModel):
+    character: GeneratedCharacter
+
+
+class GeneratedScene(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    description: str = Field(min_length=1, max_length=2000)
+    lighting: str = Field(min_length=1, max_length=500)
+    palette: str = Field(min_length=1, max_length=500)
+    visual_traits: list[str] = Field(default_factory=list, max_length=8)
+
+
+class SceneGenerationOutput(BaseModel):
+    scenes: list[GeneratedScene] = Field(min_length=1, max_length=4)
+
+
+class GeneratedPanel(BaseModel):
+    shot: str = Field(min_length=1, max_length=240)
+    scene_description: str = Field(min_length=1, max_length=2000)
+    composition: str = Field(min_length=1, max_length=1000)
+    character_actions: str = Field(min_length=1, max_length=1000)
+    emotion: str = Field(min_length=1, max_length=240)
+    dialogue: str = Field(default="", max_length=1000)
+    story_purpose: str = Field(min_length=1, max_length=1000)
+    image_prompt: str = Field(min_length=1, max_length=4000)
+    scene_name: str = Field(default="", max_length=120)
+
+
+class StoryboardGenerationOutput(BaseModel):
+    panels: list[GeneratedPanel] = Field(min_length=1, max_length=60)
 
 
 async def run_generation_task(task_id: UUID) -> None:
@@ -35,11 +81,13 @@ async def run_generation_task(task_id: UUID) -> None:
         acquired = await lock_connection.scalar(select(func.pg_try_advisory_lock(lock_id)))
         if not acquired:
             return
+        task_type = "unknown"
         try:
             async with SessionFactory() as session:
                 task = await session.get(GenerationTaskRecord, task_id)
                 if task is None or task.status in {"succeeded", "failed"}:
                     return
+                task_type = task.task_type
                 project = await session.get(ProjectRecord, task.project_id)
                 if project is None or project.owner_id != task.owner_id:
                     task.status = "failed"
@@ -52,7 +100,7 @@ async def run_generation_task(task_id: UUID) -> None:
                     await session.commit()
                     return
                 task.status = "running"
-                task.progress = 15
+                task.progress = 5
                 task.updated_at = datetime.now(UTC)
                 await session.commit()
 
@@ -83,7 +131,7 @@ async def run_generation_task(task_id: UUID) -> None:
                         "event": "generation_task_failed",
                         "task_id": str(task_id),
                         "failure_id": failure_id,
-                        "task_type": task.task_type if task is not None else "unknown",
+                        "task_type": task_type,
                     },
                 )
                 async with SessionFactory() as session:
@@ -113,6 +161,8 @@ async def _process_task(session: AsyncSession, task: GenerationTaskRecord) -> di
         return await _generate_characters(session, task)
     if task.task_type == "scene_draft":
         return await _generate_scenes(session, task)
+    if task.task_type == "scene_reference_images":
+        return await _generate_scenes(session, task, image_only=True)
     if task.task_type == "storyboard_draft":
         return await _generate_panels(session, task)
     if task.task_type in {"panel_image", "panel_image_edit"}:
@@ -120,6 +170,14 @@ async def _process_task(session: AsyncSession, task: GenerationTaskRecord) -> di
     if task.task_type == "export":
         return await _create_export(session, task)
     raise ValueError(f"不支持的任务类型：{task.task_type}")
+
+
+async def _report_progress(
+    session: AsyncSession, task: GenerationTaskRecord, progress: int
+) -> None:
+    task.progress = progress
+    task.updated_at = datetime.now(UTC)
+    await session.commit()
 
 
 async def _generate_characters(
@@ -132,29 +190,118 @@ async def _generate_characters(
             )
         ).all()
     )
-    if existing:
-        return {"character_ids": [str(item.id) for item in existing]}
     project = await session.get(ProjectRecord, task.project_id)
     if project is None:
         raise ValueError("项目不存在")
-    character = CharacterRecord(
-        project_id=project.id,
-        name="主角",
-        profile={
-            "appearance": f"围绕《{project.title}》故事设定的主角外观",
-            "outfit": "符合故事题材的标志性服装",
-            "personality": "面对核心冲突时展现出鲜明的行动动机",
-            "visual_traits": [project.art_style, project.genre],
-        },
-        status="draft",
-        version=1,
+    config = await _configured_model(session, project.owner_id)
+    text_api_key = decrypt_secret(config.text_api_key_encrypted)
+    image_api_key = (
+        decrypt_secret(config.image_api_key_encrypted)
+        if config.image_api_key_encrypted
+        else None
     )
-    session.add(character)
+    image_model = config.image_model
+    image_base_url = config.image_base_url
+    title, synopsis, genre, art_style = (
+        project.title,
+        project.synopsis,
+        project.genre,
+        project.art_style,
+    )
+    text_base_url = config.text_base_url
+    text_model = config.text_model
+    await session.commit()
+    await _report_progress(session, task, 15)
+    output = await generate_structured_text(
+        base_url=text_base_url,
+        model=text_model,
+        api_key=text_api_key,
+        system_prompt=(
+            "你是专业漫剧编剧和角色设计师。根据用户故事设计一个核心主角，"
+            "所有字段必须具体、互相一致，避免泛化套话。只返回符合 JSON schema 的 JSON。"
+        ),
+        user_prompt=(
+            f"故事标题：{title}\n故事梗概：{synopsis}\n题材：{genre}\n画风：{art_style}\n"
+            "返回对象格式：{\"character\": {\"name\": string, \"role\": string, "
+            "\"appearance\": string, \"hairstyle\": string, \"outfit\": string, "
+            "\"signature_traits\": [string], \"personality\": string, "
+            "\"reference_image_prompt\": string}}。参考图提示词描述单人全身立绘、"
+            "纯净背景、清晰服装和辨识特征，不要出现文字或水印。"
+        ),
+        response_model=CharacterGenerationOutput,
+    )
+    generated = output.character
+    await _report_progress(session, task, 35)
+    profile = {
+        "generation_source": "ai",
+        "role": generated.role,
+        "appearance": generated.appearance,
+        "hairstyle": generated.hairstyle,
+        "outfit": generated.outfit,
+        "signature_traits": generated.signature_traits,
+        "personality": generated.personality,
+        "visual_traits": [generated.hairstyle, *generated.signature_traits],
+        "image_prompt": generated.reference_image_prompt,
+    }
+    character = existing[0] if existing else CharacterRecord(project_id=project.id, status="draft")
+    if not existing:
+        session.add(character)
+    character.name = generated.name
+    character.profile = cast(dict[str, object], profile)
+    character.status = "draft"
+    character.version = character.version + 1 if existing else 1
+    character.reference_asset_id = None
     await session.flush()
-    return {"character_ids": [str(character.id)]}
+    await session.commit()
+
+    warning: str | None = None
+    await _report_progress(session, task, 45)
+    if image_api_key:
+        asset_id = uuid4()
+        try:
+            await _report_progress(session, task, 55)
+            await generate_qwen_image(
+                api_key=image_api_key,
+                model=image_model,
+                prompt=(
+                    f"{art_style}，{generated.reference_image_prompt}。角色：{generated.name}。"
+                    "单人全身角色设定图，纯净浅色背景，完整展示发型、服装和标志性特征，"
+                    "不得出现文字、标题、边框或水印。"
+                ),
+                asset_id=asset_id,
+                base_url=image_base_url,
+            )
+            character.reference_asset_id = asset_id
+            await session.commit()
+            await _report_progress(session, task, 95)
+        except Exception as error:
+            warning = "角色文字设定已生成，但参考图生成失败；可在设置中检查图像模型后重试。"
+            api_logger.warning(
+                "character_reference_generation_failed",
+                extra={
+                    "event": "character_reference_generation_failed",
+                    "task_id": str(task.id),
+                    "error_type": type(error).__name__,
+                },
+            )
+    else:
+        warning = "角色文字设定已生成；账户尚未配置图像模型密钥，因此没有生成参考图。"
+    result: dict[str, object] = {
+        "character_ids": [str(character.id)],
+        "generation_source": "ai",
+        "reference_image_generated": bool(character.reference_asset_id),
+    }
+    if warning:
+        result["warnings"] = [warning]
+    return result
 
 
-async def _generate_scenes(session: AsyncSession, task: GenerationTaskRecord) -> dict[str, object]:
+async def _generate_scenes(
+    session: AsyncSession,
+    task: GenerationTaskRecord,
+    *,
+    image_only: bool = False,
+) -> dict[str, object]:
     existing = list(
         (
             await session.scalars(
@@ -162,26 +309,128 @@ async def _generate_scenes(session: AsyncSession, task: GenerationTaskRecord) ->
             )
         ).all()
     )
-    if existing:
-        return {"scene_ids": [str(item.id) for item in existing]}
     project = await session.get(ProjectRecord, task.project_id)
     if project is None:
         raise ValueError("项目不存在")
-    scene = SceneRecord(
-        project_id=project.id,
-        name="主要场景",
-        profile={
-            "description": f"从故事梗概提取的主要场景：{project.synopsis[:180]}",
-            "lighting": "以画风和剧情情绪为依据",
-            "palette": project.art_style,
-            "visual_traits": [project.genre, "环境设定草稿"],
-        },
-        status="draft",
-        version=1,
+    episode_id = task.request_data.get("episode_id")
+    episode = await session.get(EpisodeRecord, UUID(str(episode_id))) if episode_id else None
+    config = (
+        await session.get(AccountModelConfigRecord, project.owner_id)
+        if image_only
+        else await _configured_model(session, project.owner_id)
     )
-    session.add(scene)
-    await session.flush()
-    return {"scene_ids": [str(scene.id)]}
+    if config is None:
+        raise ValueError("请先在设置中配置模型")
+    if image_only:
+        if not existing:
+            raise ValueError("当前项目没有可生成参考图的场景")
+        generated_scenes = existing
+    else:
+        text_api_key = decrypt_secret(config.text_api_key_encrypted)
+        title, synopsis, genre, art_style = (
+            project.title,
+            episode.synopsis if episode else project.synopsis,
+            project.genre,
+            project.art_style,
+        )
+        guidance = str(task.request_data.get("guidance", ""))
+        await session.commit()
+        await _report_progress(session, task, 15)
+        output = await generate_structured_text(
+            base_url=config.text_base_url,
+            model=config.text_model,
+            api_key=text_api_key,
+            system_prompt=(
+                "你是漫剧美术设定师。根据剧情设计 1 到 3 个可复用场景资产，"
+                "每个场景需有可视化细节、光线和色彩。只返回 JSON。"
+            ),
+            user_prompt=(
+                f"作品：{title}\n梗概：{synopsis}\n题材：{genre}\n画风：{art_style}\n"
+                f"补充要求：{guidance or '无'}\n返回格式：{{\"scenes\":[{{\"name\":string,"
+                "\"description\":string,\"lighting\":string,\"palette\":string,"
+                "\"visual_traits\":[string]}}]}。"
+            ),
+            response_model=SceneGenerationOutput,
+        )
+        await _report_progress(session, task, 45)
+        generated_scenes = []
+        for index, generated in enumerate(output.scenes):
+            scene = existing[index] if index < len(existing) else SceneRecord(project_id=project.id)
+            if index >= len(existing):
+                session.add(scene)
+            scene.name = generated.name
+            scene.profile = cast(dict[str, object], generated.model_dump(exclude={"name"}))
+            scene.status = "draft"
+            scene.version = scene.version + 1 if index < len(existing) else 1
+            await session.flush()
+            generated_scenes.append(scene)
+        await session.commit()
+
+    scene_ids = [str(scene.id) for scene in generated_scenes]
+    warnings: list[str] = []
+    image_api_key_encrypted = getattr(config, "image_api_key_encrypted", None)
+    if not image_api_key_encrypted:
+        warnings.append("场景文字设定已保存；账户尚未配置图像模型 API Key，因此没有生成参考图。")
+    else:
+        image_api_key = decrypt_secret(image_api_key_encrypted)
+        image_model = getattr(config, "image_model", "qwen-image-3.0-pro")
+        image_base_url = getattr(config, "image_base_url", None)
+        scenes_to_render = [scene for scene in generated_scenes if not scene.reference_asset_id]
+        if not image_only:
+            await _report_progress(session, task, 55)
+        for index, scene in enumerate(scenes_to_render):
+            asset_id = uuid4()
+            profile = scene.profile
+            visual_traits = profile.get("visual_traits", [])
+            visual_traits = visual_traits if isinstance(visual_traits, list) else []
+            prompt = "\n".join(
+                item
+                for item in [
+                    project.art_style,
+                    f"场景：{scene.name}",
+                    str(profile.get("description", "")),
+                    f"光线：{profile.get('lighting', '')}",
+                    f"色彩：{profile.get('palette', '')}",
+                    "视觉特征："
+                    + "、".join(str(item) for item in visual_traits),
+                    "漫剧场景环境概念图，宽幅构图，画面中不出现人物、文字、标注或水印。",
+                ]
+                if item
+            )
+            try:
+                await session.commit()
+                await generate_qwen_image(
+                    api_key=image_api_key,
+                    model=image_model,
+                    prompt=prompt,
+                    asset_id=asset_id,
+                    base_url=image_base_url,
+                )
+                scene.reference_asset_id = asset_id
+                await session.commit()
+            except Exception as error:
+                warnings.append(f"{scene.name}参考图生成失败，可稍后单独重试。")
+                api_logger.warning(
+                    "scene_reference_generation_failed",
+                    extra={
+                        "event": "scene_reference_generation_failed",
+                        "task_id": str(task.id),
+                        "scene_id": str(scene.id),
+                        "error_type": type(error).__name__,
+                    },
+                )
+            await _report_progress(
+                session,
+                task,
+                55 + round(40 * (index + 1) / max(len(scenes_to_render), 1)),
+            )
+    return {
+        "scene_ids": scene_ids,
+        "reference_images_generated": sum(
+            bool(scene.reference_asset_id) for scene in generated_scenes
+        ),
+        "warnings": warnings,
+    }
 
 
 async def _generate_panels(session: AsyncSession, task: GenerationTaskRecord) -> dict[str, object]:
@@ -212,30 +461,67 @@ async def _generate_panels(session: AsyncSession, task: GenerationTaskRecord) ->
             await session.scalars(select(PanelRecord).where(PanelRecord.episode_id == episode_id))
         ).all()
     )
+    project = await session.get(ProjectRecord, task.project_id)
+    if project is None:
+        raise ValueError("项目不存在")
+    config = await _configured_model(session, project.owner_id)
+    text_api_key = decrypt_secret(config.text_api_key_encrypted)
+    title, genre, art_style = project.title, project.genre, project.art_style
+    synopsis = episode.synopsis
+    character_context = [
+        {"name": item.name, **item.profile}
+        for item in characters
+    ]
+    scene_context = [
+        {"name": item.name, **item.profile}
+        for item in scenes
+    ]
+    pacing = str(task.request_data.get("pacing", "balanced"))
+    await session.commit()
+    await _report_progress(session, task, 15)
+    output = await generate_structured_text(
+        base_url=config.text_base_url,
+        model=config.text_model,
+        api_key=text_api_key,
+        system_prompt=(
+            "你是专业漫剧分镜编剧。把故事拆成准确数量的连续镜头，保证因果、动作和情绪连贯，"
+            "角色和场景严格沿用给定资产。每格对白可以为空。只返回 JSON。"
+        ),
+        user_prompt=(
+            f"作品：{title}\n题材：{genre}\n画风：{art_style}\n梗概：{synopsis}\n"
+            f"分镜数：{count}\n节奏：{pacing}\n角色资产：{character_context}\n场景资产：{scene_context}\n"
+            "返回格式：{\"panels\":[{\"shot\":string,\"scene_description\":string,"
+            "\"composition\":string,\"character_actions\":string,\"emotion\":string,"
+            "\"dialogue\":string,\"story_purpose\":string,\"image_prompt\":string,"
+            "\"scene_name\":string}]}。panels 数量必须与分镜数完全一致。"
+        ),
+        response_model=StoryboardGenerationOutput,
+    )
+    await _report_progress(session, task, 85)
+    if len(output.panels) != count:
+        raise ValueError("文本模型返回的分镜数量不符合请求，请重试")
     for item in existing:
         await session.delete(item)
+    await session.flush()
     panels: list[PanelRecord] = []
-    beats = [
-        ("远景", "建立故事空间，呈现当前冲突。"),
-        ("中景", "主角发现异常线索并采取行动。"),
-        ("近景", "冲突升级，角色作出关键反应。"),
-        ("特写", "留下推动下一段剧情的悬念。"),
-    ]
-    for position in range(count):
-        shot, action = beats[position % len(beats)]
+    primary_character_ids = [str(item.id) for item in characters[:1]]
+    for position, generated in enumerate(output.panels):
+        scene = next((item for item in scenes if item.name == generated.scene_name), None)
+        if scene is None and scenes:
+            scene = scenes[0]
         panel = PanelRecord(
             episode_id=episode_id,
             position=position,
-            scene_description=episode.synopsis[:400] or "根据故事梗概展开的场景",
-            shot=shot,
-            composition=f"第 {position + 1} 格构图：突出当前剧情信息。",
-            character_actions=action,
-            emotion="紧张、好奇",
-            dialogue="",
-            story_purpose=f"推进故事节奏与第 {position + 1} 个情节点",
-            image_prompt=f"{episode.synopsis[:500]}，{shot}，{action}",
-            character_ids=[str(characters[0].id)] if characters else [],
-            scene_id=scenes[0].id if scenes else None,
+            scene_description=generated.scene_description,
+            shot=generated.shot,
+            composition=generated.composition,
+            character_actions=generated.character_actions,
+            emotion=generated.emotion,
+            dialogue=generated.dialogue,
+            story_purpose=generated.story_purpose,
+            image_prompt=generated.image_prompt,
+            character_ids=primary_character_ids,
+            scene_id=scene.id if scene else None,
             review_status="draft",
             version=1,
         )
@@ -243,6 +529,18 @@ async def _generate_panels(session: AsyncSession, task: GenerationTaskRecord) ->
         panels.append(panel)
     await session.flush()
     return {"episode_id": str(episode_id), "panel_ids": [str(panel.id) for panel in panels]}
+
+
+async def _configured_model(session: AsyncSession, owner_id: UUID) -> AccountModelConfigRecord:
+    config = await session.get(AccountModelConfigRecord, owner_id)
+    if (
+        config is None
+        or not config.text_model
+        or not config.text_base_url
+        or not config.text_api_key_encrypted
+    ):
+        raise ValueError("请先在设置中保存并测试文本模型配置")
+    return config
 
 
 async def _generate_panel_image(

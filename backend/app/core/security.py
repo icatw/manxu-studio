@@ -39,7 +39,11 @@ def token_hash(token: str) -> str:
 def encrypt_secret(secret: str) -> bytes:
     key_source = get_settings().model_encryption_key
     if len(key_source) < 32:
-        raise HTTPException(503, "服务端尚未配置模型密钥加密主密钥")
+        raise ApiError(
+            "SERVICE_UNAVAILABLE",
+            "服务端未配置模型密钥加密主密钥，请联系管理员。",
+            status_code=503,
+        )
     key = base64.urlsafe_b64encode(hashlib.sha256(key_source.encode()).digest())
     return Fernet(key).encrypt(secret.encode())
 
@@ -175,15 +179,29 @@ async def require_asset_owner(
     version = await session.scalar(
         select(ImageVersionRecord).where(ImageVersionRecord.asset_id == asset_id)
     )
-    if version is None:
+    if version is not None:
+        panel = await session.get(PanelRecord, version.panel_id)
+        if panel is None:
+            raise HTTPException(404, "资源不存在")
+        episode = await session.get(EpisodeRecord, panel.episode_id)
+        if episode is None:
+            raise HTTPException(404, "资源不存在")
+        project = await session.get(ProjectRecord, episode.project_id)
+        await _owned_project(project, account)
+        return asset_id
+    character = await session.scalar(
+        select(CharacterRecord).where(CharacterRecord.reference_asset_id == asset_id)
+    )
+    if character is not None:
+        project = await session.get(ProjectRecord, character.project_id)
+        await _owned_project(project, account)
+        return asset_id
+    scene = await session.scalar(
+        select(SceneRecord).where(SceneRecord.reference_asset_id == asset_id)
+    )
+    if scene is None:
         raise HTTPException(404, "资源不存在")
-    panel = await session.get(PanelRecord, version.panel_id)
-    if panel is None:
-        raise HTTPException(404, "资源不存在")
-    episode = await session.get(EpisodeRecord, panel.episode_id)
-    if episode is None:
-        raise HTTPException(404, "资源不存在")
-    project = await session.get(ProjectRecord, episode.project_id)
+    project = await session.get(ProjectRecord, scene.project_id)
     await _owned_project(project, account)
     return asset_id
 

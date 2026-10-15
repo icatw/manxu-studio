@@ -14,6 +14,7 @@ export function ProjectLibrary() {
   const queryClient = useQueryClient();
   const [title, setTitle] = useState("");
   const [synopsis, setSynopsis] = useState("");
+  const [projectToDelete, setProjectToDelete] = useState<{ id: string; title: string } | null>(null);
   const projects = useQuery({ queryKey: ["projects"], queryFn: listProjects });
   const account = useQuery({ queryKey: ["current-account"], queryFn: async () => (await api.GET("/auth/me")).data ?? null, retry: false });
   const logout = useMutation({
@@ -21,7 +22,7 @@ export function ProjectLibrary() {
       const { error } = await api.POST("/auth/logout");
       if (error) throw new Error("退出登录失败，请稍后重试");
     },
-    onSuccess: () => window.location.assign("/"),
+    onSuccess: () => window.location.assign("/login"),
     onError: (error) => toast.error("退出登录失败", { description: error.message }),
   });
   const create = useMutation({
@@ -41,7 +42,10 @@ export function ProjectLibrary() {
   });
   const remove = useMutation({
     mutationFn: deleteProject,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["projects"] }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["projects"] });
+      setProjectToDelete(null);
+    },
     onError: (error) => toast.error("删除项目失败", { description: error.message }),
   });
 
@@ -101,7 +105,7 @@ export function ProjectLibrary() {
                 </button>
                 <span className="hidden text-xs text-muted-foreground sm:block">{new Date(project.updated_at).toLocaleDateString("zh-CN")}</span>
                 <Button variant="ghost" size="icon-sm" aria-label={`打开${project.title}`} title="打开项目" onClick={() => void openProject(project.id)}><ArrowUpRight /></Button>
-                <Button variant="ghost" size="icon-sm" aria-label={`删除${project.title}`} title="删除项目" disabled={remove.isPending} onClick={() => { if (window.confirm(`删除「${project.title}」及其全部内容？`)) remove.mutate(project.id); }}><Trash2 /></Button>
+                <Button variant="ghost" size="icon-sm" aria-label={`删除${project.title}`} title="删除项目" disabled={remove.isPending} onClick={() => setProjectToDelete({ id: project.id, title: project.title })}><Trash2 /></Button>
               </article>
             ))}
           </div>
@@ -119,6 +123,34 @@ export function ProjectLibrary() {
           <p className="mt-4 text-xs leading-relaxed text-muted-foreground">完成模型配置后，可在工作区提交真实图像生成任务。</p>
         </aside>
       </div>
+      {projectToDelete ? (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4">
+          <section
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="delete-project-title"
+            aria-describedby="delete-project-description"
+            className="w-full max-w-md border bg-background p-5 shadow-lg"
+          >
+            <h2 id="delete-project-title" className="text-base font-semibold">删除项目</h2>
+            <p id="delete-project-description" className="mt-2 text-sm text-muted-foreground">
+              确定删除「{projectToDelete.title}」及其全部内容吗？此操作无法撤销。
+            </p>
+            {remove.isError ? <p className="mt-3 text-sm text-destructive">{remove.error.message}</p> : null}
+            <div className="mt-5 flex justify-end gap-2">
+              <Button variant="outline" disabled={remove.isPending} onClick={() => setProjectToDelete(null)}>取消</Button>
+              <Button
+                variant="destructive"
+                disabled={remove.isPending}
+                onClick={() => remove.mutate(projectToDelete.id)}
+              >
+                {remove.isPending ? <Loader2 className="animate-spin" data-icon="inline-start" /> : <Trash2 data-icon="inline-start" />}
+                删除项目
+              </Button>
+            </div>
+          </section>
+        </div>
+      ) : null}
     </main>
   );
 }

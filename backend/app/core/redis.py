@@ -59,9 +59,15 @@ async def consume_ephemeral_value(key: str, expected: str) -> bool:
 async def require_rate_limit(request: Request, limit: int | None = None) -> None:
     settings = get_settings()
     client_host = request.client.host if request.client else "unknown"
-    key = f"rate:{client_host}:{request.method}:{request.url.path}"
+    account_id = getattr(request.state, "account_id", None)
+    subject = f"account:{account_id}" if account_id else f"client:{client_host}"
+    is_read = request.method.upper() in {"GET", "HEAD", "OPTIONS"}
+    effective_limit = limit or (
+        settings.read_rate_limit_per_minute if is_read else settings.rate_limit_per_minute
+    )
+    key = f"rate:{subject}:{request.method.upper()}:{request.url.path}"
     try:
-        allowed = await consume_rate_limit(key, limit or settings.rate_limit_per_minute)
+        allowed = await consume_rate_limit(key, effective_limit)
     except Exception as error:
         raise HTTPException(503, "请求服务暂时不可用，请稍后重试") from error
     if not allowed:

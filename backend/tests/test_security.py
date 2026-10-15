@@ -2,6 +2,7 @@ import pytest
 from fastapi import HTTPException
 
 from app.core import security
+from app.core.api_responses import ApiError
 
 
 def test_model_secret_encryption_round_trip(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -12,6 +13,20 @@ def test_model_secret_encryption_round_trip(monkeypatch: pytest.MonkeyPatch) -> 
 
     assert encrypted != b"sample-secret"
     assert security.decrypt_secret(encrypted) == "sample-secret"
+
+
+def test_model_secret_encryption_reports_missing_master_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        security, "get_settings", lambda: type("S", (), {"model_encryption_key": ""})()
+    )
+
+    with pytest.raises(ApiError, match="模型密钥加密主密钥") as error:
+        security.encrypt_secret("sample-secret")
+
+    assert error.value.code == "SERVICE_UNAVAILABLE"
+    assert error.value.status_code == 503
 
 
 @pytest.mark.asyncio

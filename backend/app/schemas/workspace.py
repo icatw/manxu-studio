@@ -62,10 +62,15 @@ class Episode(EpisodeCreate):
 
 
 class CharacterProfile(APIModel):
+    generation_source: Literal["ai", "manual"] = "manual"
+    role: str = "故事角色"
     appearance: str = ""
+    hairstyle: str = ""
     outfit: str = ""
+    signature_traits: list[str] = Field(default_factory=list)
     personality: str = ""
     visual_traits: list[str] = Field(default_factory=list)
+    image_prompt: str = ""
 
 
 class CharacterPatch(APIModel):
@@ -87,6 +92,7 @@ class Character(APIModel):
 class SceneGenerationRequest(APIModel):
     episode_id: UUID | None = None
     guidance: str = Field(default="", max_length=4000)
+    image_only: bool = False
 
 
 class SceneProfile(APIModel):
@@ -193,6 +199,7 @@ class GenerationTask(APIModel):
     task_type: Literal[
         "character_draft",
         "scene_draft",
+        "scene_reference_images",
         "storyboard_draft",
         "panel_image",
         "panel_image_edit",

@@ -50,6 +50,7 @@ interface StudioContextValue {
   setPreviewOpen: (open: boolean) => void;
   projectId: string;
   episodeId: string;
+  refreshWorkspace: () => Promise<unknown>;
   versions: WorkspaceData["versions"];
   selectImageVersion: (panelId: string, versionId: string) => Promise<void>;
   addPanel: () => void;
@@ -283,13 +284,19 @@ export function StudioProvider({
       }
       setStoryBusy(true);
       try {
-        await generateStoryAssets(workspace.project.id, workspace.episode.id, project.story.panelCount, {
+        const { warnings } = await generateStoryAssets(workspace.project.id, workspace.episode.id, project.story.panelCount, {
           regenerateCharacters,
         });
         await queryClient.invalidateQueries({ queryKey: ["workspace", workspace.project.id] });
         await onReload();
         setStage(regenerateCharacters ? "characters" : "storyboard");
-        toast.success("分镜草稿已生成", { description: "当前使用服务端演示生成，结果可继续编辑。" });
+        if (warnings.length) {
+          toast.warning("AI 文字设定已生成", {
+            description: warnings.filter((warning): warning is string => typeof warning === "string").join(" "),
+          });
+        } else {
+          toast.success("AI 角色、场景与分镜草稿已生成", { description: "结果已保存，可继续编辑。" });
+        }
       } catch (error) {
         toast.error("分镜生成失败", { description: error instanceof Error ? error.message : "请稍后重试" });
       } finally {
@@ -374,6 +381,7 @@ export function StudioProvider({
       setPreviewOpen,
       projectId: workspace.project.id,
       episodeId: workspace.episode.id,
+      refreshWorkspace: onReload,
       versions: workspace.versions,
       selectImageVersion,
       addPanel,
@@ -395,6 +403,7 @@ export function StudioProvider({
       isAnyGenerating,
       previewOpen,
       workspace,
+      onReload,
       selectImageVersion,
       addPanel,
       removePanel,

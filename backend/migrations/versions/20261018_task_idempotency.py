@@ -12,7 +12,10 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    op.add_column("generation_tasks", sa.Column("idempotency_key", sa.String(length=128), nullable=True))
+    op.add_column(
+        "generation_tasks",
+        sa.Column("idempotency_key", sa.String(length=128), nullable=True),
+    )
     op.create_unique_constraint(
         "generation_tasks_owner_idempotency_key_uq",
         "generation_tasks",
@@ -21,5 +24,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_constraint("generation_tasks_owner_idempotency_key_uq", "generation_tasks", type_="unique")
+    op.drop_constraint(
+        "generation_tasks_owner_idempotency_key_uq", "generation_tasks", type_="unique"
+    )
     op.drop_column("generation_tasks", "idempotency_key")

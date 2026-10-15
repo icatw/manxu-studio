@@ -46,6 +46,7 @@ class Settings(BaseSettings):
     smtp_from: str = ""
     smtp_starttls: bool = True
     rate_limit_per_minute: int = 30
+    read_rate_limit_per_minute: int = 120
 
     model_config = SettingsConfigDict(env_file="../.env", extra="ignore")
 

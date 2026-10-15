@@ -23,7 +23,7 @@ async def requeue_pending_generation_tasks(ctx: dict[str, object]) -> None:
                 or_(
                     GenerationTaskRecord.status == "queued",
                     (GenerationTaskRecord.status == "running")
-                    & (GenerationTaskRecord.updated_at < datetime.now(UTC) - timedelta(minutes=5)),
+                    & (GenerationTaskRecord.updated_at < datetime.now(UTC) - timedelta(minutes=15)),
                 )
             )
         )
@@ -42,4 +42,5 @@ class WorkerSettings:
     cron_jobs = [cron(requeue_pending_generation_tasks, second={0}, run_at_startup=True)]
     redis_settings: RedisSettings = redis_settings()
     max_jobs = 2
+    job_timeout = 900
     health_check_interval = 30

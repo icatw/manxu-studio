@@ -1290,7 +1290,9 @@ components:
         id: { type: string, format: uuid }
         provider: { type: string, enum: [email, github] }
         email: { type: [string, 'null'], format: email }
-        verified: { type: boolean }
+        verified:
+          type: boolean
+          description: GitHub identities are verified after OAuth; email identities are verified after a successful email code.
     ModelConfigUpdate:
       type: object
       additionalProperties: false
@@ -1518,18 +1520,31 @@ components:
     CharacterProfile:
       type: object
       additionalProperties: false
-      required: [appearance, outfit, personality, visual_traits]
+      required: [generation_source, role, appearance, hairstyle, outfit, signature_traits, personality, visual_traits, image_prompt]
       properties:
+        generation_source:
+          type: string
+          enum: [ai, manual]
+        role:
+          type: string
         appearance:
+          type: string
+        hairstyle:
           type: string
         outfit:
           type: string
+        signature_traits:
+          type: array
+          items:
+            type: string
         personality:
           type: string
         visual_traits:
           type: array
           items:
             type: string
+        image_prompt:
+          type: string
     Character:
       type: object
       additionalProperties: false
@@ -1546,18 +1561,31 @@ components:
         profile:
           type: object
           additionalProperties: false
-          required: [appearance, outfit, personality, visual_traits]
+          required: [generation_source, role, appearance, hairstyle, outfit, signature_traits, personality, visual_traits, image_prompt]
           properties:
+            generation_source:
+              type: string
+              enum: [ai, manual]
+            role:
+              type: string
             appearance:
+              type: string
+            hairstyle:
               type: string
             outfit:
               type: string
+            signature_traits:
+              type: array
+              items:
+                type: string
             personality:
               type: string
             visual_traits:
               type: array
               items:
                 type: string
+            image_prompt:
+              type: string
         reference_asset_id:
           type: [string, 'null']
           format: uuid
@@ -1577,6 +1605,8 @@ components:
         guidance:
           type: string
           maxLength: 4000
+        image_only:
+          type: boolean
     SceneProfile:
       type: object
       additionalProperties: false
@@ -1820,7 +1850,7 @@ components:
           format: uuid
         task_type:
           type: string
-          enum: [character_draft, scene_draft, storyboard_draft, panel_image, panel_image_edit, export]
+          enum: [character_draft, scene_draft, scene_reference_images, storyboard_draft, panel_image, panel_image_edit, export]
         status:
           type: string
           enum: [queued, running, succeeded, failed, cancelled]
@@ -1859,6 +1889,10 @@ components:
           items:
             type: string
             format: uuid
+        warnings:
+          type: array
+          items:
+            type: string
     StoryboardGenerationResult:
       type: object
       additionalProperties: false
@@ -1893,6 +1927,13 @@ components:
           items:
             type: string
             format: uuid
+        reference_images_generated:
+          type: integer
+          minimum: 0
+        warnings:
+          type: array
+          items:
+            type: string
     PanelImageVersion:
       type: object
       additionalProperties: false

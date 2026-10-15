@@ -1,7 +1,7 @@
 'use client'
 
 import Image from '@/components/ui/image'
-import { ArrowRight, CheckCircle2, CircleAlert } from 'lucide-react'
+import { ArrowRight, CheckCircle2, CircleAlert, UserRound } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -28,17 +28,22 @@ function CharacterCard({ character }: { character: Character }) {
   return (
     <article className="flex flex-col overflow-hidden rounded-lg border bg-card sm:flex-row" aria-label={character.name}>
       <div className="relative aspect-square w-full shrink-0 bg-muted sm:w-48">
-        <Image
-          src={character.referenceImageUrl}
-          alt={`${character.name} 角色参考图`}
-          fill
-          sizes="(min-width: 640px) 192px, 100vw"
-          className="object-cover"
-        />
-        <span className="absolute bottom-2 left-2 rounded bg-neutral-950/70 px-1.5 py-0.5 text-[10px] text-neutral-200 backdrop-blur">
-          {ASSET_SOURCE_SHORT[character.referenceImageSource]}
+        {character.referenceImageUrl ? (
+          <Image
+            src={character.referenceImageUrl}
+            alt={`${character.name} AI 角色参考图`}
+            fill
+            sizes="(min-width: 640px) 192px, 100vw"
+            className="object-cover"
+          />
+        ) : (
+          <div className="absolute inset-0 grid place-items-center text-muted-foreground">
+            <UserRound className="size-12" aria-hidden />
+          </div>
+        )}
+        <span className="absolute right-2 top-2 rounded bg-neutral-950/70 px-2 py-1 text-[10px] text-neutral-100">
+          {character.referenceImageUrl ? ASSET_SOURCE_SHORT.ai : '暂无 AI 参考图'}
         </span>
-        <span className="absolute right-2 top-2 rounded bg-neutral-950/70 px-2 py-1 text-[10px] text-neutral-100">演示参考图</span>
       </div>
       <div className="flex min-w-0 flex-1 flex-col gap-3 p-4">
         <div className="flex items-center gap-3">
@@ -52,6 +57,9 @@ function CharacterCard({ character }: { character: Character }) {
             onChange={(e) => update({ name: e.target.value })}
             className="h-8 max-w-48 font-semibold"
           />
+          <span className="rounded border px-2 py-1 text-[11px] text-muted-foreground">
+            {character.generationSource === 'ai' ? 'AI 起稿' : '手动设定'}
+          </span>
           {character.confirmed ? (
             <span className="flex items-center gap-1 text-xs text-success">
               <CheckCircle2 className="size-3.5" aria-hidden />
