@@ -12,11 +12,11 @@ import { EpisodeSwitcher } from "./episode-switcher";
 import { useStudio } from "./studio-provider";
 import { StatusDot } from "./shared";
 
-const STAGES: { id: StudioStage; label: string; icon: typeof BookOpenText }[] = [
-  { id: "story", label: "故事创意", icon: BookOpenText },
-  { id: "characters", label: "角色资产", icon: Users },
-  { id: "scenes", label: "场景资产", icon: ImageIcon },
-  { id: "storyboard", label: "分镜脚本", icon: Clapperboard },
+const STAGES: { id: StudioStage; label: string; hint: string; icon: typeof BookOpenText }[] = [
+  { id: "story", label: "故事创意", hint: "本话", icon: BookOpenText },
+  { id: "characters", label: "作品角色", hint: "全话共用", icon: Users },
+  { id: "scenes", label: "作品场景", hint: "全话共用", icon: ImageIcon },
+  { id: "storyboard", label: "分镜脚本", hint: "本话", icon: Clapperboard },
 ];
 
 export function SidebarNav() {
@@ -39,13 +39,14 @@ export function SidebarNav() {
       <EpisodeSwitcher />
       <nav className="flex flex-col gap-0.5 p-2">
         <p className="px-2 pt-1 pb-2 text-[11px] font-medium text-muted-foreground/80">创作流程</p>
-        {STAGES.map(({ id, label, icon: Icon }, index) => {
+        {STAGES.map(({ id, label, hint, icon: Icon }, index) => {
           const active = stage === id;
           return (
             <button
               key={id}
               type="button"
               onClick={() => setStage(id)}
+              title={`${label}（${hint}）`}
               aria-current={active ? "page" : undefined}
               className={cn(
                 "group flex h-9 items-center gap-2.5 rounded-md px-2 text-left text-sm transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/50",

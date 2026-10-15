@@ -16,8 +16,10 @@
 - Playwright：`frontend/e2e` + Mailpit 登录；`make test-e2e` / `make test-e2e-ai`；E2E 用 `docker-compose.e2e.yml` + `--profile local`。
 - Playground：`docker-compose.playground.yml`（独立卷/端口、fake-llm、Mailpit）；`make test-api-playground` / `test-e2e-playground` / `test-playground`。
 - 部署：`docker-compose.prod.yml` + Caddy；`./scripts/deploy.sh` / `make deploy`；本地 `start.sh` 使用 `--profile local`（Mailpit）；图像第一期仍为 `image-data` 卷（ADR-003）。
-- 角色草稿：一次生成 2–6 人阵容并为每人出参考图（定妆锁定保留）。
-- 计划：`.harness/plans/completed/0014-multi-character-reference-images.md`；`.harness/plans/completed/0015-vps-compose-caddy-deploy.md`。
+- 角色草稿：一次生成 2–6 人阵容并为每人出参考图（定妆锁定保留）。默认 `cast_mode=append`（同名跳过、不删孤儿）；`replace` 仅危险整队重建。
+- 本话生成：已有作品角色库时默认 `regenerate_characters=false` 复用；故事页可「补充角色」追加或「重建作品角色库」。
+- 单资产重生：角色/场景卡片可「重生设定」「重出参考图」；支持批量补缺失参考图（`character_reference_images` / `scene_reference_images`）。
+- 计划：`.harness/plans/completed/0018-project-cast-reuse.md`；`.harness/plans/completed/0017-per-asset-regen.md`；`.harness/plans/completed/0014-multi-character-reference-images.md`；`.harness/plans/completed/0015-vps-compose-caddy-deploy.md`。
 
 ## 阶段与进度
 

@@ -1,8 +1,8 @@
 from datetime import datetime
-from typing import Literal
+from typing import Literal, Self
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class APIModel(BaseModel):
@@ -219,7 +219,16 @@ class Character(APIModel):
 class SceneGenerationRequest(APIModel):
     episode_id: UUID | None = None
     guidance: str = Field(default="", max_length=4000)
+    scene_ids: list[UUID] = Field(default_factory=list)
     image_only: bool = False
+    text_only: bool = False
+    cast_mode: Literal["append", "replace"] = "append"
+
+    @model_validator(mode="after")
+    def reject_conflicting_modes(self) -> Self:
+        if self.image_only and self.text_only:
+            raise ValueError("image_only 与 text_only 不能同时为 true")
+        return self
 
 
 class SceneProfile(APIModel):
@@ -248,6 +257,16 @@ class Scene(APIModel):
 class CharacterGenerationRequest(APIModel):
     story_version_id: UUID | None = None
     guidance: str = Field(default="", max_length=4000)
+    character_ids: list[UUID] = Field(default_factory=list)
+    image_only: bool = False
+    text_only: bool = False
+    cast_mode: Literal["append", "replace"] = "append"
+
+    @model_validator(mode="after")
+    def reject_conflicting_modes(self) -> Self:
+        if self.image_only and self.text_only:
+            raise ValueError("image_only 与 text_only 不能同时为 true")
+        return self
 
 
 class StoryboardGenerationRequest(APIModel):
@@ -263,6 +282,8 @@ class StoryPipelineRequest(APIModel):
     panel_count: int = Field(ge=1, le=60)
     pacing: Literal["fast", "balanced", "slow"] = "balanced"
     regenerate_characters: bool = True
+    character_cast_mode: Literal["append", "replace"] = "append"
+    scene_cast_mode: Literal["append", "replace"] = "append"
     use_approved_assets: bool = True
     use_continuity: bool = True
 
@@ -338,6 +359,7 @@ class GenerationTask(APIModel):
     panel_id: UUID | None = None
     task_type: Literal[
         "character_draft",
+        "character_reference_images",
         "scene_draft",
         "scene_reference_images",
         "storyboard_draft",

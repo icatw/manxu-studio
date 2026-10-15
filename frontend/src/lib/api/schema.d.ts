@@ -1258,6 +1258,24 @@ export interface components {
             /** Format: uuid */
             story_version_id?: string | null;
             guidance?: string;
+            /** @description When non-empty, only these characters are regenerated. */
+            character_ids?: string[];
+            /**
+             * @description Skip text generation and only render reference images.
+             * @default false
+             */
+            image_only: boolean;
+            /**
+             * @description Skip reference images and only regenerate text profiles.
+             * @default false
+             */
+            text_only: boolean;
+            /**
+             * @description append adds new characters without deleting or overwriting existing ones (normalized name match skips). replace overwrites by index and removes orphans; use only for an explicit full rebuild.
+             * @default append
+             * @enum {string}
+             */
+            cast_mode: "append" | "replace";
         };
         CharacterPatch: {
             name?: string;
@@ -1311,7 +1329,24 @@ export interface components {
             /** Format: uuid */
             episode_id?: string | null;
             guidance?: string;
-            image_only?: boolean;
+            /** @description When non-empty, only these scenes are regenerated. */
+            scene_ids?: string[];
+            /**
+             * @description Skip text generation and only render reference images.
+             * @default false
+             */
+            image_only: boolean;
+            /**
+             * @description Skip reference images and only regenerate text profiles.
+             * @default false
+             */
+            text_only: boolean;
+            /**
+             * @description append adds new scenes without deleting existing ones (normalized name match skips). replace overwrites by index and removes orphans.
+             * @default append
+             * @enum {string}
+             */
+            cast_mode: "append" | "replace";
         };
         SceneProfile: {
             description: string;
@@ -1364,8 +1399,23 @@ export interface components {
              * @enum {string}
              */
             pacing: "fast" | "balanced" | "slow";
-            /** @default true */
+            /**
+             * @description When false, skip the character stage and reuse the project cast.
+             * @default true
+             */
             regenerate_characters: boolean;
+            /**
+             * @description Applied only when regenerate_characters is true.
+             * @default append
+             * @enum {string}
+             */
+            character_cast_mode: "append" | "replace";
+            /**
+             * @description Applied when the pipeline runs the scene stage.
+             * @default append
+             * @enum {string}
+             */
+            scene_cast_mode: "append" | "replace";
             /** @default true */
             use_approved_assets: boolean;
             /**
@@ -1459,7 +1509,7 @@ export interface components {
             /** Format: uuid */
             panel_id?: string | null;
             /** @enum {string} */
-            task_type: "character_draft" | "scene_draft" | "scene_reference_images" | "storyboard_draft" | "story_pipeline" | "panel_image" | "panel_image_edit" | "export";
+            task_type: "character_draft" | "character_reference_images" | "scene_draft" | "scene_reference_images" | "storyboard_draft" | "story_pipeline" | "panel_image" | "panel_image_edit" | "export";
             /** @enum {string} */
             status: "queued" | "running" | "succeeded" | "failed";
             progress?: number | null;

@@ -102,7 +102,13 @@ async def test_character_regen_preserves_locked_reference(
     monkeypatch.setattr(character_handler, "persist_text_checkpoint", noop_persist)
     monkeypatch.setattr(character_handler, "report_progress", noop_progress)
 
-    task = SimpleNamespace(id=task_id, project_id=project_id, progress=5, provider_state={})
+    task = SimpleNamespace(
+        id=task_id,
+        project_id=project_id,
+        progress=5,
+        provider_state={},
+        request_data={"cast_mode": "replace"},
+    )
     result = await character_handler.generate_characters(FakeSession(), task)  # type: ignore[arg-type]
 
     assert image_calls == []

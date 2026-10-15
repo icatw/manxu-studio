@@ -267,7 +267,11 @@ export async function generateStoryAssets(
   projectId: string,
   episodeId: string,
   panelCount: number,
-  options: { regenerateCharacters?: boolean } = {},
+  options: {
+    regenerateCharacters?: boolean;
+    characterCastMode?: "append" | "replace";
+    sceneCastMode?: "append" | "replace";
+  } = {},
 ) {
   const { data, error } = await api.POST("/projects/{project_id}/story-generations", {
     params: { path: { project_id: projectId } },
@@ -276,6 +280,8 @@ export async function generateStoryAssets(
       panel_count: panelCount,
       pacing: "balanced",
       regenerate_characters: options.regenerateCharacters !== false,
+      character_cast_mode: options.characterCastMode ?? "append",
+      scene_cast_mode: options.sceneCastMode ?? "append",
       use_approved_assets: true,
       use_continuity: true,
     },
@@ -288,17 +294,57 @@ export async function generateStoryAssets(
   return { task, warnings };
 }
 
-export async function generateSceneReferences(projectId: string) {
-  const { data, error } = await api.POST("/projects/{project_id}/scene-generations", {
+function taskWarnings(task: TaskDto): string[] {
+  return task.result && "warnings" in task.result && Array.isArray(task.result.warnings)
+    ? task.result.warnings.filter((warning): warning is string => typeof warning === "string")
+    : [];
+}
+
+export async function generateCharacterAssets(
+  projectId: string,
+  options: {
+    characterIds?: string[];
+    imageOnly?: boolean;
+    textOnly?: boolean;
+    guidance?: string;
+    castMode?: "append" | "replace";
+  } = {},
+) {
+  const { data, error } = await api.POST("/projects/{project_id}/character-generations", {
     params: { path: { project_id: projectId } },
-    body: { image_only: true },
+    body: {
+      guidance: options.guidance ?? "",
+      character_ids: options.characterIds,
+      image_only: options.imageOnly === true,
+      text_only: options.textOnly === true,
+      cast_mode: options.castMode ?? "append",
+    },
   });
   const task = await waitForTask(required(data, error).id);
-  const result = task.result && "scene_ids" in task.result ? task.result : undefined;
-  return {
-    task,
-    warnings: Array.isArray(result?.warnings)
-      ? result.warnings.filter((warning): warning is string => typeof warning === "string")
-      : [],
-  };
+  return { task, warnings: taskWarnings(task) };
+}
+
+export async function generateSceneReferences(
+  projectId: string,
+  options: {
+    sceneIds?: string[];
+    imageOnly?: boolean;
+    textOnly?: boolean;
+    guidance?: string;
+    castMode?: "append" | "replace";
+  } = {},
+) {
+  const imageOnly = options.imageOnly !== false && options.textOnly !== true;
+  const { data, error } = await api.POST("/projects/{project_id}/scene-generations", {
+    params: { path: { project_id: projectId } },
+    body: {
+      guidance: options.guidance ?? "",
+      scene_ids: options.sceneIds,
+      image_only: imageOnly,
+      text_only: options.textOnly === true,
+      cast_mode: options.castMode ?? "append",
+    },
+  });
+  const task = await waitForTask(required(data, error).id);
+  return { task, warnings: taskWarnings(task) };
 }

@@ -54,6 +54,7 @@ class QwenImageProvider:
         asset_id: UUID,
         base_url: str | None = None,
         resume_task_id: str | None = None,
+        prompt_extend: bool = True,
         on_submit_started: Callable[[], Awaitable[None]] | None = None,
         on_submit_rejected: Callable[[], Awaitable[None]] | None = None,
         on_submitted: OnSubmitted | None = None,
@@ -103,7 +104,7 @@ class QwenImageProvider:
                 payload = {
                     "model": model,
                     "input": {"messages": [{"role": "user", "content": [{"text": prompt}]}]},
-                    "parameters": {"size": "1024*1024", "prompt_extend": True},
+                    "parameters": {"size": "1024*1024", "prompt_extend": prompt_extend},
                 }
                 try:
                     response = await client.post(endpoint, headers=headers, json=payload)
@@ -216,6 +217,7 @@ async def generate_image(
     asset_id: UUID,
     base_url: str | None = None,
     resume_task_id: str | None = None,
+    prompt_extend: bool = True,
     on_submit_started: Callable[[], Awaitable[None]] | None = None,
     on_submit_rejected: Callable[[], Awaitable[None]] | None = None,
     on_submitted: OnSubmitted | None = None,
@@ -227,6 +229,7 @@ async def generate_image(
         asset_id=asset_id,
         base_url=base_url,
         resume_task_id=resume_task_id,
+        prompt_extend=prompt_extend,
         on_submit_started=on_submit_started,
         on_submit_rejected=on_submit_rejected,
         on_submitted=on_submitted,

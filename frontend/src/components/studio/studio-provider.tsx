@@ -25,6 +25,7 @@ import { historyReducer, createHistory, type ProjectAction } from "@/lib/project
 import { api, toApiError } from "@/lib/api/client";
 import { imageGenerationService } from "@/services/image-generation-service";
 import {
+  generateCharacterAssets,
   generateStoryAssets,
   toComicProject,
   type WorkspaceData,
@@ -47,7 +48,12 @@ interface StudioContextValue {
   selectedPanelId: string | null;
   selectPanel: (id: string | null) => void;
   storyBusy: boolean;
-  generateFromStory: (options?: { regenerateCharacters?: boolean }) => Promise<void>;
+  generateFromStory: (options?: {
+    regenerateCharacters?: boolean;
+    characterCastMode?: "append" | "replace";
+    sceneCastMode?: "append" | "replace";
+  }) => Promise<void>;
+  appendProjectCharacters: () => Promise<void>;
   generation: PanelGeneration;
   isAnyGenerating: boolean;
   previewOpen: boolean;
@@ -155,7 +161,15 @@ export function StudioProvider({
   }, [undo, redo]);
 
   const generateFromStory = useCallback(
-    async ({ regenerateCharacters = true }: { regenerateCharacters?: boolean } = {}) => {
+    async ({
+      regenerateCharacters = true,
+      characterCastMode = "append",
+      sceneCastMode = "append",
+    }: {
+      regenerateCharacters?: boolean;
+      characterCastMode?: "append" | "replace";
+      sceneCastMode?: "append" | "replace";
+    } = {}) => {
       if (!project.story.synopsis.trim()) {
         toast.error("请先填写故事梗概");
         setStage("story");
@@ -163,9 +177,12 @@ export function StudioProvider({
       }
       setStoryBusy(true);
       try {
-        const { warnings } = await generateStoryAssets(workspace.project.id, workspace.episode.id, project.story.panelCount, {
-          regenerateCharacters,
-        });
+        const { warnings } = await generateStoryAssets(
+          workspace.project.id,
+          workspace.episode.id,
+          project.story.panelCount,
+          { regenerateCharacters, characterCastMode, sceneCastMode },
+        );
         await queryClient.invalidateQueries({ queryKey: ["workspace", workspace.project.id] });
         await onReload();
         setStage(regenerateCharacters ? "characters" : "storyboard");
@@ -173,8 +190,10 @@ export function StudioProvider({
           toast.warning("AI 文字设定已生成", {
             description: warnings.filter((warning): warning is string => typeof warning === "string").join(" "),
           });
-        } else {
+        } else if (regenerateCharacters) {
           toast.success("AI 角色、场景与分镜草稿已生成", { description: "结果已保存，可继续编辑。" });
+        } else {
+          toast.success("本话分镜已生成", { description: "已复用作品角色库；结果已保存。" });
         }
       } catch (error) {
         toast.error("分镜生成失败", { description: error instanceof Error ? error.message : "请稍后重试" });
@@ -184,6 +203,40 @@ export function StudioProvider({
     },
     [onReload, project.story.panelCount, project.story.synopsis, queryClient, workspace.episode.id, workspace.project.id],
   );
+
+  const appendProjectCharacters = useCallback(async () => {
+    if (!project.story.synopsis.trim()) {
+      toast.error("请先填写故事梗概");
+      setStage("story");
+      return;
+    }
+    setStoryBusy(true);
+    try {
+      const { task, warnings } = await generateCharacterAssets(workspace.project.id, {
+        castMode: "append",
+        guidance: `本话梗概：${project.story.synopsis}`,
+      });
+      await queryClient.invalidateQueries({ queryKey: ["workspace", workspace.project.id] });
+      await onReload();
+      setStage("characters");
+      const resultIds =
+        task.result && "character_ids" in task.result && Array.isArray(task.result.character_ids)
+          ? task.result.character_ids
+          : [];
+      const added = resultIds.length;
+      if (warnings.length) {
+        toast.warning("角色补充完成", { description: warnings.join(" ") });
+      } else if (added > 0) {
+        toast.success(`已追加 ${added} 名角色`, { description: "只会新增，不会改已有定妆。" });
+      } else {
+        toast.success("未发现需追加的新人", { description: "作品角色库保持不变。" });
+      }
+    } catch (error) {
+      toast.error("补充角色失败", { description: error instanceof Error ? error.message : "请稍后重试" });
+    } finally {
+      setStoryBusy(false);
+    }
+  }, [onReload, project.story.synopsis, queryClient, workspace.project.id]);
 
   const selectImageVersion = useCallback(async (panelId: string, versionId: string) => {
     const { data, error } = await api.PUT("/panels/{panel_id}/image-versions/{version_id}/selection", {
@@ -254,6 +307,7 @@ export function StudioProvider({
       selectPanel: setSelectedPanelId,
       storyBusy,
       generateFromStory,
+      appendProjectCharacters,
       generation,
       isAnyGenerating,
       previewOpen,
@@ -278,6 +332,7 @@ export function StudioProvider({
       selectedPanelId,
       storyBusy,
       generateFromStory,
+      appendProjectCharacters,
       generation,
       isAnyGenerating,
       previewOpen,

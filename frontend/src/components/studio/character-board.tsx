@@ -1,12 +1,14 @@
 'use client'
 
 import Image from '@/components/ui/image'
-import { ArrowRight, CheckCircle2, CircleAlert, Lock, LockOpen, UserRound } from 'lucide-react'
+import { ArrowRight, CheckCircle2, CircleAlert, ImageIcon, Loader2, Lock, LockOpen, RefreshCw, UserRound } from 'lucide-react'
+import { useState } from 'react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { ASSET_SOURCE_SHORT } from '@/lib/asset-labels'
+import { generateCharacterAssets } from '@/services/workspace-api'
 import type { Character, CharacterEditableField } from '@/types/character'
 import { useStudio } from './studio-provider'
 import { FieldLabel } from './shared'
@@ -20,7 +22,19 @@ const FIELDS: { key: CharacterEditableField; label: string; multiline?: boolean 
   { key: 'personality', label: '性格' },
 ]
 
-function CharacterCard({ character }: { character: Character }) {
+const TEXTAREA_CLASS = 'max-h-32 overflow-y-auto field-sizing-fixed'
+
+function CharacterCard({
+  character,
+  busy,
+  onRegenerateProfile,
+  onRegenerateImage,
+}: {
+  character: Character
+  busy: boolean
+  onRegenerateProfile: (characterId: string) => void
+  onRegenerateImage: (characterId: string) => void
+}) {
   const { dispatch } = useStudio()
   const id = (field: string) => `char-${character.id}-${field}`
   const update = (patch: Partial<Character>) => dispatch({ type: 'updateCharacter', id: character.id, patch })
@@ -98,6 +112,27 @@ function CharacterCard({ character }: { character: Character }) {
             {character.referenceLocked ? <Lock data-icon="inline-start" /> : <LockOpen data-icon="inline-start" />}
             {character.referenceLocked ? '已锁定' : '锁定定妆'}
           </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={busy}
+            onClick={() => onRegenerateProfile(character.id)}
+          >
+            <RefreshCw data-icon="inline-start" />
+            重生设定
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={busy || character.referenceLocked}
+            title={character.referenceLocked ? '定妆已锁定，不会替换参考图' : undefined}
+            onClick={() => onRegenerateImage(character.id)}
+          >
+            <ImageIcon data-icon="inline-start" />
+            重出参考图
+          </Button>
         </div>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           {FIELDS.map(({ key, label, multiline }) => (
@@ -108,6 +143,7 @@ function CharacterCard({ character }: { character: Character }) {
                   id={id(key)}
                   value={character[key]}
                   rows={2}
+                  className={TEXTAREA_CLASS}
                   onChange={(e) => update({ [key]: e.target.value })}
                 />
               ) : (
@@ -122,19 +158,65 @@ function CharacterCard({ character }: { character: Character }) {
 }
 
 export function CharacterBoard() {
-  const { project, dispatch, setStage } = useStudio()
+  const { project, dispatch, setStage, projectId, refreshWorkspace } = useStudio()
+  const [busyKey, setBusyKey] = useState<string | null>(null)
   const allConfirmed = project.characters.every((c) => c.confirmed)
+  const missingReferences = project.characters.filter((c) => !c.referenceImageUrl).length
+  const busy = busyKey !== null
+
+  async function runGeneration(
+    key: string,
+    action: () => Promise<{ warnings: string[] }>,
+    successMessage: string,
+  ) {
+    setBusyKey(key)
+    try {
+      const { warnings } = await action()
+      await refreshWorkspace()
+      if (warnings.length) {
+        toast.warning(successMessage, { description: warnings.join(' ') })
+      } else {
+        toast.success(successMessage)
+      }
+    } catch (error) {
+      toast.error('角色生成失败', {
+        description: error instanceof Error ? error.message : '请稍后重试',
+      })
+    } finally {
+      setBusyKey(null)
+    }
+  }
 
   return (
-    <div className="mx-auto flex w-full max-w-4xl flex-col gap-5 p-6">
+    <div className="mx-auto flex w-full max-w-4xl flex-col gap-5 p-6 pb-8">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-lg font-semibold tracking-tight">角色资产</h1>
+          <h1 className="text-lg font-semibold tracking-tight">作品角色</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            这些设定会作为一致性约束写入每格画面的提示词。修改后需重新确认。
+            全话共用的作品角色库；各话分镜只引用此处设定。修改后需重新确认。
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          {missingReferences > 0 && (
+            <Button
+              variant="outline"
+              disabled={busy}
+              onClick={() =>
+                void runGeneration(
+                  'missing',
+                  () => generateCharacterAssets(projectId, { imageOnly: true }),
+                  '角色参考图已生成',
+                )
+              }
+            >
+              {busyKey === 'missing' ? (
+                <Loader2 className="animate-spin" data-icon="inline-start" />
+              ) : (
+                <ImageIcon data-icon="inline-start" />
+              )}
+              {busyKey === 'missing' ? '正在生成参考图…' : `生成缺失参考图 (${missingReferences})`}
+            </Button>
+          )}
           <Button
             variant={allConfirmed ? 'outline' : 'default'}
             disabled={allConfirmed}
@@ -154,7 +236,29 @@ export function CharacterBoard() {
       </div>
       <div className="flex flex-col gap-4">
         {project.characters.map((character) => (
-          <CharacterCard key={character.id} character={character} />
+          <CharacterCard
+            key={character.id}
+            character={character}
+            busy={busy}
+            onRegenerateProfile={(characterId) =>
+              void runGeneration(
+                characterId,
+                () => generateCharacterAssets(projectId, { characterIds: [characterId] }),
+                '角色设定已重生',
+              )
+            }
+            onRegenerateImage={(characterId) =>
+              void runGeneration(
+                characterId,
+                () =>
+                  generateCharacterAssets(projectId, {
+                    characterIds: [characterId],
+                    imageOnly: true,
+                  }),
+                '角色参考图已更新',
+              )
+            }
+          />
         ))}
       </div>
     </div>

@@ -4,6 +4,7 @@ from typing import TypedDict
 
 class TaskType(StrEnum):
     CHARACTER_DRAFT = "character_draft"
+    CHARACTER_REFERENCE_IMAGES = "character_reference_images"
     SCENE_DRAFT = "scene_draft"
     SCENE_REFERENCE_IMAGES = "scene_reference_images"
     STORYBOARD_DRAFT = "storyboard_draft"

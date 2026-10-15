@@ -74,7 +74,7 @@ async def generate_characters(
         session,
         owner_id=owner_id,
         project_id=project_id,
-        task_type="character_draft",
+        task_type="character_reference_images" if body.image_only else "character_draft",
         request_data=body.model_dump(mode="json"),
     )
 

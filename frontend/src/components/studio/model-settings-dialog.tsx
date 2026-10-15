@@ -11,7 +11,7 @@ export function ModelSettingsPanel() {
   const [textModel, setTextModel] = useState('')
   const [textBaseUrl, setTextBaseUrl] = useState('')
   const [textKey, setTextKey] = useState('')
-  const [imageModel, setImageModel] = useState('qwen-image-3.0-pro')
+  const [imageModel, setImageModel] = useState('qwen-image-3.0')
   const [imageBaseUrl, setImageBaseUrl] = useState('')
   const [imageKey, setImageKey] = useState('')
   const [clearTextKey, setClearTextKey] = useState(false)

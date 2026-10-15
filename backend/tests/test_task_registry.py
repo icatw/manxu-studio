@@ -5,6 +5,7 @@ from app.tasks.types import TaskType
 def test_all_task_types_have_handlers() -> None:
     expected = {
         TaskType.CHARACTER_DRAFT,
+        TaskType.CHARACTER_REFERENCE_IMAGES,
         TaskType.SCENE_DRAFT,
         TaskType.SCENE_REFERENCE_IMAGES,
         TaskType.STORYBOARD_DRAFT,

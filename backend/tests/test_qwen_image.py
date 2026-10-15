@@ -112,7 +112,39 @@ async def test_qwen_image_async_task_is_downloaded_to_persistent_storage(
     assert request_body["input"] == {
         "messages": [{"role": "user", "content": [{"text": "comic panel"}]}]
     }
+    assert request_body["parameters"] == {"size": "1024*1024", "prompt_extend": True}
     assert events == ["started", "submitted"]
+
+
+@pytest.mark.asyncio
+async def test_qwen_image_prompt_extend_can_be_disabled(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    client = FakeClient()
+    settings = SimpleNamespace(
+        qwen_image_base_url="https://dashscope.aliyuncs.com/api/v1",
+        image_storage_dir=str(tmp_path),
+        image_task_poll_interval_seconds=0,
+        image_task_poll_max_attempts=5,
+    )
+    monkeypatch.setattr(qwen_image.httpx, "AsyncClient", lambda **kwargs: client)
+    monkeypatch.setattr(qwen_image.asyncio, "sleep", lambda _: _no_sleep())
+    monkeypatch.setattr(qwen_image, "validate_public_https_url", _skip_url_validation)
+    monkeypatch.setattr(qwen_image, "get_settings", lambda: settings)
+    monkeypatch.setattr(local_store, "get_settings", lambda: settings)
+
+    await qwen_image.generate_image(
+        api_key="private",
+        model="qwen-image-3.0",
+        prompt="character sheet",
+        asset_id=uuid4(),
+        prompt_extend=False,
+    )
+
+    assert client.submitted is not None
+    request_body = client.submitted["json"]
+    assert isinstance(request_body, dict)
+    assert request_body["parameters"] == {"size": "1024*1024", "prompt_extend": False}
 
 
 @pytest.mark.asyncio

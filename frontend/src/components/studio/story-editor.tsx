@@ -53,24 +53,39 @@ function ChipGroup<T extends string | number>({
   )
 }
 
+type ConfirmKind = 'storyboard' | 'rebuild-cast' | null
+
 export function StoryEditor() {
-  const { project, dispatch, storyBusy, generateFromStory } = useStudio()
-  const [confirmOpen, setConfirmOpen] = useState(false)
+  const { project, dispatch, storyBusy, generateFromStory, appendProjectCharacters } = useStudio()
+  const [confirmKind, setConfirmKind] = useState<ConfirmKind>(null)
   const { story } = project
+  const hasCast = project.characters.length > 0
   const update = (patch: Partial<StoryIdea>) => dispatch({ type: 'updateStory', patch })
   const synopsisEmpty = !story.synopsis.trim()
 
-  const handleGenerate = () => {
+  const runFirstOrStoryboard = () => {
     if (synopsisEmpty) return
-    if (project.panels.length > 0) setConfirmOpen(true)
-    else void generateFromStory({ regenerateCharacters: true })
+    if (hasCast) {
+      if (project.panels.length > 0) setConfirmKind('storyboard')
+      else void generateFromStory({ regenerateCharacters: false })
+      return
+    }
+    void generateFromStory({
+      regenerateCharacters: true,
+      characterCastMode: 'replace',
+      sceneCastMode: 'replace',
+    })
   }
 
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-6">
       <div>
         <h1 className="text-lg font-semibold tracking-tight">故事创意</h1>
-        <p className="mt-1 text-sm text-muted-foreground">根据故事生成 AI 角色设定、场景和分镜脚本，确认后可继续逐格出图。</p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {hasCast
+            ? '本话分镜默认复用作品角色库；需要新人时再追加，整队重建仅作危险操作。'
+            : '根据故事生成 AI 角色设定、场景和分镜脚本，确认后可继续逐格出图。'}
+        </p>
       </div>
 
       <div className="flex flex-col gap-5 rounded-lg border bg-card p-5">
@@ -117,23 +132,71 @@ export function StoryEditor() {
         />
       </div>
 
-      <div className="flex items-center justify-between gap-4">
-        <p className="text-xs text-muted-foreground">AI 将生成角色文字设定与参考图、场景资产和 {story.panelCount} 格分镜脚本。</p>
-        <Button onClick={handleGenerate} disabled={storyBusy || synopsisEmpty}>
-          {storyBusy ? <Loader2 className="animate-spin" data-icon="inline-start" /> : <Sparkles data-icon="inline-start" />}
-          {storyBusy ? '生成中…' : '生成角色与分镜'}
-        </Button>
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <p className="text-xs text-muted-foreground">
+            {hasCast
+              ? `将复用作品角色库（${project.characters.length} 人），生成本话 ${story.panelCount} 格分镜。`
+              : `AI 将生成角色文字设定与参考图、场景资产和 ${story.panelCount} 格分镜脚本。`}
+          </p>
+          <Button onClick={runFirstOrStoryboard} disabled={storyBusy || synopsisEmpty}>
+            {storyBusy ? <Loader2 className="animate-spin" data-icon="inline-start" /> : <Sparkles data-icon="inline-start" />}
+            {storyBusy ? '生成中…' : hasCast ? '生成本话分镜' : '生成角色与分镜'}
+          </Button>
+        </div>
+        {hasCast && (
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={storyBusy || synopsisEmpty}
+              onClick={() => void appendProjectCharacters()}
+            >
+              为本话补充角色…
+            </Button>
+            <p className="text-[11px] text-muted-foreground">只会添加新人，不会改已有定妆。</p>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-destructive hover:text-destructive"
+              disabled={storyBusy || synopsisEmpty}
+              onClick={() => setConfirmKind('rebuild-cast')}
+            >
+              重建作品角色库…
+            </Button>
+          </div>
+        )}
       </div>
 
       <RegenerateConfirmDialog
-        open={confirmOpen}
-        onOpenChange={setConfirmOpen}
+        open={confirmKind === 'storyboard'}
+        onOpenChange={(open) => {
+          if (!open) setConfirmKind(null)
+        }}
         title="重新生成分镜脚本？"
         description="现有分镜及其图像版本会被删除并替换；角色和场景资产会保留。此操作不可撤销。"
         confirmLabel="替换分镜脚本"
         onConfirm={() => {
-          setConfirmOpen(false)
-          void generateFromStory({ regenerateCharacters: true })
+          setConfirmKind(null)
+          void generateFromStory({ regenerateCharacters: false })
+        }}
+      />
+
+      <RegenerateConfirmDialog
+        open={confirmKind === 'rebuild-cast'}
+        onOpenChange={(open) => {
+          if (!open) setConfirmKind(null)
+        }}
+        title="重建整部作品的角色库？"
+        description="将按本话梗概重新生成角色并覆盖作品库，可能删除未再出现的角色，影响所有话次。此操作不可撤销。"
+        confirmLabel="重建角色库并生成分镜"
+        onConfirm={() => {
+          setConfirmKind(null)
+          void generateFromStory({
+            regenerateCharacters: true,
+            characterCastMode: 'replace',
+            sceneCastMode: 'replace',
+          })
         }}
       />
     </div>

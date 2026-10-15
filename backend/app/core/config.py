@@ -30,7 +30,7 @@ class Settings(BaseSettings):
     image_model_concurrency: int = 2
     image_model_negative_prompt: str = "text, watermark, signature, extra fingers, deformed hands"
     image_model_allowlist: str = (
-        "qwen-image-3.0-pro,qwen-image-3.0,qwen-image-2.1-pro,qwen-image-2.1-turbo"
+        "qwen-image-3.0,qwen-image-3.0-pro,qwen-image-2.1-pro,qwen-image-2.1-turbo"
     )
     # ARQ job wall clock; must exceed provider poll budget + margin.
     generation_job_timeout_seconds: int = Field(default=960, ge=120, le=3600)

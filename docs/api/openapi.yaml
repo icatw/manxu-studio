@@ -2016,6 +2016,28 @@ components:
         guidance:
           type: string
           maxLength: 4000
+        character_ids:
+          type: array
+          description: When non-empty, only these characters are regenerated.
+          items:
+            type: string
+            format: uuid
+        image_only:
+          type: boolean
+          description: Skip text generation and only render reference images.
+          default: false
+        text_only:
+          type: boolean
+          description: Skip reference images and only regenerate text profiles.
+          default: false
+        cast_mode:
+          type: string
+          enum: [append, replace]
+          default: append
+          description: >
+            append adds new characters without deleting or overwriting existing
+            ones (normalized name match skips). replace overwrites by index and
+            removes orphans; use only for an explicit full rebuild.
     CharacterPatch:
       type: object
       additionalProperties: false
@@ -2124,8 +2146,27 @@ components:
         guidance:
           type: string
           maxLength: 4000
+        scene_ids:
+          type: array
+          description: When non-empty, only these scenes are regenerated.
+          items:
+            type: string
+            format: uuid
         image_only:
           type: boolean
+          description: Skip text generation and only render reference images.
+          default: false
+        text_only:
+          type: boolean
+          description: Skip reference images and only regenerate text profiles.
+          default: false
+        cast_mode:
+          type: string
+          enum: [append, replace]
+          default: append
+          description: >
+            append adds new scenes without deleting existing ones (normalized
+            name match skips). replace overwrites by index and removes orphans.
     SceneProfile:
       type: object
       additionalProperties: false
@@ -2221,6 +2262,17 @@ components:
         regenerate_characters:
           type: boolean
           default: true
+          description: When false, skip the character stage and reuse the project cast.
+        character_cast_mode:
+          type: string
+          enum: [append, replace]
+          default: append
+          description: Applied only when regenerate_characters is true.
+        scene_cast_mode:
+          type: string
+          enum: [append, replace]
+          default: append
+          description: Applied when the pipeline runs the scene stage.
         use_approved_assets:
           type: boolean
           default: true
@@ -2426,7 +2478,7 @@ components:
           format: uuid
         task_type:
           type: string
-          enum: [character_draft, scene_draft, scene_reference_images, storyboard_draft, story_pipeline, panel_image, panel_image_edit, export]
+          enum: [character_draft, character_reference_images, scene_draft, scene_reference_images, storyboard_draft, story_pipeline, panel_image, panel_image_edit, export]
         status:
           type: string
           enum: [queued, running, succeeded, failed]

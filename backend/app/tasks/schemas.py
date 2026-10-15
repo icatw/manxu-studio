@@ -13,7 +13,8 @@ class GeneratedCharacter(BaseModel):
 
 
 class CharacterGenerationOutput(BaseModel):
-    characters: list[GeneratedCharacter] = Field(min_length=1, max_length=6)
+    # Empty is valid for cast_mode=append when no new cast members are needed.
+    characters: list[GeneratedCharacter] = Field(default_factory=list, max_length=6)
 
 
 class GeneratedScene(BaseModel):
@@ -25,7 +26,8 @@ class GeneratedScene(BaseModel):
 
 
 class SceneGenerationOutput(BaseModel):
-    scenes: list[GeneratedScene] = Field(min_length=1, max_length=4)
+    # Empty is valid for cast_mode=append when no new scenes are needed.
+    scenes: list[GeneratedScene] = Field(default_factory=list, max_length=4)
 
 
 class GeneratedPanel(BaseModel):
