@@ -100,16 +100,6 @@ export function StudioProvider({
     lastSignatureRef,
   });
 
-  useStudioHydrate({
-    workspace,
-    dispatch,
-    setSelectedPanelId,
-    setSaveState,
-    setLastSavedAt,
-    baselineRef,
-    lastSignatureRef,
-  });
-
   const modelConfig = useQuery({
     queryKey: ["model-config"],
     queryFn: async () => {
@@ -121,11 +111,25 @@ export function StudioProvider({
   });
   const generation = usePanelGeneration({
     projectRef,
+    episodeId: workspace.episode.id,
     dispatch,
     service: imageGenerationService,
     concurrency: Math.max(1, modelConfig.data?.image_concurrency ?? 2),
     onGenerated: () => void queryClient.invalidateQueries({ queryKey: ["workspace", workspace.project.id] }),
   });
+
+  useStudioHydrate({
+    workspace,
+    projectRef,
+    getBusyPanelIds: generation.busyPanelIds,
+    dispatch,
+    setSelectedPanelId,
+    setSaveState,
+    setLastSavedAt,
+    baselineRef,
+    lastSignatureRef,
+  });
+
   const isAnyGenerating = project.panels.some((panel) => panel.status === "generating");
 
   const undo = useCallback(() => {
