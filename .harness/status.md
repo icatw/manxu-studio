@@ -28,6 +28,7 @@
 - 本地 OAuth 排障：2026-10-14 callback 500 是数据库缺少 `accounts.display_name` 列；本地数据库现已升级到 `20261015_account_settings`（head）。再次登录需从 GitHub 登录入口获取新的 OAuth code。
 - 图像地址：Qwen Image Base URL 可按账户编辑并持久化。此前的 `compatible-mode/v1` 地址来自百炼 Workspace 的 OpenAI 兼容 Base URL，最初用于文本请求；Qwen Image provider 会把 Workspace Host 映射为异步接口所需的 `/api/v1` 路径。
 - 图像生成：Qwen Image 任务经 DashScope 异步接口生成，图片落到 `IMAGE_STORAGE_DIR` 并经登录 API 提供。2026-10-15 已用当前账户真实调用文本模型与 Qwen Image：角色、3 个场景、4 格分镜全部生成并持久化；角色图可在浏览器加载。角色来源写入 `generation_source=ai`，前端明确显示“AI 起稿”。
+- 图像任务恢复：供应商 POST 前持久化 `submitting` checkpoint；进程重启或远端任务 ID 持久化失败时进入歧义保护，阻止自动重复提交。保留未完成 checkpoint 的任务拒绝普通重试；已绑定远端 ID 不允许被覆盖，已保存的远端 ID 通过 provider resume 继续轮询。场景提交失败不再伪装为图片警告，未分类 provider 异常会保留恢复依据并使任务失败；本轮后端 87 项测试通过，Redis-backed 重启恢复仍待验证。
 - AI 生成回归：修复场景生成将 `name` 重复写入 profile 导致工作区 `GET scenes` 500；写入时排除名称字段，读取时兼容清理历史 JSON 中的重复字段。后端回归测试与浏览器刷新验证通过。
 - 技术栈：采用 React/Vite + FastAPI；ADR-001 和 YAML-first ADR-002 已记录为 `accepted`。
 - Harness：根目录 `AGENTS.md` 提供入口；`.harness/` 已收录工作流、状态和执行计划。产品/技术知识与 ADR 保持在 `docs/`。

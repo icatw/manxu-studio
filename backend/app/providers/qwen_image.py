@@ -7,7 +7,11 @@ import httpx
 
 from app.core.config import get_settings
 from app.core.security import validate_public_https_url
-from app.providers.errors import AmbiguousProviderSubmitError, RecoverableProviderError
+from app.providers.errors import (
+    AmbiguousProviderSubmitError,
+    ProviderCheckpointError,
+    RecoverableProviderError,
+)
 from app.providers.local_store import LocalObjectStore
 
 OnSubmitted = Callable[[str], Awaitable[None]]
@@ -50,6 +54,8 @@ class QwenImageProvider:
         asset_id: UUID,
         base_url: str | None = None,
         resume_task_id: str | None = None,
+        on_submit_started: Callable[[], Awaitable[None]] | None = None,
+        on_submit_rejected: Callable[[], Awaitable[None]] | None = None,
         on_submitted: OnSubmitted | None = None,
     ) -> str:
         settings = get_settings()
@@ -66,9 +72,19 @@ class QwenImageProvider:
         async with httpx.AsyncClient(timeout=timeout, follow_redirects=False) as client:
             task_id = resume_task_id
             if task_id:
-                probe = await client.get(f"{api_root}/tasks/{task_id}", headers=auth_headers)
+                try:
+                    probe = await client.get(f"{api_root}/tasks/{task_id}", headers=auth_headers)
+                except httpx.RequestError as error:
+                    raise RecoverableProviderError(
+                        "查询 Qwen Image 任务时网络暂时不可用"
+                    ) from error
                 if probe.is_success:
-                    probe_status = probe.json().get("output", {}).get("task_status")
+                    try:
+                        probe_status = probe.json().get("output", {}).get("task_status")
+                    except (ValueError, AttributeError) as error:
+                        raise RecoverableProviderError(
+                            "Qwen Image 任务状态响应暂时无法读取"
+                        ) from error
                     if probe_status in _TERMINAL_REMOTE:
                         # Only terminal remote outcomes discard the checkpoint.
                         task_id = None
@@ -81,6 +97,8 @@ class QwenImageProvider:
             if not task_id:
                 # DashScope has no idempotency key: each POST may create a billable job.
                 # Only auto-retry submits that clearly were not accepted (e.g. 429).
+                if on_submit_started is not None:
+                    await on_submit_started()
                 endpoint = f"{api_root}/services/aigc/image-generation/generation"
                 payload = {
                     "model": model,
@@ -98,6 +116,8 @@ class QwenImageProvider:
                         "Qwen Image 提交网络异常，远端可能已创建任务；请勿自动重提，避免重复计费"
                     ) from error
                 if not response.is_success:
+                    if on_submit_rejected is not None and response.status_code < 500:
+                        await on_submit_rejected()
                     if response.status_code in {401, 403}:
                         raise ValueError("Qwen Image 认证失败，请检查图像 API Key")
                     if response.status_code == 429:
@@ -110,24 +130,45 @@ class QwenImageProvider:
                             "远端可能已创建任务，请人工确认后处理，避免重复计费"
                         )
                     raise ValueError(f"Qwen Image 提交失败（HTTP {response.status_code}）")
-                task_id = response.json().get("output", {}).get("task_id")
+                try:
+                    task_id = response.json().get("output", {}).get("task_id")
+                except (ValueError, AttributeError) as error:
+                    raise AmbiguousProviderSubmitError(
+                        "Qwen Image 已响应成功，但任务编号无法解析；请勿自动重提，避免重复计费"
+                    ) from error
                 if not task_id:
                     raise AmbiguousProviderSubmitError(
                         "Qwen Image 提交成功但未返回任务编号；请勿自动重提，避免重复计费"
                     )
                 if on_submitted is not None:
-                    await on_submitted(str(task_id))
+                    try:
+                        await on_submitted(str(task_id))
+                    except (AmbiguousProviderSubmitError, ProviderCheckpointError):
+                        raise
+                    except Exception as error:
+                        raise AmbiguousProviderSubmitError(
+                            "供应商已受理图像任务，但任务编号未能保存；请勿自动重提，避免重复计费",
+                            remote_task_id=str(task_id),
+                        ) from error
 
             image_url = ""
             for _ in range(120):
                 await asyncio.sleep(5)
-                task_response = await client.get(
-                    f"{api_root}/tasks/{task_id}",
-                    headers=auth_headers,
-                )
+                try:
+                    task_response = await client.get(
+                        f"{api_root}/tasks/{task_id}",
+                        headers=auth_headers,
+                    )
+                except httpx.RequestError as error:
+                    raise RecoverableProviderError(
+                        "查询 Qwen Image 任务时网络暂时不可用"
+                    ) from error
                 if not task_response.is_success:
                     _raise_query_failure(task_response.status_code)
-                output = task_response.json().get("output", {})
+                try:
+                    output = task_response.json().get("output", {})
+                except (ValueError, AttributeError) as error:
+                    raise RecoverableProviderError("Qwen Image 任务状态响应暂时无法读取") from error
                 status = output.get("task_status")
                 if status == "SUCCEEDED":
                     choices = output.get("choices") or []
@@ -143,7 +184,10 @@ class QwenImageProvider:
                 raise RecoverableProviderError("Qwen Image 任务超时或未返回图像")
 
             await validate_public_https_url(image_url)
-            download = await client.get(image_url)
+            try:
+                download = await client.get(image_url)
+            except httpx.RequestError as error:
+                raise RecoverableProviderError("下载 Qwen Image 结果时网络暂时不可用") from error
             if not download.is_success:
                 if download.status_code == 429 or download.status_code >= 500:
                     raise RecoverableProviderError("下载 Qwen Image 结果失败")
@@ -154,7 +198,10 @@ class QwenImageProvider:
             if not extension or len(download.content) > 20 * 1024 * 1024:
                 raise ValueError("Qwen Image 返回了不支持的图片格式或过大的文件")
 
-        return await self._store.put_bytes(f"{asset_id}{extension}", download.content)
+        try:
+            return await self._store.put_bytes(f"{asset_id}{extension}", download.content)
+        except Exception as error:
+            raise RecoverableProviderError("保存 Qwen Image 结果时存储暂时不可用") from error
 
 
 default_image_provider = QwenImageProvider()
@@ -168,6 +215,8 @@ async def generate_image(
     asset_id: UUID,
     base_url: str | None = None,
     resume_task_id: str | None = None,
+    on_submit_started: Callable[[], Awaitable[None]] | None = None,
+    on_submit_rejected: Callable[[], Awaitable[None]] | None = None,
     on_submitted: OnSubmitted | None = None,
 ) -> str:
     return await default_image_provider.generate(
@@ -177,6 +226,8 @@ async def generate_image(
         asset_id=asset_id,
         base_url=base_url,
         resume_task_id=resume_task_id,
+        on_submit_started=on_submit_started,
+        on_submit_rejected=on_submit_rejected,
         on_submitted=on_submitted,
     )
 

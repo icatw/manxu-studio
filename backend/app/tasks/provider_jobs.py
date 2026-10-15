@@ -1,6 +1,7 @@
 """Durable checkpoints for external provider jobs inside generation task.request_data."""
 
 from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
 from typing import Any, cast
 from uuid import UUID, uuid4
 
@@ -8,8 +9,23 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm.attributes import flag_modified
 
 from app.db.models import GenerationTaskRecord
+from app.providers.errors import (
+    AmbiguousProviderSubmitError,
+    ProviderCheckpointError,
+)
 
+OnSubmitStarted = Callable[[], Awaitable[None]]
+OnSubmitRejected = Callable[[], Awaitable[None]]
 OnSubmitted = Callable[[str], Awaitable[None]]
+
+
+@dataclass(frozen=True)
+class ImageJobCheckpoint:
+    asset_id: UUID
+    resume_task_id: str | None
+    on_submit_started: OnSubmitStarted
+    on_submit_rejected: OnSubmitRejected
+    on_submitted: OnSubmitted
 
 
 def _provider_jobs(task: GenerationTaskRecord) -> dict[str, Any]:
@@ -83,26 +99,65 @@ async def bind_image_job(
     session: AsyncSession,
     task: GenerationTaskRecord,
     job_key: str,
-) -> tuple[UUID, str | None, OnSubmitted]:
-    """Return asset_id, optional remote task id to resume, and a submit checkpoint callback."""
+) -> ImageJobCheckpoint:
+    """Create callbacks that durably fence each billable provider submission."""
     jobs = _provider_jobs(task)
     existing = jobs.get(job_key)
     if isinstance(existing, dict) and existing.get("asset_id"):
         asset_id = UUID(str(existing["asset_id"]))
         resume = str(existing["remote_task_id"]) if existing.get("remote_task_id") else None
+        submission_state = existing.get("submission_state")
+        if resume is None and submission_state != "ready":
+            raise AmbiguousProviderSubmitError(
+                "图像提交状态不确定；为避免重复计费，系统已停止自动重新提交",
+                job_key=job_key,
+                asset_id=str(asset_id),
+            )
     else:
         asset_id = uuid4()
         resume = None
-        jobs[job_key] = {"asset_id": str(asset_id)}
+        jobs[job_key] = {"asset_id": str(asset_id), "submission_state": "ready"}
         _mark_request_data_dirty(task)
         await session.commit()
+
+    async def persist_checkpoint() -> None:
+        _mark_request_data_dirty(task)
+        await session.commit()
+
+    async def on_submit_started() -> None:
+        jobs[job_key] = {"asset_id": str(asset_id), "submission_state": "submitting"}
+        try:
+            await persist_checkpoint()
+        except Exception as error:
+            raise ProviderCheckpointError("无法保存图像提交检查点，供应商请求尚未发送") from error
+
+    async def on_submit_rejected() -> None:
+        jobs[job_key] = {"asset_id": str(asset_id), "submission_state": "ready"}
+        try:
+            await persist_checkpoint()
+        except Exception as error:
+            raise ProviderCheckpointError("供应商拒绝了图像请求，但无法保存安全重试状态") from error
 
     async def on_submitted(remote_task_id: str) -> None:
         jobs[job_key] = {
             "asset_id": str(asset_id),
             "remote_task_id": remote_task_id,
+            "submission_state": "submitted",
         }
-        _mark_request_data_dirty(task)
-        await session.commit()
+        try:
+            await persist_checkpoint()
+        except Exception as error:
+            raise AmbiguousProviderSubmitError(
+                "供应商已受理图像任务，但远端任务编号未能保存；为避免重复计费，系统已停止自动重新提交",
+                remote_task_id=remote_task_id,
+                job_key=job_key,
+                asset_id=str(asset_id),
+            ) from error
 
-    return asset_id, resume, on_submitted
+    return ImageJobCheckpoint(
+        asset_id=asset_id,
+        resume_task_id=resume,
+        on_submit_started=on_submit_started,
+        on_submit_rejected=on_submit_rejected,
+        on_submitted=on_submitted,
+    )

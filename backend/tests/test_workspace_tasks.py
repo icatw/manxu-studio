@@ -620,3 +620,112 @@ async def test_image_only_scene_generation_skips_text_and_renders_missing_refere
     assert scene.reference_asset_id is not None
     assert result["reference_images_generated"] == 1
     assert result["warnings"] == []
+
+
+@pytest.mark.asyncio
+async def test_scene_checkpoint_commit_failure_is_not_downgraded_to_image_warning(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_id = uuid4()
+    owner_id = uuid4()
+    scene = SimpleNamespace(
+        id=uuid4(),
+        name="旧车站",
+        profile={"description": "深夜空无一人的旧车站。"},
+        reference_asset_id=None,
+    )
+    project = SimpleNamespace(id=project_id, owner_id=owner_id, art_style="电影感写实")
+    config = SimpleNamespace(
+        image_api_key_encrypted=b"encrypted",
+        image_model="qwen-image-test",
+        image_base_url="https://image.example/v1",
+    )
+
+    class FakeSession:
+        commits = 0
+
+        async def get(self, model: type[object], _record_id: object) -> object:
+            if model is ProjectRecord:
+                return project
+            if model is AccountModelConfigRecord:
+                return config
+            raise AssertionError(f"Unexpected model: {model}")
+
+        async def scalars(self, _query: object) -> SimpleNamespace:
+            return SimpleNamespace(all=lambda: [scene])
+
+        async def commit(self) -> None:
+            self.commits += 1
+            # bind_image_job persists the initial checkpoint first; the next
+            # commit fences the provider call and must propagate on failure.
+            if self.commits == 2:
+                raise RuntimeError("database commit failed")
+
+    async def unexpected_image(**_kwargs: object) -> str:
+        raise AssertionError("provider must not be called before checkpoint commit")
+
+    monkeypatch.setattr(scene_handler, "decrypt_secret", lambda _: "secret")
+    monkeypatch.setattr(scene_handler, "generate_image", unexpected_image)
+    task = SimpleNamespace(id=uuid4(), project_id=project_id, request_data={}, progress=5)
+
+    with pytest.raises(RuntimeError, match="database commit failed"):
+        await scene_handler.generate_scenes(
+            FakeSession(),
+            task,
+            image_only=True,  # type: ignore[arg-type]
+        )
+
+
+@pytest.mark.asyncio
+async def test_unexpected_scene_provider_error_keeps_task_failed_and_checkpointed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_id = uuid4()
+    owner_id = uuid4()
+    scene = SimpleNamespace(
+        id=uuid4(),
+        name="旧车站",
+        profile={"description": "深夜空无一人的旧车站。"},
+        reference_asset_id=None,
+    )
+    project = SimpleNamespace(id=project_id, owner_id=owner_id, art_style="电影感写实")
+    config = SimpleNamespace(
+        image_api_key_encrypted=b"encrypted",
+        image_model="qwen-image-test",
+        image_base_url="https://image.example/v1",
+    )
+    task = SimpleNamespace(id=uuid4(), project_id=project_id, request_data={}, progress=5)
+
+    class FakeSession:
+        async def get(self, model: type[object], _record_id: object) -> object:
+            if model is ProjectRecord:
+                return project
+            if model is AccountModelConfigRecord:
+                return config
+            raise AssertionError(f"Unexpected model: {model}")
+
+        async def scalars(self, _query: object) -> SimpleNamespace:
+            return SimpleNamespace(all=lambda: [scene])
+
+        async def commit(self) -> None:
+            return None
+
+    async def unexpected_image(**kwargs: object) -> str:
+        on_submit_started = kwargs["on_submit_started"]
+        assert callable(on_submit_started)
+        await on_submit_started()
+        raise RuntimeError("unexpected provider failure")
+
+    monkeypatch.setattr(scene_handler, "decrypt_secret", lambda _: "secret")
+    monkeypatch.setattr(scene_handler, "generate_image", unexpected_image)
+
+    with pytest.raises(RuntimeError, match="unexpected provider failure"):
+        await scene_handler.generate_scenes(
+            FakeSession(),
+            task,
+            image_only=True,  # type: ignore[arg-type]
+        )
+
+    checkpoint = task.request_data["provider_jobs"][f"scene:{scene.id}"]
+    assert checkpoint["submission_state"] == "submitting"
+    assert scene.reference_asset_id is None

@@ -985,7 +985,8 @@ paths:
       description: >
         Requeues the same task while keeping provider/text checkpoints.
         Required for PROVIDER_SUBMIT_AMBIGUOUS and RECOVERY_EXHAUSTED failures.
-        For ambiguous submits, either bind a confirmed remote_task_id or set
+        A remote task id already saved in the checkpoint is resumed automatically.
+        Otherwise, ambiguous submits require a confirmed remote_task_id or
         acknowledge_resubmit=true to accept possible duplicate billing.
       x-requirement-ids: [GEN-03]
       requestBody:

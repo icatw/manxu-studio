@@ -2,6 +2,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from uuid import uuid4
 
+import httpx
 import pytest
 
 from app.providers import local_store, qwen_image
@@ -77,9 +78,22 @@ async def test_qwen_image_async_task_is_downloaded_to_persistent_storage(
     monkeypatch.setattr(qwen_image, "get_settings", lambda: settings)
     monkeypatch.setattr(local_store, "get_settings", lambda: settings)
     asset_id = uuid4()
+    events: list[str] = []
+
+    async def on_submit_started() -> None:
+        events.append("started")
+
+    async def on_submitted(task_id: str) -> None:
+        assert task_id == "task-1"
+        events.append("submitted")
 
     result = await qwen_image.generate_qwen_image(
-        api_key="private", model="qwen-image-3.0-pro", prompt="comic panel", asset_id=asset_id
+        api_key="private",
+        model="qwen-image-3.0-pro",
+        prompt="comic panel",
+        asset_id=asset_id,
+        on_submit_started=on_submit_started,
+        on_submitted=on_submitted,
     )
 
     assert result == f"/api/v1/assets/{asset_id}"
@@ -96,6 +110,7 @@ async def test_qwen_image_async_task_is_downloaded_to_persistent_storage(
     assert request_body["input"] == {
         "messages": [{"role": "user", "content": [{"text": "comic panel"}]}]
     }
+    assert events == ["started", "submitted"]
 
 
 @pytest.mark.asyncio
@@ -290,6 +305,13 @@ async def test_qwen_image_submit_429_is_recoverable(
     monkeypatch.setattr(qwen_image, "validate_public_https_url", _skip_url_validation)
     monkeypatch.setattr(qwen_image, "get_settings", lambda: settings)
     monkeypatch.setattr(local_store, "get_settings", lambda: settings)
+    events: list[str] = []
+
+    async def on_submit_started() -> None:
+        events.append("started")
+
+    async def on_submit_rejected() -> None:
+        events.append("rejected")
 
     with pytest.raises(RecoverableProviderError, match="提交限流"):
         await qwen_image.generate_image(
@@ -297,7 +319,72 @@ async def test_qwen_image_submit_429_is_recoverable(
             model="qwen-image-3.0-pro",
             prompt="create",
             asset_id=uuid4(),
+            on_submit_started=on_submit_started,
+            on_submit_rejected=on_submit_rejected,
         )
+    assert events == ["started", "rejected"]
+
+
+@pytest.mark.asyncio
+async def test_qwen_image_submit_checkpoint_failure_is_ambiguous(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    client = FakeClient()
+    settings = SimpleNamespace(
+        qwen_image_base_url="https://dashscope.aliyuncs.com/api/v1",
+        image_storage_dir=str(tmp_path),
+    )
+    monkeypatch.setattr(qwen_image.httpx, "AsyncClient", lambda **kwargs: client)
+    monkeypatch.setattr(qwen_image, "validate_public_https_url", _skip_url_validation)
+    monkeypatch.setattr(qwen_image, "get_settings", lambda: settings)
+    monkeypatch.setattr(local_store, "get_settings", lambda: settings)
+
+    async def failed_checkpoint(_task_id: str) -> None:
+        raise RuntimeError("database commit failed")
+
+    with pytest.raises(AmbiguousProviderSubmitError) as raised:
+        await qwen_image.generate_image(
+            api_key="private",
+            model="qwen-image-3.0-pro",
+            prompt="create",
+            asset_id=uuid4(),
+            on_submitted=failed_checkpoint,
+        )
+
+    assert raised.value.remote_task_id == "task-1"
+    assert client.get_count == 0
+
+
+@pytest.mark.asyncio
+async def test_qwen_image_probe_network_error_keeps_existing_remote_job(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    class ProbeTimeoutClient(FakeClient):
+        async def get(self, url: str, **kwargs: object) -> FakeResponse:
+            if "/tasks/" in url:
+                raise httpx.ReadTimeout("timeout")
+            return await super().get(url, **kwargs)
+
+    client = ProbeTimeoutClient()
+    settings = SimpleNamespace(
+        qwen_image_base_url="https://dashscope.aliyuncs.com/api/v1",
+        image_storage_dir=str(tmp_path),
+    )
+    monkeypatch.setattr(qwen_image.httpx, "AsyncClient", lambda **kwargs: client)
+    monkeypatch.setattr(qwen_image, "validate_public_https_url", _skip_url_validation)
+    monkeypatch.setattr(qwen_image, "get_settings", lambda: settings)
+    monkeypatch.setattr(local_store, "get_settings", lambda: settings)
+
+    with pytest.raises(RecoverableProviderError, match="网络暂时不可用"):
+        await qwen_image.generate_image(
+            api_key="private",
+            model="qwen-image-3.0-pro",
+            prompt="resume",
+            asset_id=uuid4(),
+            resume_task_id="existing-remote-task",
+        )
+
+    assert client.submitted is None
 
 
 @pytest.mark.asyncio

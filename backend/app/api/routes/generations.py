@@ -42,8 +42,12 @@ from app.services.task_queue import enqueue_generation_task
 from app.tasks.checkpoints import strip_resumable_checkpoints
 from app.tasks.retry_policy import (
     PROVIDER_PROTECTED_ERROR_CODES,
+    authorize_provider_resubmit,
     bind_remote_task_id,
     blocks_ordinary_retry,
+    has_provider_resume_checkpoint,
+    has_saved_remote_task_id,
+    requires_resubmit_acknowledgment,
     task_error_code,
 )
 from app.tasks.runtime import RECOVERY_ATTEMPTS_KEY
@@ -79,7 +83,7 @@ async def retry_generation_task(
         raise _not_found("生成任务")
     if previous.status != "failed":
         raise HTTPException(status_code=409, detail="只有失败的任务可以重试")
-    if blocks_ordinary_retry(previous.error):
+    if blocks_ordinary_retry(previous.error, previous.request_data):
         code = task_error_code(previous.error) or "unknown"
         raise HTTPException(
             status_code=409,
@@ -118,43 +122,45 @@ async def resume_provider_generation_task(
         raise _not_found("生成任务")
     if task.status != "failed":
         raise HTTPException(status_code=409, detail="只有失败的任务可以续跑")
+    request_data = task.request_data if isinstance(task.request_data, dict) else {}
+    if not isinstance(task.request_data, dict):
+        task.request_data = request_data
     code = task_error_code(task.error)
-    if code not in PROVIDER_PROTECTED_ERROR_CODES:
+    if code not in PROVIDER_PROTECTED_ERROR_CODES and not has_provider_resume_checkpoint(
+        request_data
+    ):
         raise HTTPException(
             status_code=409,
             detail="当前失败不需要供应商续跑，请使用普通重试",
         )
 
-    request_data = task.request_data if isinstance(task.request_data, dict) else {}
-    if not isinstance(task.request_data, dict):
-        task.request_data = request_data
-
-    if code == "PROVIDER_SUBMIT_AMBIGUOUS":
-        remote_task_id = (body.remote_task_id or "").strip() or None
-        if remote_task_id:
-            try:
-                bind_remote_task_id(
-                    request_data,
-                    remote_task_id=remote_task_id,
-                    job_key=body.job_key,
-                )
-            except ValueError as error:
-                raise HTTPException(status_code=409, detail=str(error)) from error
-        elif not body.acknowledge_resubmit:
-            raise HTTPException(
-                status_code=409,
-                detail=(
-                    "提交结果不确定：请提供已确认的 remote_task_id 以续跑，"
-                    "或设置 acknowledge_resubmit=true 接受可能的重复计费后重新提交"
-                ),
-            )
-    elif body.remote_task_id:
-        # Optional bind/repair for exhausted recoveries that lost a remote id binding.
+    remote_task_id = (body.remote_task_id or "").strip() or None
+    needs_ack = requires_resubmit_acknowledgment(request_data) or (
+        code == "PROVIDER_SUBMIT_AMBIGUOUS" and not has_saved_remote_task_id(request_data)
+    )
+    if remote_task_id:
         try:
             bind_remote_task_id(
                 cast(dict[str, Any], request_data),
-                remote_task_id=body.remote_task_id.strip(),
+                remote_task_id=remote_task_id,
                 job_key=body.job_key,
+            )
+        except ValueError as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+    elif needs_ack and not body.acknowledge_resubmit:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "提交结果不确定：请提供已确认的 remote_task_id 以续跑，"
+                "或设置 acknowledge_resubmit=true 接受可能的重复计费后重新提交"
+            ),
+        )
+    elif needs_ack and body.acknowledge_resubmit:
+        try:
+            authorize_provider_resubmit(
+                request_data,
+                job_key=body.job_key,
+                include_ready=code == "PROVIDER_SUBMIT_AMBIGUOUS",
             )
         except ValueError as error:
             raise HTTPException(status_code=409, detail=str(error)) from error

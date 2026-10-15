@@ -664,7 +664,7 @@ export interface paths {
         put?: never;
         /**
          * Resume a provider-protected failed task without discarding checkpoints
-         * @description Requeues the same task while keeping provider/text checkpoints. Required for PROVIDER_SUBMIT_AMBIGUOUS and RECOVERY_EXHAUSTED failures. For ambiguous submits, either bind a confirmed remote_task_id or set acknowledge_resubmit=true to accept possible duplicate billing.
+         * @description Requeues the same task while keeping provider/text checkpoints. Required for PROVIDER_SUBMIT_AMBIGUOUS and RECOVERY_EXHAUSTED failures. A remote task id already saved in the checkpoint is resumed automatically. Otherwise, ambiguous submits require a confirmed remote_task_id or acknowledge_resubmit=true to accept possible duplicate billing.
          */
         post: operations["resumeProviderGenerationTask"];
         delete?: never;

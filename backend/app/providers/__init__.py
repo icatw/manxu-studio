@@ -2,6 +2,7 @@
 
 from app.providers.errors import (
     AmbiguousProviderSubmitError,
+    ProviderCheckpointError,
     ProviderControlError,
     RecoverableProviderError,
 )
@@ -21,6 +22,7 @@ __all__ = [
     "AmbiguousProviderSubmitError",
     "LocalObjectStore",
     "OpenAICompatibleTextProvider",
+    "ProviderCheckpointError",
     "ProviderControlError",
     "QwenImageProvider",
     "RecoverableProviderError",

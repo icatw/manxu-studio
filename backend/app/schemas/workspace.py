@@ -231,6 +231,6 @@ class ExportRequest(APIModel):
 class GenerationProviderResumeRequest(APIModel):
     """Explicit resume for failures that may already own a remote provider job."""
 
-    remote_task_id: str | None = None
-    job_key: str | None = None
+    remote_task_id: str | None = Field(default=None, max_length=128)
+    job_key: str | None = Field(default=None, max_length=128)
     acknowledge_resubmit: bool = False

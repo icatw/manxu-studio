@@ -1,3 +1,4 @@
+from collections.abc import Awaitable, Callable
 from typing import Protocol
 from uuid import UUID
 
@@ -27,7 +28,9 @@ class ImageProvider(Protocol):
         asset_id: UUID,
         base_url: str | None = None,
         resume_task_id: str | None = None,
-        on_submitted: object | None = None,
+        on_submit_started: Callable[[], Awaitable[None]] | None = None,
+        on_submit_rejected: Callable[[], Awaitable[None]] | None = None,
+        on_submitted: Callable[[str], Awaitable[None]] | None = None,
     ) -> str: ...
 
 

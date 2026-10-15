@@ -91,12 +91,35 @@ async def _mark_recoverable(task_id: UUID, detail: str) -> None:
         await session.commit()
 
 
-async def _mark_ambiguous_submit(task_id: UUID, detail: str) -> None:
+async def _mark_ambiguous_submit(
+    task_id: UUID,
+    detail: str,
+    *,
+    remote_task_id: str | None = None,
+    job_key: str | None = None,
+    asset_id: str | None = None,
+) -> None:
     """Fail without auto-resubmit when a remote job may already exist."""
     async with SessionFactory() as session:
         task = await session.get(GenerationTaskRecord, task_id)
         if task is None or task.status != "running":
             return
+        if job_key and asset_id:
+            request_data = _request_data(task)
+            raw_jobs = request_data.get("provider_jobs")
+            jobs = raw_jobs if isinstance(raw_jobs, dict) else {}
+            request_data["provider_jobs"] = jobs
+            raw_checkpoint = jobs.get(job_key)
+            checkpoint = raw_checkpoint if isinstance(raw_checkpoint, dict) else {}
+            checkpoint["asset_id"] = asset_id
+            checkpoint["submission_state"] = "submitted" if remote_task_id else "submitting"
+            if remote_task_id:
+                checkpoint["remote_task_id"] = remote_task_id
+            jobs[job_key] = checkpoint
+            try:
+                flag_modified(task, "request_data")
+            except Exception:
+                pass
         task.status = "failed"
         task.error = _problem(
             title="图像提交结果不确定",
@@ -195,7 +218,13 @@ async def run_generation_task(task_id: UUID) -> None:
                         "error_type": type(error).__name__,
                     },
                 )
-                await _mark_ambiguous_submit(task_id, str(error))
+                await _mark_ambiguous_submit(
+                    task_id,
+                    str(error),
+                    remote_task_id=error.remote_task_id,
+                    job_key=error.job_key,
+                    asset_id=error.asset_id,
+                )
                 return
             except Exception:
                 failure_id = str(uuid4())

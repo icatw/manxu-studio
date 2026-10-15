@@ -138,9 +138,7 @@ async def generate_scenes(
         if not image_only:
             await report_progress(session, task, 55)
         for index, scene in enumerate(scenes_to_render):
-            asset_id, resume_task_id, on_submitted = await bind_image_job(
-                session, task, f"scene:{scene.id}"
-            )
+            image_job = await bind_image_job(session, task, f"scene:{scene.id}")
             profile = scene.profile
             visual_traits = profile.get("visual_traits", [])
             visual_traits = visual_traits if isinstance(visual_traits, list) else []
@@ -157,23 +155,24 @@ async def generate_scenes(
                 ]
                 if item
             )
+            # Persist scene state before crossing the provider boundary. A failed
+            # database commit must fail the task, not become a partial image warning.
+            await session.commit()
             try:
-                await session.commit()
                 await generate_image(
                     api_key=image_api_key,
                     model=image_model,
                     prompt=prompt,
-                    asset_id=asset_id,
+                    asset_id=image_job.asset_id,
                     base_url=image_base_url,
-                    resume_task_id=resume_task_id,
-                    on_submitted=on_submitted,
+                    resume_task_id=image_job.resume_task_id,
+                    on_submit_started=image_job.on_submit_started,
+                    on_submit_rejected=image_job.on_submit_rejected,
+                    on_submitted=image_job.on_submitted,
                 )
-                scene.reference_asset_id = asset_id
-                await session.commit()
             except ProviderControlError:
-                # Recoverable / ambiguous submit must not finish as succeeded warnings.
                 raise
-            except Exception as error:
+            except ValueError as error:
                 warnings.append(f"{scene.name}参考图生成失败，可稍后单独重试。")
                 api_logger.warning(
                     "scene_reference_generation_failed",
@@ -184,6 +183,9 @@ async def generate_scenes(
                         "error_type": type(error).__name__,
                     },
                 )
+            else:
+                scene.reference_asset_id = image_job.asset_id
+                await session.commit()
             await report_progress(
                 session,
                 task,

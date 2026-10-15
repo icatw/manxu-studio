@@ -39,26 +39,28 @@ async def generate_panel_image(session: AsyncSession, task: GenerationTaskRecord
     api_key = decrypt_secret(config.image_api_key_encrypted)
     image_model = config.image_model
     image_base_url = config.image_base_url
-    asset_id, resume_task_id, on_submitted = await bind_image_job(
-        session, task, f"panel:{panel.id}"
-    )
+    image_job = await bind_image_job(session, task, f"panel:{panel.id}")
     await session.commit()
     image_url = await generate_image(
         api_key=api_key,
         model=image_model,
         prompt=prompt,
-        asset_id=asset_id,
+        asset_id=image_job.asset_id,
         base_url=image_base_url,
-        resume_task_id=resume_task_id,
-        on_submitted=on_submitted,
+        resume_task_id=image_job.resume_task_id,
+        on_submit_started=image_job.on_submit_started,
+        on_submit_rejected=image_job.on_submit_rejected,
+        on_submitted=image_job.on_submitted,
     )
-    version = ImageVersionRecord(panel_id=panel.id, asset_id=asset_id, image_url=image_url)
+    version = ImageVersionRecord(
+        panel_id=panel.id, asset_id=image_job.asset_id, image_url=image_url
+    )
     session.add(version)
-    panel.current_image_asset_id = asset_id
+    panel.current_image_asset_id = image_job.asset_id
     panel.current_image_url = image_url
     panel.version += 1
     await session.flush()
-    return {"panel_id": str(panel.id), "asset_id": str(asset_id)}
+    return {"panel_id": str(panel.id), "asset_id": str(image_job.asset_id)}
 
 
 @register(TaskType.PANEL_IMAGE)

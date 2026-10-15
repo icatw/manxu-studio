@@ -3,7 +3,10 @@ from uuid import uuid4
 
 import pytest
 
-from app.providers.errors import AmbiguousProviderSubmitError, RecoverableProviderError
+from app.providers.errors import (
+    AmbiguousProviderSubmitError,
+    RecoverableProviderError,
+)
 from app.tasks import runtime
 from app.tasks.provider_jobs import bind_image_job
 from app.tasks.support import report_progress
@@ -32,24 +35,77 @@ async def test_bind_image_job_persists_remote_task_id() -> None:
         async def commit(self) -> None:
             commits.append("commit")
 
-    asset_id, resume, on_submitted = await bind_image_job(
+    image_job = await bind_image_job(
         FakeSession(),
         task,
         "scene:abc",  # type: ignore[arg-type]
     )
-    assert resume is None
-    assert task.request_data["provider_jobs"]["scene:abc"]["asset_id"] == str(asset_id)
-    await on_submitted("remote-1")
+    assert image_job.resume_task_id is None
+    assert task.request_data["provider_jobs"]["scene:abc"]["asset_id"] == str(image_job.asset_id)
+    assert task.request_data["provider_jobs"]["scene:abc"]["submission_state"] == "ready"
+    await image_job.on_submit_started()
+    assert task.request_data["provider_jobs"]["scene:abc"]["submission_state"] == "submitting"
+    await image_job.on_submitted("remote-1")
     assert task.request_data["provider_jobs"]["scene:abc"]["remote_task_id"] == "remote-1"
+    assert task.request_data["provider_jobs"]["scene:abc"]["submission_state"] == "submitted"
 
-    asset_id2, resume2, _ = await bind_image_job(
+    image_job2 = await bind_image_job(
         FakeSession(),
         task,
         "scene:abc",  # type: ignore[arg-type]
     )
-    assert asset_id2 == asset_id
-    assert resume2 == "remote-1"
+    assert image_job2.asset_id == image_job.asset_id
+    assert image_job2.resume_task_id == "remote-1"
     assert len(commits) >= 2
+
+
+@pytest.mark.asyncio
+async def test_image_job_with_unfinished_submit_checkpoint_fails_closed() -> None:
+    task = SimpleNamespace(request_data={})
+
+    class FakeSession:
+        async def commit(self) -> None:
+            return None
+
+    image_job = await bind_image_job(
+        FakeSession(),
+        task,
+        "panel:1",  # type: ignore[arg-type]
+    )
+    await image_job.on_submit_started()
+
+    with pytest.raises(AmbiguousProviderSubmitError) as raised:
+        await bind_image_job(FakeSession(), task, "panel:1")  # type: ignore[arg-type]
+
+    assert raised.value.job_key == "panel:1"
+    assert raised.value.asset_id == str(image_job.asset_id)
+
+
+@pytest.mark.asyncio
+async def test_image_job_checkpoint_failure_after_submit_preserves_remote_id() -> None:
+    task = SimpleNamespace(request_data={})
+
+    class FailingSubmitCheckpointSession:
+        commits = 0
+
+        async def commit(self) -> None:
+            self.commits += 1
+            if self.commits == 3:
+                raise RuntimeError("database commit failed")
+
+    image_job = await bind_image_job(
+        FailingSubmitCheckpointSession(),
+        task,
+        "character:1",  # type: ignore[arg-type]
+    )
+    await image_job.on_submit_started()
+
+    with pytest.raises(AmbiguousProviderSubmitError) as raised:
+        await image_job.on_submitted("remote-known")
+
+    assert raised.value.remote_task_id == "remote-known"
+    assert raised.value.job_key == "character:1"
+    assert raised.value.asset_id == str(image_job.asset_id)
 
 
 def _runtime_fakes(
@@ -179,7 +235,11 @@ async def test_runtime_fails_ambiguous_submit_without_requeue(
         project_id=uuid4(),
         owner_id=uuid4(),
         progress=55,
-        request_data={"provider_jobs": {"character:1": {"asset_id": str(uuid4())}}},
+        request_data={
+            "provider_jobs": {
+                "character:1": {"asset_id": str(uuid4()), "submission_state": "submitting"}
+            }
+        },
         updated_at=None,
         result=None,
         error=None,
@@ -189,7 +249,12 @@ async def test_runtime_fails_ambiguous_submit_without_requeue(
         monkeypatch,
         task=task,
         project=project,
-        handler_error=AmbiguousProviderSubmitError("提交结果不确定"),
+        handler_error=AmbiguousProviderSubmitError(
+            "提交结果不确定",
+            remote_task_id="remote-known",
+            job_key="character:1",
+            asset_id=task.request_data["provider_jobs"]["character:1"]["asset_id"],
+        ),
     )
 
     await runtime.run_generation_task(task_id)
@@ -198,3 +263,8 @@ async def test_runtime_fails_ambiguous_submit_without_requeue(
     assert task.error is not None
     assert task.error["code"] == "PROVIDER_SUBMIT_AMBIGUOUS"
     assert "recovery_attempts" not in task.request_data
+    assert task.request_data["provider_jobs"]["character:1"] == {
+        "asset_id": task.request_data["provider_jobs"]["character:1"]["asset_id"],
+        "remote_task_id": "remote-known",
+        "submission_state": "submitted",
+    }

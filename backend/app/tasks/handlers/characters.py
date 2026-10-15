@@ -122,11 +122,9 @@ async def generate_characters(session: AsyncSession, task: GenerationTaskRecord)
     warning: str | None = None
     image_prompt = str(character.profile.get("image_prompt", "")).strip()
     if image_api_key:
-        asset_id, resume_task_id, on_submitted = await bind_image_job(
-            session, task, f"character:{character.id}"
-        )
+        image_job = await bind_image_job(session, task, f"character:{character.id}")
+        await report_progress(session, task, 55)
         try:
-            await report_progress(session, task, 55)
             await generate_image(
                 api_key=image_api_key,
                 model=image_model,
@@ -135,18 +133,16 @@ async def generate_characters(session: AsyncSession, task: GenerationTaskRecord)
                     "单人全身角色设定图，纯净浅色背景，完整展示发型、服装和标志性特征，"
                     "不得出现文字、标题、边框或水印。"
                 ),
-                asset_id=asset_id,
+                asset_id=image_job.asset_id,
                 base_url=image_base_url,
-                resume_task_id=resume_task_id,
-                on_submitted=on_submitted,
+                resume_task_id=image_job.resume_task_id,
+                on_submit_started=image_job.on_submit_started,
+                on_submit_rejected=image_job.on_submit_rejected,
+                on_submitted=image_job.on_submitted,
             )
-            character.reference_asset_id = asset_id
-            await session.commit()
-            await report_progress(session, task, 95)
         except ProviderControlError:
-            # Recoverable / ambiguous submit must not finish as succeeded warnings.
             raise
-        except Exception as error:
+        except ValueError as error:
             warning = "角色文字设定已生成，但参考图生成失败；可在设置中检查图像模型后重试。"
             api_logger.warning(
                 "character_reference_generation_failed",
@@ -156,6 +152,10 @@ async def generate_characters(session: AsyncSession, task: GenerationTaskRecord)
                     "error_type": type(error).__name__,
                 },
             )
+        else:
+            character.reference_asset_id = image_job.asset_id
+            await session.commit()
+            await report_progress(session, task, 95)
     else:
         warning = "角色文字设定已生成；账户尚未配置图像模型密钥，因此没有生成参考图。"
     result: dict[str, Any] = {
