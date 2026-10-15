@@ -10,6 +10,7 @@ from app.core.security import validate_public_https_url
 from app.providers.local_store import LocalObjectStore
 
 OnSubmitted = Callable[[str], Awaitable[None]]
+_TERMINAL_REMOTE = frozenset({"FAILED", "CANCELED", "UNKNOWN"})
 
 
 def normalize_dashscope_api_base(configured_base_url: str) -> str:
@@ -57,11 +58,14 @@ class QwenImageProvider:
                 probe = await client.get(f"{api_root}/tasks/{task_id}", headers=auth_headers)
                 if probe.is_success:
                     probe_status = probe.json().get("output", {}).get("task_status")
-                    if probe_status in {"FAILED", "CANCELED", "UNKNOWN"}:
-                        # Terminal remote failure: submit a fresh job instead of looping forever.
+                    if probe_status in _TERMINAL_REMOTE:
+                        # Only terminal remote outcomes discard the checkpoint.
                         task_id = None
-                else:
+                elif probe.status_code == 404:
                     task_id = None
+                else:
+                    # 429 / 5xx / other transient probe failures must not spawn a new billable job.
+                    raise ValueError(f"查询 Qwen Image 任务失败（HTTP {probe.status_code}）")
 
             if not task_id:
                 endpoint = f"{api_root}/services/aigc/image-generation/generation"
@@ -103,7 +107,7 @@ class QwenImageProvider:
                     if image_item:
                         image_url = str(image_item["image"])
                     break
-                if status in {"FAILED", "CANCELED", "UNKNOWN"}:
+                if status in _TERMINAL_REMOTE:
                     raise ValueError("Qwen Image 生成失败，请检查提示词和账户额度后重试")
             if not image_url:
                 raise ValueError("Qwen Image 任务超时或未返回图像")

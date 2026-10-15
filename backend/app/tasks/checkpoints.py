@@ -3,7 +3,7 @@
 from copy import deepcopy
 from typing import Any
 
-CHECKPOINT_KEYS = ("provider_jobs", "pipeline_stages")
+CHECKPOINT_KEYS = ("provider_jobs", "pipeline_stages", "text_checkpoints")
 
 
 def strip_resumable_checkpoints(request_data: dict[str, Any]) -> dict[str, Any]:

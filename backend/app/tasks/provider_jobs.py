@@ -33,6 +33,52 @@ def _mark_request_data_dirty(task: GenerationTaskRecord) -> None:
         return
 
 
+async def clear_image_job(
+    session: AsyncSession,
+    task: GenerationTaskRecord,
+    job_key: str,
+) -> None:
+    """Drop a provider image checkpoint so a new text snapshot cannot resume a stale remote job."""
+    jobs = _provider_jobs(task)
+    if job_key not in jobs:
+        return
+    del jobs[job_key]
+    _mark_request_data_dirty(task)
+    await session.commit()
+
+
+def text_checkpoint(task: GenerationTaskRecord, stage: str) -> dict[str, Any] | None:
+    request_data = getattr(task, "request_data", None)
+    if not isinstance(request_data, dict):
+        return None
+    raw = request_data.get("text_checkpoints")
+    if not isinstance(raw, dict):
+        return None
+    stage_data = raw.get(stage)
+    if isinstance(stage_data, dict) and stage_data.get("done"):
+        return cast(dict[str, Any], stage_data)
+    return None
+
+
+async def persist_text_checkpoint(
+    session: AsyncSession,
+    task: GenerationTaskRecord,
+    stage: str,
+    payload: dict[str, Any],
+) -> None:
+    request_data = getattr(task, "request_data", None)
+    if not isinstance(request_data, dict):
+        request_data = {}
+        task.request_data = request_data
+    raw = request_data.get("text_checkpoints")
+    if not isinstance(raw, dict):
+        raw = {}
+        request_data["text_checkpoints"] = raw
+    raw[stage] = {"done": True, **payload}
+    _mark_request_data_dirty(task)
+    await session.commit()
+
+
 async def bind_image_job(
     session: AsyncSession,
     task: GenerationTaskRecord,

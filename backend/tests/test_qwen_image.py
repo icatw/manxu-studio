@@ -14,12 +14,13 @@ class FakeResponse:
         body: dict[str, object] | None = None,
         content: bytes = b"image-bytes",
         headers: dict[str, str] | None = None,
+        status_code: int = 200,
     ) -> None:
         self._body = body or {}
         self.content = content
         self.headers = headers or {"content-type": "image/png"}
-        self.status_code = 200
-        self.is_success = True
+        self.status_code = status_code
+        self.is_success = 200 <= status_code < 300
 
     def json(self) -> dict[str, object]:
         return self._body
@@ -172,6 +173,74 @@ async def test_qwen_image_resume_resubmits_when_remote_already_failed(
     assert result == f"/api/v1/assets/{asset_id}"
     assert client.submitted is not None
     assert submitted == ["task-1"]
+
+
+@pytest.mark.asyncio
+async def test_qwen_image_resume_probe_429_does_not_resubmit(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    class RateLimitedProbeClient(FakeClient):
+        async def get(self, url: str, **_: object) -> FakeResponse:
+            self.get_count += 1
+            if "/tasks/" in url:
+                return FakeResponse(status_code=429, body={"message": "Too Many Requests"})
+            return FakeResponse()
+
+    client = RateLimitedProbeClient()
+    settings = SimpleNamespace(
+        qwen_image_base_url="https://dashscope.aliyuncs.com/api/v1",
+        image_storage_dir=str(tmp_path),
+    )
+    monkeypatch.setattr(qwen_image.httpx, "AsyncClient", lambda **kwargs: client)
+    monkeypatch.setattr(qwen_image.asyncio, "sleep", lambda _: _no_sleep())
+    monkeypatch.setattr(qwen_image, "validate_public_https_url", _skip_url_validation)
+    monkeypatch.setattr(qwen_image, "get_settings", lambda: settings)
+    monkeypatch.setattr(local_store, "get_settings", lambda: settings)
+
+    with pytest.raises(ValueError, match="查询 Qwen Image 任务失败"):
+        await qwen_image.generate_image(
+            api_key="private",
+            model="qwen-image-3.0-pro",
+            prompt="resume",
+            asset_id=uuid4(),
+            resume_task_id="existing-remote-task",
+        )
+
+    assert client.submitted is None
+
+
+@pytest.mark.asyncio
+async def test_qwen_image_resume_probe_5xx_does_not_resubmit(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    class ServerErrorProbeClient(FakeClient):
+        async def get(self, url: str, **_: object) -> FakeResponse:
+            self.get_count += 1
+            if "/tasks/" in url:
+                return FakeResponse(status_code=503, body={"message": "Unavailable"})
+            return FakeResponse()
+
+    client = ServerErrorProbeClient()
+    settings = SimpleNamespace(
+        qwen_image_base_url="https://dashscope.aliyuncs.com/api/v1",
+        image_storage_dir=str(tmp_path),
+    )
+    monkeypatch.setattr(qwen_image.httpx, "AsyncClient", lambda **kwargs: client)
+    monkeypatch.setattr(qwen_image.asyncio, "sleep", lambda _: _no_sleep())
+    monkeypatch.setattr(qwen_image, "validate_public_https_url", _skip_url_validation)
+    monkeypatch.setattr(qwen_image, "get_settings", lambda: settings)
+    monkeypatch.setattr(local_store, "get_settings", lambda: settings)
+
+    with pytest.raises(ValueError, match="查询 Qwen Image 任务失败"):
+        await qwen_image.generate_image(
+            api_key="private",
+            model="qwen-image-3.0-pro",
+            prompt="resume",
+            asset_id=uuid4(),
+            resume_task_id="existing-remote-task",
+        )
+
+    assert client.submitted is None
 
 
 async def _no_sleep() -> None:

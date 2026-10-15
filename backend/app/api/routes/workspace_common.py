@@ -107,7 +107,7 @@ async def create_task(
     await session.commit()
     await session.refresh(task)
     try:
-        await enqueue_generation_task(task.id)
+        await enqueue_generation_task(task.id, reclaim_if_blocked=False)
     except Exception as error:
         raise HTTPException(503, "生成队列暂时不可用，任务已保存并将在服务恢复后重试") from error
     return task_view(task)

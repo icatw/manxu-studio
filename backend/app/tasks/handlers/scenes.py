@@ -15,7 +15,12 @@ from app.db.models import (
 )
 from app.providers import generate_image, generate_structured_text
 from app.tasks.prompts import SCENE_DRAFT
-from app.tasks.provider_jobs import bind_image_job
+from app.tasks.provider_jobs import (
+    bind_image_job,
+    clear_image_job,
+    persist_text_checkpoint,
+    text_checkpoint,
+)
 from app.tasks.registry import register
 from app.tasks.schemas import SceneGenerationOutput
 from app.tasks.support import report_progress, require_text_model
@@ -64,42 +69,60 @@ async def generate_scenes(
             raise ValueError("当前项目没有可生成参考图的场景")
         generated_scenes = existing
     else:
-        text_api_key = decrypt_secret(config.text_api_key_encrypted)
-        title, synopsis, genre, art_style = (
-            project.title,
-            episode.synopsis if episode else project.synopsis,
-            project.genre,
-            project.art_style,
-        )
-        guidance = str(task.request_data.get("guidance", ""))
-        await session.commit()
-        await report_progress(session, task, 15)
-        output = await generate_structured_text(
-            base_url=config.text_base_url,
-            model=config.text_model,
-            api_key=text_api_key,
-            system_prompt=SCENE_DRAFT.system,
-            user_prompt=(
-                f"作品：{title}\n梗概：{synopsis}\n题材：{genre}\n画风：{art_style}\n"
-                f'补充要求：{guidance or "无"}\n返回格式：{{"scenes":[{{"name":string,'
-                '"description":string,"lighting":string,"palette":string,'
-                '"visual_traits":[string]}}]}。'
-            ),
-            response_model=SceneGenerationOutput,
-        )
-        await report_progress(session, task, 45)
-        generated_scenes = []
-        for index, generated in enumerate(output.scenes):
-            scene = existing[index] if index < len(existing) else SceneRecord(project_id=project.id)
-            if index >= len(existing):
-                session.add(scene)
-            scene.name = generated.name
-            scene.profile = cast(dict[str, object], generated.model_dump(exclude={"name"}))
-            scene.status = "draft"
-            scene.version = scene.version + 1 if index < len(existing) else 1
-            await session.flush()
-            generated_scenes.append(scene)
-        await session.commit()
+        checkpoint = text_checkpoint(task, "scenes")
+        if checkpoint is not None:
+            scene_ids = [UUID(str(item)) for item in checkpoint.get("scene_ids", [])]
+            by_id = {scene.id: scene for scene in existing}
+            generated_scenes = [by_id[scene_id] for scene_id in scene_ids if scene_id in by_id]
+            if not generated_scenes:
+                raise ValueError("场景文字设定检查点存在，但场景记录已丢失")
+            await report_progress(session, task, 45)
+        else:
+            text_api_key = decrypt_secret(config.text_api_key_encrypted)
+            title, synopsis, genre, art_style = (
+                project.title,
+                episode.synopsis if episode else project.synopsis,
+                project.genre,
+                project.art_style,
+            )
+            guidance = str(task.request_data.get("guidance", ""))
+            await session.commit()
+            await report_progress(session, task, 15)
+            output = await generate_structured_text(
+                base_url=config.text_base_url,
+                model=config.text_model,
+                api_key=text_api_key,
+                system_prompt=SCENE_DRAFT.system,
+                user_prompt=(
+                    f"作品：{title}\n梗概：{synopsis}\n题材：{genre}\n画风：{art_style}\n"
+                    f'补充要求：{guidance or "无"}\n返回格式：{{"scenes":[{{"name":string,'
+                    '"description":string,"lighting":string,"palette":string,'
+                    '"visual_traits":[string]}}]}。'
+                ),
+                response_model=SceneGenerationOutput,
+            )
+            await report_progress(session, task, 45)
+            generated_scenes = []
+            for index, generated in enumerate(output.scenes):
+                scene = (
+                    existing[index] if index < len(existing) else SceneRecord(project_id=project.id)
+                )
+                if index >= len(existing):
+                    session.add(scene)
+                scene.name = generated.name
+                scene.profile = cast(dict[str, object], generated.model_dump(exclude={"name"}))
+                scene.status = "draft"
+                scene.version = scene.version + 1 if index < len(existing) else 1
+                scene.reference_asset_id = None
+                await session.flush()
+                await clear_image_job(session, task, f"scene:{scene.id}")
+                generated_scenes.append(scene)
+            await persist_text_checkpoint(
+                session,
+                task,
+                "scenes",
+                {"scene_ids": [str(scene.id) for scene in generated_scenes]},
+            )
 
     scene_ids = [str(scene.id) for scene in generated_scenes]
     warnings: list[str] = []
