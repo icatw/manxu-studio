@@ -63,9 +63,20 @@ async def generate_panels(session: AsyncSession, task: GenerationTaskRecord) -> 
     text_api_key = decrypt_secret(config.text_api_key_encrypted)
     title, genre, art_style = project.title, project.genre, project.art_style
     synopsis = episode.synopsis
+    world_setting = project.world_setting
     character_context = [{"name": item.name, **item.profile} for item in characters]
     scene_context = [{"name": item.name, **item.profile} for item in scenes]
     pacing = str(task.request_data.get("pacing", "balanced"))
+    continuity_block = ""
+    if bool(task.request_data.get("use_continuity", True)):
+        from app.services.serial_service import build_continuity
+
+        continuity = await build_continuity(session, task.project_id)
+        continuity_block = (
+            f"世界观：{continuity.world_setting or world_setting}\n"
+            f"前情摘要：{[item.model_dump() for item in continuity.previous_summaries]}\n"
+            f"未回收伏笔：{[item.model_dump() for item in continuity.open_threads]}\n"
+        )
     await session.commit()
     await report_progress(session, task, 15)
     output = await generate_structured_text(
@@ -75,6 +86,7 @@ async def generate_panels(session: AsyncSession, task: GenerationTaskRecord) -> 
         system_prompt=STORYBOARD_DRAFT.system,
         user_prompt=(
             f"作品：{title}\n题材：{genre}\n画风：{art_style}\n梗概：{synopsis}\n"
+            f"{continuity_block}"
             f"分镜数：{count}\n节奏：{pacing}\n角色资产：{character_context}\n场景资产：{scene_context}\n"
             '返回格式：{"panels":[{"shot":string,"scene_description":string,'
             '"composition":string,"character_actions":string,"emotion":string,'

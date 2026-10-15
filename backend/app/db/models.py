@@ -2,6 +2,7 @@ from datetime import datetime
 from uuid import UUID, uuid4
 
 from sqlalchemy import (
+    Boolean,
     CheckConstraint,
     DateTime,
     ForeignKey,
@@ -32,6 +33,11 @@ class ProjectRecord(Base):
     genre: Mapped[str] = mapped_column(String(80), nullable=False)
     art_style: Mapped[str] = mapped_column(String(240), nullable=False)
     aspect_ratio: Mapped[str] = mapped_column(String(20), nullable=False)
+    world_setting: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    style_rules: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    negative_prompt: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    style_seed: Mapped[int | None] = mapped_column(Integer)
+    cover_asset_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
@@ -51,7 +57,30 @@ class EpisodeRecord(Base):
     position: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     title: Mapped[str] = mapped_column(String(120), nullable=False)
     synopsis: Mapped[str] = mapped_column(Text, nullable=False)
+    summary: Mapped[str] = mapped_column(Text, nullable=False, default="")
     panel_count: Mapped[int] = mapped_column(Integer, nullable=False, default=4)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
+class PlotThreadRecord(Base):
+    __tablename__ = "plot_threads"
+    __table_args__ = (Index("plot_threads_project_idx", "project_id"),)
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    project_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), nullable=False
+    )
+    text: Mapped[str] = mapped_column(Text, nullable=False)
+    planted_in_episode_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("episodes.id", ondelete="SET NULL")
+    )
+    payoff_in_episode_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("episodes.id", ondelete="SET NULL")
+    )
+    resolved: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
@@ -71,6 +100,7 @@ class CharacterRecord(Base):
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="draft")
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     reference_asset_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True))
+    reference_locked: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
 
 class SceneRecord(Base):

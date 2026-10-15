@@ -13,10 +13,17 @@ export interface Character {
   imagePrompt: string
   referenceImageUrl: string
   referenceImageSource: AssetSource | null
+  referenceLocked: boolean
   confirmed: boolean
 }
 
 export type CharacterEditableField = Exclude<
   keyof Character,
-  'id' | 'generationSource' | 'imagePrompt' | 'referenceImageUrl' | 'referenceImageSource' | 'confirmed'
+  | 'id'
+  | 'generationSource'
+  | 'imagePrompt'
+  | 'referenceImageUrl'
+  | 'referenceImageSource'
+  | 'referenceLocked'
+  | 'confirmed'
 >

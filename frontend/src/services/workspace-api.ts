@@ -129,6 +129,7 @@ export function toComicProject(workspace: WorkspaceData): ComicProject {
       ? `/api/v1/assets/${character.reference_asset_id}`
       : "",
     referenceImageSource: character.reference_asset_id ? "ai" : null,
+    referenceLocked: Boolean(character.reference_locked),
     confirmed: character.status === "approved",
   }));
   const sceneAssets: SceneAsset[] = scenes.map((scene) => ({
@@ -192,6 +193,7 @@ export function toCharacterPatch(character: Character) {
   return {
     name: character.name,
     status: character.confirmed ? ("approved" as const) : ("draft" as const),
+    reference_locked: character.referenceLocked,
     profile: {
       generation_source: character.generationSource,
       role: character.role,
@@ -233,6 +235,22 @@ export function toPanelPatch(panel: StoryboardPanel) {
     scene_id: panel.sceneId ?? null,
     review_status: panel.reviewStatus ?? "draft",
   };
+}
+
+const PANEL_IMAGE_TASK_TYPES = new Set(["panel_image", "panel_image_edit"]);
+
+/** Active panel-image tasks for an episode (newest first per API). */
+export async function listActiveEpisodePanelTasks(episodeId: string): Promise<TaskDto[]> {
+  const { data, error } = await api.GET("/episodes/{episode_id}/generation-tasks", {
+    params: { path: { episode_id: episodeId }, query: { active_only: true } },
+  });
+  const tasks = required(data, error);
+  return tasks.filter(
+    (task) =>
+      task.panel_id != null &&
+      PANEL_IMAGE_TASK_TYPES.has(task.task_type) &&
+      (task.status === "queued" || task.status === "running"),
+  );
 }
 
 export async function waitForTask(
@@ -308,6 +326,7 @@ export async function generateStoryAssets(
       pacing: "balanced",
       regenerate_characters: options.regenerateCharacters !== false,
       use_approved_assets: true,
+      use_continuity: true,
     },
   });
   const task = await waitForTask(required(data, error).id);

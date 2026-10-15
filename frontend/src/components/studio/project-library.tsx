@@ -1,9 +1,11 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
-import { ArrowUpRight, FolderPlus, Loader2, LogOut, Settings, Trash2 } from "lucide-react";
+import { FolderPlus, Loader2, LogOut, Settings, Sparkles, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ButtonLink } from "@/components/ui/button-link";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/lib/api/client";
@@ -34,9 +36,9 @@ export function ProjectLibrary() {
       const episode = await createEpisode(project.id, { title: project.title, synopsis: project.synopsis, panel_count: 4 });
       return { project, episode };
     },
-    onSuccess: async ({ project, episode }) => {
+    onSuccess: async ({ project }) => {
       await queryClient.invalidateQueries({ queryKey: ["projects"] });
-      navigate(`/projects/${project.id}?episodeId=${episode.id}`);
+      navigate(`/projects/${project.id}`);
     },
     onError: (error) => toast.error("创建项目失败", { description: error.message }),
   });
@@ -49,15 +51,8 @@ export function ProjectLibrary() {
     onError: (error) => toast.error("删除项目失败", { description: error.message }),
   });
 
-  const openProject = async (id: string) => {
-    try {
-      const { data, error } = await api.GET("/projects/{project_id}/episodes", { params: { path: { project_id: id } } });
-      if (error) throw new Error("读取故事单元失败");
-      const episode = data?.[0] ?? await createEpisode(id, { title: "第一话", synopsis: "", panel_count: 4 });
-      navigate(`/projects/${id}?episodeId=${episode.id}`);
-    } catch (error) {
-      toast.error("无法打开项目", { description: error instanceof Error ? error.message : undefined });
-    }
+  const openProject = (id: string) => {
+    navigate(`/projects/${id}`);
   };
 
   return (
@@ -88,27 +83,67 @@ export function ProjectLibrary() {
       </header>
       <div className="mx-auto grid w-full max-w-6xl gap-10 px-5 py-8 lg:grid-cols-[minmax(0,1fr)_320px]">
         <section>
-          <div className="mb-5 flex items-end justify-between gap-4">
-            <div><h1 className="text-xl font-semibold">项目</h1><p className="mt-1 text-sm text-muted-foreground">故事、资产与分镜集中在一个工作区。</p></div>
-            <span className="text-xs tabular-nums text-muted-foreground">{projects.data?.length ?? 0} 个项目</span>
+          <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <h1 className="text-xl font-semibold">我的作品</h1>
+              <p className="mt-1 text-sm text-muted-foreground">故事、资产与分镜集中在一个工作区。</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs tabular-nums text-muted-foreground">{projects.data?.length ?? 0} 部作品</span>
+              <ButtonLink href="/projects/new" size="sm" variant="outline">
+                <Sparkles data-icon="inline-start" />
+                AI 策划
+              </ButtonLink>
+            </div>
           </div>
-          {projects.isPending ? <p className="py-12 text-center text-sm text-muted-foreground">正在加载项目…</p> : null}
-          {projects.isError ? <div className="border-y py-8 text-sm"><p>无法读取项目：{projects.error.message}</p><Button className="mt-3" variant="outline" onClick={() => void projects.refetch()}>重试</Button></div> : null}
-          {projects.isSuccess && projects.data.length === 0 ? <div className="border-y py-12 text-center text-sm text-muted-foreground">还没有项目，先创建一个故事。</div> : null}
-          <div className="divide-y border-y">
+          {projects.isPending ? <p className="py-12 text-center text-sm text-muted-foreground">正在加载作品…</p> : null}
+          {projects.isError ? <div className="border-y py-8 text-sm"><p>无法读取作品：{projects.error.message}</p><Button className="mt-3" variant="outline" onClick={() => void projects.refetch()}>重试</Button></div> : null}
+          {projects.isSuccess && projects.data.length === 0 ? <div className="border-y py-12 text-center text-sm text-muted-foreground">还没有作品，先创建一个故事。</div> : null}
+          <ul className="grid gap-4 sm:grid-cols-2">
             {projects.data?.map((project) => (
-              <article key={project.id} className="flex min-w-0 items-center gap-4 py-4">
-                <div className="grid size-10 shrink-0 place-items-center rounded-md bg-muted text-sm font-medium">{project.title.slice(0, 1) || "漫"}</div>
-                <button className="min-w-0 flex-1 text-left" onClick={() => void openProject(project.id)}>
-                  <span className="block truncate text-sm font-medium">{project.title}</span>
-                  <span className="mt-1 block truncate text-xs text-muted-foreground">{project.synopsis || "尚未填写故事梗概"}</span>
-                </button>
-                <span className="hidden text-xs text-muted-foreground sm:block">{new Date(project.updated_at).toLocaleDateString("zh-CN")}</span>
-                <Button variant="ghost" size="icon-sm" aria-label={`打开${project.title}`} title="打开项目" onClick={() => void openProject(project.id)}><ArrowUpRight /></Button>
-                <Button variant="ghost" size="icon-sm" aria-label={`删除${project.title}`} title="删除项目" disabled={remove.isPending} onClick={() => setProjectToDelete({ id: project.id, title: project.title })}><Trash2 /></Button>
-              </article>
+              <li key={project.id}>
+                <article className="group flex h-full flex-col overflow-hidden rounded-xl border bg-card transition-shadow hover:shadow-md">
+                  <button
+                    type="button"
+                    className="relative aspect-[16/10] w-full bg-muted text-left outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                    onClick={() => openProject(project.id)}
+                    aria-label={`打开「${project.title}」`}
+                  >
+                    {project.cover_image_url ? (
+                      <img src={project.cover_image_url} alt="" className="absolute inset-0 size-full object-cover transition-transform duration-300 group-hover:scale-[1.02]" />
+                    ) : (
+                      <div className="absolute inset-0 grid place-items-center text-3xl font-bold text-muted-foreground/40">
+                        {project.title.slice(0, 2) || "漫"}
+                      </div>
+                    )}
+                  </button>
+                  <div className="flex flex-1 flex-col gap-2 p-4">
+                    <div className="flex items-center gap-2">
+                      <Badge variant="secondary">{project.genre}</Badge>
+                      <span className="truncate text-xs text-muted-foreground">{project.art_style}</span>
+                    </div>
+                    <button type="button" className="text-left outline-none focus-visible:underline" onClick={() => openProject(project.id)}>
+                      <h2 className="font-semibold">{project.title}</h2>
+                      <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{project.synopsis || "尚未填写故事梗概"}</p>
+                    </button>
+                    <div className="mt-auto flex items-center justify-between pt-2">
+                      <span className="text-xs text-muted-foreground">{new Date(project.updated_at).toLocaleDateString("zh-CN")} 更新</span>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label={`删除${project.title}`}
+                        title="删除作品"
+                        disabled={remove.isPending}
+                        onClick={() => setProjectToDelete({ id: project.id, title: project.title })}
+                      >
+                        <Trash2 />
+                      </Button>
+                    </div>
+                  </div>
+                </article>
+              </li>
             ))}
-          </div>
+          </ul>
         </section>
         <aside className="h-fit border-t pt-5 lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0">
           <h2 className="text-sm font-semibold">新建项目</h2>

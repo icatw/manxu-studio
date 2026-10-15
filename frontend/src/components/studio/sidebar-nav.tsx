@@ -7,6 +7,7 @@ import { ButtonLink } from "@/components/ui/button-link";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { SHOT_TYPE_LABELS, type StudioStage } from "@/types/storyboard";
+import { EpisodeSwitcher } from "./episode-switcher";
 import { useStudio } from "./studio-provider";
 import { StatusDot } from "./shared";
 
@@ -18,7 +19,7 @@ const STAGES: { id: StudioStage; label: string; icon: typeof BookOpenText }[] = 
 ];
 
 export function SidebarNav() {
-  const { project, stage, setStage, selectedPanelId, selectPanel } = useStudio();
+  const { project, stage, setStage, selectedPanelId, selectPanel, projectId } = useStudio();
   const navigate = useNavigate();
   const account = useQuery({ queryKey: ["current-account"], queryFn: async () => (await api.GET("/auth/me")).data ?? null, retry: false });
   const logout = useMutation({ mutationFn: async () => {
@@ -34,6 +35,7 @@ export function SidebarNav() {
 
   return (
     <aside className="hidden w-56 shrink-0 flex-col border-r bg-sidebar lg:flex" aria-label="工作流导航">
+      <EpisodeSwitcher />
       <nav className="flex flex-col gap-0.5 p-2">
         <p className="px-2 pt-1 pb-2 text-[11px] font-medium text-muted-foreground/80">创作流程</p>
         {STAGES.map(({ id, label, icon: Icon }, index) => {
@@ -113,8 +115,8 @@ export function SidebarNav() {
       </div>
 
       <div className="border-t p-2">
-        <ButtonLink href="/projects" variant="ghost" size="sm" className="w-full justify-start text-muted-foreground">
-          返回项目列表
+        <ButtonLink href={`/projects/${projectId}`} variant="ghost" size="sm" className="w-full justify-start text-muted-foreground">
+          返回作品总览
         </ButtonLink>
         <div className="mt-2 flex items-center gap-2 border-t px-2 pt-2">
           {account.data?.avatar_url

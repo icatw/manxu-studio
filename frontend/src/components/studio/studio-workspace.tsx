@@ -6,6 +6,7 @@ import { CharacterBoard } from "./character-board";
 import { ComicPreviewDialog } from "./comic-preview-dialog";
 import { PanelInspector } from "./panel-inspector";
 import { SceneBoard } from "./scene-board";
+import { EpisodeSwitcher } from "./episode-switcher";
 import { SidebarNav } from "./sidebar-nav";
 import { StatusBar } from "./status-bar";
 import { StoryEditor } from "./story-editor";
@@ -27,6 +28,9 @@ function WorkspaceShell() {
     <TooltipProvider>
       <div className="flex h-dvh min-w-0 flex-col overflow-hidden">
         <TopToolbar />
+        <div className="border-b bg-sidebar lg:hidden">
+          <EpisodeSwitcher />
+        </div>
         <nav className="flex shrink-0 gap-1 overflow-x-auto border-b bg-sidebar p-2 lg:hidden" aria-label="创作流程">
           {(["story", "characters", "scenes", "storyboard"] as const).map((item, index) => (
             <button
