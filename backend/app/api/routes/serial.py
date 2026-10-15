@@ -4,7 +4,6 @@ from uuid import UUID
 from fastapi import Depends, HTTPException, Request, Response
 from sqlalchemy import select
 
-from app.api.routes.projects import _project_view
 from app.api.routes.workspace_common import SessionDep, create_workspace_router
 from app.api.routes.workspace_common import not_found as _not_found
 from app.core.security import require_episode_owner, require_project_owner_dependency
@@ -22,6 +21,7 @@ from app.schemas.workspace import (
     ProjectPlanRequest,
 )
 from app.services import serial_service
+from app.services.projects import project_view as _project_view
 
 router = create_workspace_router(tags=["Serial"])
 

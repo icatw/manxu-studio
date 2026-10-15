@@ -4,7 +4,7 @@ from uuid import uuid4
 import pytest
 from fastapi import HTTPException
 
-from app.api.routes.assets import _scene_view
+from app.services.assets import scene_view
 from app.core.security import require_asset_owner
 from app.db.models import ExportRecord, ProjectRecord
 from app.schemas.workspace import SceneProfile
@@ -27,7 +27,7 @@ def test_scene_view_ignores_legacy_name_in_json_profile() -> None:
         version=1,
     )
 
-    scene = _scene_view(record)  # type: ignore[arg-type]
+    scene = scene_view(record)  # type: ignore[arg-type]
 
     assert scene.name == "雨夜废弃站台"
     assert SceneProfile.model_validate(scene.profile).description

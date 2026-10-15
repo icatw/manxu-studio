@@ -132,7 +132,9 @@ async def generate_scenes(
         warnings.append("场景文字设定已保存；账户尚未配置图像模型 API Key，因此没有生成参考图。")
     else:
         image_api_key = decrypt_secret(image_api_key_encrypted)
-        image_model = getattr(config, "image_model", None) or "qwen-image-3.0-pro"
+        from app.core.config import get_settings
+
+        image_model = getattr(config, "image_model", None) or get_settings().default_image_model
         image_base_url = getattr(config, "image_base_url", None)
         scenes_to_render = [scene for scene in generated_scenes if not scene.reference_asset_id]
         if not image_only:

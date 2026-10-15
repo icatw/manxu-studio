@@ -1461,7 +1461,7 @@ export interface components {
             /** @enum {string} */
             task_type: "character_draft" | "scene_draft" | "scene_reference_images" | "storyboard_draft" | "story_pipeline" | "panel_image" | "panel_image_edit" | "export";
             /** @enum {string} */
-            status: "queued" | "running" | "succeeded" | "failed" | "cancelled";
+            status: "queued" | "running" | "succeeded" | "failed";
             progress?: number | null;
             result?: components["schemas"]["SceneGenerationResult"] | components["schemas"]["CharacterGenerationResult"] | components["schemas"]["StoryboardGenerationResult"] | components["schemas"]["StoryPipelineResult"] | components["schemas"]["PanelImageGenerationResult"] | components["schemas"]["ExportResult"] | null;
             error?: components["schemas"]["Problem"] | null;

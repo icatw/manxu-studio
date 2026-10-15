@@ -3,7 +3,7 @@ from uuid import uuid4
 
 import pytest
 
-from app.api.routes.auth import identity_is_verified
+from app.services.auth_service import identity_is_verified
 from app.db.models import AuthIdentityRecord
 
 

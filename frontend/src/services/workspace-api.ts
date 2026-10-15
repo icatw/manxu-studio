@@ -1,5 +1,7 @@
 import { api, toApiError } from "@/lib/api/client";
 import type { components } from "@/lib/api/schema";
+import { waitForGenerationTask } from "@/lib/generation-task";
+import { queryClient } from "@/lib/query-client";
 import { aspectRatioFromApi, shotLabelToType, shotTypeToLabel } from "@/lib/domain-mappings";
 import type { Character } from "@/types/character";
 import type { SceneAsset } from "@/types/story";
@@ -258,58 +260,7 @@ export async function waitForTask(
   onProgress?: (progress: number) => void,
   signal?: AbortSignal,
 ): Promise<TaskDto> {
-  const delay = (milliseconds: number) => new Promise<void>((resolve, reject) => {
-    if (signal?.aborted) {
-      reject(new DOMException("Aborted", "AbortError"));
-      return;
-    }
-    const timeout = window.setTimeout(() => {
-      signal?.removeEventListener("abort", abort);
-      resolve();
-    }, milliseconds);
-    const abort = () => {
-      window.clearTimeout(timeout);
-      reject(new DOMException("Aborted", "AbortError"));
-    };
-    signal?.addEventListener("abort", abort, { once: true });
-  });
-
-  let pollDelayMs = 2000;
-  while (!signal?.aborted) {
-    const { data, error } = await api.GET("/generation-tasks/{task_id}", {
-      params: { path: { task_id: taskId } },
-      signal,
-    });
-    if (error) {
-      const apiError = failure(error);
-      if ("code" in apiError && apiError.code === "RATE_LIMITED") {
-        await delay(Math.max(pollDelayMs, 5000));
-        pollDelayMs = Math.min(pollDelayMs + 1000, 15000);
-        continue;
-      }
-    }
-    const task = required(data, error);
-    onProgress?.(task.progress ?? 0);
-    if (task.status === "succeeded") return task;
-    if (task.status === "failed") {
-      const error = task.error;
-      const detail =
-        error && typeof error === "object"
-          ? "detail" in error && typeof error.detail === "string"
-            ? error.detail
-            : "message" in error && typeof error.message === "string"
-              ? error.message
-              : "title" in error && typeof error.title === "string"
-                ? error.title
-                : undefined
-          : undefined;
-      throw new Error(typeof detail === "string" ? detail : "任务失败，请重试");
-    }
-    if (task.status === "cancelled") throw new Error("任务已取消");
-    await delay(pollDelayMs);
-    pollDelayMs = Math.min(pollDelayMs + 1000, 15000);
-  }
-  throw new DOMException("Aborted", "AbortError");
+  return waitForGenerationTask(queryClient, taskId, { onProgress, signal });
 }
 
 export async function generateStoryAssets(
