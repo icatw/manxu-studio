@@ -247,9 +247,17 @@ def check_csrf(request: Request) -> None:
 
 async def validate_public_https_url(url: str) -> None:
     parsed = urlsplit(url)
-    if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password:
+    if not parsed.hostname or parsed.username or parsed.password:
         raise HTTPException(422, "Base URL 必须是公网 HTTPS 地址")
     host = parsed.hostname.lower().rstrip(".")
+    if get_settings().allow_private_model_base_urls:
+        if parsed.scheme not in {"http", "https"}:
+            raise HTTPException(422, "Base URL 必须是公网 HTTPS 地址")
+        if host == "metadata.google.internal":
+            raise HTTPException(422, "Base URL 不允许指向本地或元数据服务")
+        return
+    if parsed.scheme != "https":
+        raise HTTPException(422, "Base URL 必须是公网 HTTPS 地址")
     if host in {"localhost", "metadata.google.internal"} or host.endswith(".localhost"):
         raise HTTPException(422, "Base URL 不允许指向本地或元数据服务")
     try:

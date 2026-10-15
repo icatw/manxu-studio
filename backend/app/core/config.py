@@ -51,6 +51,8 @@ class Settings(BaseSettings):
     smtp_starttls: bool = True
     rate_limit_per_minute: int = 30
     read_rate_limit_per_minute: int = 120
+    # Playground/Compose only: allow http://fake-llm and other private base URLs.
+    allow_private_model_base_urls: bool = False
 
     model_config = SettingsConfigDict(env_file="../.env", extra="ignore")
 

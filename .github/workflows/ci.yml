@@ -41,5 +41,62 @@ jobs:
           python-version: "3.13"
       - run: uv sync --locked --all-groups
         working-directory: backend
-      - run: uv run ruff check . && uv run ruff format --check . && uv run mypy app && uv run pytest
+      - run: uv run ruff check . && uv run ruff format --check . && uv run mypy app && uv run pytest -m "not playground"
         working-directory: backend
+
+  playground:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.8.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - run: uv sync --locked --all-groups
+        working-directory: backend
+      - run: pnpm install --frozen-lockfile
+        working-directory: frontend
+      - run: pnpm exec playwright install --with-deps chromium
+        working-directory: frontend
+      - name: Start playground stack
+        run: docker compose -p manxu-playground -f docker-compose.playground.yml up -d --build --wait
+      - name: API playground workflows
+        env:
+          PLAYGROUND_BASE_URL: http://localhost:8001
+          PLAYGROUND_MAILPIT_URL: http://localhost:8026
+          PLAYGROUND_FAKE_LLM_URL: http://fake-llm:8080/v1
+        run: uv run pytest -m playground -q
+        working-directory: backend
+      - name: Playwright serial-core
+        env:
+          E2E_BASE_URL: http://localhost:15174
+          E2E_MAILPIT_URL: http://localhost:8026
+        run: pnpm exec playwright test e2e/serial-core.spec.ts
+        working-directory: frontend
+      - name: Collect playground logs on failure
+        if: failure()
+        run: docker compose -p manxu-playground -f docker-compose.playground.yml logs --no-color --tail=400 > playground-logs.txt
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playground-failure
+          path: |
+            playground-logs.txt
+            frontend/test-results/
+            frontend/playwright-report/
+          if-no-files-found: ignore
+      - name: Tear down playground
+        if: always()
+        run: docker compose -p manxu-playground -f docker-compose.playground.yml down -v
