@@ -1,13 +1,14 @@
 # 项目状态
 
 - 更新时间：2026-10-15
-- 当前阶段：多账户注册、资源隔离与 Redis 队列已实现；质量门禁和 Compose 基础验证通过
-- 代码阶段：邮箱验证码/GitHub 登录、PostgreSQL 所有权、Redis/ARQ worker 已接入
+- 当前阶段：生成架构重构（providers + task registry + story pipeline）在独立 worktree 完成并验证
+- 代码阶段：邮箱验证码/GitHub 登录、PostgreSQL 所有权、Redis/ARQ worker 已接入；任务分发与供应商适配已分层
 
 ## 当前事实
 
+- Worktree `kaiying-wt-arch-elegance` / 分支 `refactor/elegant-generation-architecture`：将巨石 `workspace_tasks` 拆为 `providers/` 与 `tasks/` 注册表；新增服务端 `story_pipeline`；前端一次提交故事起稿；ARQ pool 进程级复用。后端 46 测、前端 9 测与 typecheck 通过。
 - API 客户端现已正确合并 `Request` 与 `RequestInit` 的 method/headers，修复项目创建缺少 JSON Content-Type、删除缺少 CSRF Header 的问题；客户端回归测试与前端质量门禁通过。
-- Workspace API 已拆分为项目/故事、角色/场景、分镜和生成/导出四组路由；共享鉴权依赖与任务构造集中在 `workspace_common.py`。28 个既有 method/path/operationId 保持不变，Ruff、mypy 和 27 项后端测试通过。
+- Workspace API 已拆分为项目/故事、角色/场景、分镜和生成/导出四组路由；共享鉴权依赖与任务构造集中在 `workspace_common.py`。
 - 产品方向：面向独立创作者和小型工作室的 AI 漫剧预制作工作台。
 - PRD：核心工作区首轮需求已确认；连载季策划、连续剧情线、章节摘要和阅读页 deferred。
 - API：`docs/api/openapi.yaml` 已覆盖项目、故事单元、角色/场景、分镜、生成任务、图像版本和导出，并通过契约校验。

@@ -474,6 +474,25 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/projects/{project_id}/story-generations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Generate character, scene, and storyboard drafts as one server-side pipeline */
+        post: operations["generateStoryPipeline"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/episodes/{episode_id}/panels": {
         parameters: {
             query?: never;
@@ -804,8 +823,8 @@ export interface components {
             text_base_url: string;
             /** @description Omit to keep the existing key, null to clear it, or provide a replacement. */
             text_api_key?: string | null;
-            /** @enum {string} */
-            image_model: "qwen-image-3.0-pro" | "qwen-image-3.0" | "qwen-image-2.1-pro" | "qwen-image-2.1-turbo";
+            /** @description Must be one of the server allowlisted image model IDs returned by GET /model-config. */
+            image_model: string;
             /**
              * Format: uri
              * @description Omit or set null to keep the existing address, or provide a Qwen Image API base URL.
@@ -986,6 +1005,20 @@ export interface components {
             /** @default true */
             use_approved_assets: boolean;
         };
+        StoryPipelineRequest: {
+            /** Format: uuid */
+            episode_id: string;
+            panel_count: number;
+            /**
+             * @default balanced
+             * @enum {string}
+             */
+            pacing: "fast" | "balanced" | "slow";
+            /** @default true */
+            regenerate_characters: boolean;
+            /** @default true */
+            use_approved_assets: boolean;
+        };
         StoryboardPanelPatch: {
             position?: number;
             scene_description?: string;
@@ -1054,11 +1087,11 @@ export interface components {
             /** Format: uuid */
             id: string;
             /** @enum {string} */
-            task_type: "character_draft" | "scene_draft" | "scene_reference_images" | "storyboard_draft" | "panel_image" | "panel_image_edit" | "export";
+            task_type: "character_draft" | "scene_draft" | "scene_reference_images" | "storyboard_draft" | "story_pipeline" | "panel_image" | "panel_image_edit" | "export";
             /** @enum {string} */
             status: "queued" | "running" | "succeeded" | "failed" | "cancelled";
             progress?: number | null;
-            result?: components["schemas"]["SceneGenerationResult"] | components["schemas"]["CharacterGenerationResult"] | components["schemas"]["StoryboardGenerationResult"] | components["schemas"]["PanelImageGenerationResult"] | components["schemas"]["ExportResult"] | null;
+            result?: components["schemas"]["SceneGenerationResult"] | components["schemas"]["CharacterGenerationResult"] | components["schemas"]["StoryboardGenerationResult"] | components["schemas"]["StoryPipelineResult"] | components["schemas"]["PanelImageGenerationResult"] | components["schemas"]["ExportResult"] | null;
             error?: components["schemas"]["Problem"] | null;
             /** Format: uuid */
             retry_of_task_id?: string | null;
@@ -1075,6 +1108,14 @@ export interface components {
             /** Format: uuid */
             episode_id: string;
             panel_ids: string[];
+        };
+        StoryPipelineResult: {
+            character_ids?: string[];
+            scene_ids?: string[];
+            /** Format: uuid */
+            episode_id: string;
+            panel_ids: string[];
+            warnings?: string[];
         };
         PanelImageGenerationResult: {
             /** Format: uuid */
@@ -1989,6 +2030,38 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["StoryboardGenerationRequest"];
+            };
+        };
+        responses: {
+            /** @description Generation task accepted */
+            202: {
+                headers: {
+                    /** @description URL of the generation task */
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiSuccessGenerationTask"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["ValidationError"];
+            default: components["responses"]["UnexpectedError"];
+        };
+    };
+    generateStoryPipeline: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StoryPipelineRequest"];
             };
         };
         responses: {

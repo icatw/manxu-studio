@@ -695,6 +695,42 @@ paths:
         default:
           $ref: '#/components/responses/UnexpectedError'
 
+  /projects/{project_id}/story-generations:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+    post:
+      tags: [Storyboards, Generations]
+      operationId: generateStoryPipeline
+      summary: Generate character, scene, and storyboard drafts as one server-side pipeline
+      x-requirement-ids: [ASSET-01, SB-01]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StoryPipelineRequest'
+      responses:
+        '202':
+          description: Generation task accepted
+          headers:
+            Location:
+              schema:
+                type: string
+                format: uri-reference
+              description: URL of the generation task
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccessGenerationTask'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        default:
+          $ref: '#/components/responses/UnexpectedError'
+
   /episodes/{episode_id}/panels:
     parameters:
       - $ref: '#/components/parameters/EpisodeId'
@@ -1307,7 +1343,9 @@ components:
           description: Omit to keep the existing key, null to clear it, or provide a replacement.
         image_model:
           type: string
-          enum: [qwen-image-3.0-pro, qwen-image-3.0, qwen-image-2.1-pro, qwen-image-2.1-turbo]
+          minLength: 1
+          maxLength: 80
+          description: Must be one of the server allowlisted image model IDs returned by GET /model-config.
         image_base_url:
           type: [string, 'null']
           format: uri
@@ -1679,6 +1717,28 @@ components:
         use_approved_assets:
           type: boolean
           default: true
+    StoryPipelineRequest:
+      type: object
+      additionalProperties: false
+      required: [episode_id, panel_count]
+      properties:
+        episode_id:
+          type: string
+          format: uuid
+        panel_count:
+          type: integer
+          minimum: 1
+          maximum: 60
+        pacing:
+          type: string
+          enum: [fast, balanced, slow]
+          default: balanced
+        regenerate_characters:
+          type: boolean
+          default: true
+        use_approved_assets:
+          type: boolean
+          default: true
     StoryboardPanelPatch:
       type: object
       additionalProperties: false
@@ -1850,7 +1910,7 @@ components:
           format: uuid
         task_type:
           type: string
-          enum: [character_draft, scene_draft, scene_reference_images, storyboard_draft, panel_image, panel_image_edit, export]
+          enum: [character_draft, scene_draft, scene_reference_images, storyboard_draft, story_pipeline, panel_image, panel_image_edit, export]
         status:
           type: string
           enum: [queued, running, succeeded, failed, cancelled]
@@ -1863,6 +1923,7 @@ components:
             - $ref: '#/components/schemas/SceneGenerationResult'
             - $ref: '#/components/schemas/CharacterGenerationResult'
             - $ref: '#/components/schemas/StoryboardGenerationResult'
+            - $ref: '#/components/schemas/StoryPipelineResult'
             - $ref: '#/components/schemas/PanelImageGenerationResult'
             - $ref: '#/components/schemas/ExportResult'
             - type: 'null'
@@ -1906,6 +1967,33 @@ components:
           items:
             type: string
             format: uuid
+    StoryPipelineResult:
+      type: object
+      additionalProperties: false
+      required: [episode_id, panel_ids]
+      properties:
+        character_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+        scene_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+        episode_id:
+          type: string
+          format: uuid
+        panel_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+        warnings:
+          type: array
+          items:
+            type: string
     PanelImageGenerationResult:
       type: object
       additionalProperties: false

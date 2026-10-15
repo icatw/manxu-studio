@@ -2,7 +2,7 @@ from enum import Enum
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -72,7 +72,6 @@ def panel_view(panel: PanelRecord) -> dict[str, object]:
 
 async def create_task(
     session: AsyncSession,
-    background_tasks: BackgroundTasks,
     *,
     owner_id: UUID,
     project_id: UUID,

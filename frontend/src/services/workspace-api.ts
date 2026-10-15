@@ -1,5 +1,6 @@
 import { api, toApiError } from "@/lib/api/client";
 import type { components } from "@/lib/api/schema";
+import { aspectRatioFromApi, shotLabelToType, shotTypeToLabel } from "@/lib/domain-mappings";
 import type { Character } from "@/types/character";
 import type { SceneAsset } from "@/types/story";
 import type { ComicProject, StoryboardPanel } from "@/types/storyboard";
@@ -141,14 +142,7 @@ export function toComicProject(workspace: WorkspaceData): ComicProject {
   }));
   const panelAssets: StoryboardPanel[] = panels.map((panel, index) => {
     const currentVersion = versions[panel.id]?.find((version) => version.is_current);
-    const shot = panel.shot ?? "中景";
-    const shotType = shot.includes("远景")
-      ? "wide"
-      : shot.includes("特写")
-        ? shot.includes("大")
-          ? "extreme-close-up"
-          : "close-up"
-        : "medium";
+    const shotType = shotLabelToType(panel.shot ?? "中景");
     return {
       id: panel.id,
       panelNumber: (panel.position ?? index) + 1,
@@ -175,7 +169,6 @@ export function toComicProject(workspace: WorkspaceData): ComicProject {
   const panelCount = [2, 4, 6, 8, 10].includes(panelAssets.length)
     ? (panelAssets.length as ComicProject["story"]["panelCount"])
     : 4;
-  const aspectStyle = project.aspect_ratio === "portrait" ? "3:4" : project.aspect_ratio === "square" ? "1:1" : "16:9";
   return {
     id: episode.id,
     title: project.title,
@@ -186,7 +179,7 @@ export function toComicProject(workspace: WorkspaceData): ComicProject {
       style: project.art_style as ComicProject["story"]["style"],
       audience: "年轻成人",
       panelCount,
-      aspectRatio: aspectStyle,
+      aspectRatio: aspectRatioFromApi(project.aspect_ratio),
     },
     characters: characterAssets,
     scenes: sceneAssets,
@@ -228,7 +221,7 @@ export function toScenePatch(scene: SceneAsset) {
 
 export function toPanelPatch(panel: StoryboardPanel) {
   return {
-    shot: panel.shotType === "wide" ? "远景" : panel.shotType.includes("close-up") ? "特写" : "中景",
+    shot: shotTypeToLabel(panel.shotType),
     scene_description: panel.scene,
     character_actions: panel.action,
     emotion: panel.emotion,
@@ -297,39 +290,21 @@ export async function generateStoryAssets(
   panelCount: number,
   options: { regenerateCharacters?: boolean } = {},
 ) {
-  const warnings: string[] = [];
-  if (options.regenerateCharacters !== false) {
-    const { data: charactersTask, error: charactersError } = await api.POST(
-      "/projects/{project_id}/character-generations",
-      { params: { path: { project_id: projectId } }, body: {} },
-    );
-    const characterResult = await waitForTask(required(charactersTask, charactersError).id);
-    const taskWarnings = characterResult.result && "warnings" in characterResult.result
-      ? characterResult.result.warnings
-      : undefined;
-    if (Array.isArray(taskWarnings)) {
-      warnings.push(...taskWarnings.filter((warning): warning is string => typeof warning === "string"));
-    }
-    const { data: scenesTask, error: scenesError } = await api.POST(
-      "/projects/{project_id}/scene-generations",
-      {
-        params: { path: { project_id: projectId } },
-        body: { episode_id: episodeId, image_only: false },
-      },
-    );
-    const sceneResult = await waitForTask(required(scenesTask, scenesError).id);
-    const sceneWarnings = sceneResult.result && "scene_ids" in sceneResult.result
-      ? sceneResult.result.warnings
-      : undefined;
-    if (Array.isArray(sceneWarnings)) {
-      warnings.push(...sceneWarnings.filter((warning): warning is string => typeof warning === "string"));
-    }
-  }
-  const { data, error } = await api.POST("/projects/{project_id}/storyboard-generations", {
+  const { data, error } = await api.POST("/projects/{project_id}/story-generations", {
     params: { path: { project_id: projectId } },
-    body: { episode_id: episodeId, panel_count: panelCount, pacing: "balanced", use_approved_assets: true },
+    body: {
+      episode_id: episodeId,
+      panel_count: panelCount,
+      pacing: "balanced",
+      regenerate_characters: options.regenerateCharacters !== false,
+      use_approved_assets: true,
+    },
   });
   const task = await waitForTask(required(data, error).id);
+  const warnings =
+    task.result && "warnings" in task.result && Array.isArray(task.result.warnings)
+      ? task.result.warnings.filter((warning): warning is string => typeof warning === "string")
+      : [];
   return { task, warnings };
 }
 

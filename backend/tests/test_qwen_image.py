@@ -4,7 +4,7 @@ from uuid import uuid4
 
 import pytest
 
-from app.services import qwen_image
+from app.providers import local_store, qwen_image
 
 
 class FakeResponse:
@@ -65,17 +65,15 @@ async def test_qwen_image_async_task_is_downloaded_to_persistent_storage(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     client = FakeClient()
+    settings = SimpleNamespace(
+        qwen_image_base_url="https://workspace.example.com/compatible-mode/v1",
+        image_storage_dir=str(tmp_path),
+    )
     monkeypatch.setattr(qwen_image.httpx, "AsyncClient", lambda **kwargs: client)
     monkeypatch.setattr(qwen_image.asyncio, "sleep", lambda _: _no_sleep())
     monkeypatch.setattr(qwen_image, "validate_public_https_url", _skip_url_validation)
-    monkeypatch.setattr(
-        qwen_image,
-        "get_settings",
-        lambda: SimpleNamespace(
-            qwen_image_base_url="https://workspace.example.com/compatible-mode/v1",
-            image_storage_dir=str(tmp_path),
-        ),
-    )
+    monkeypatch.setattr(qwen_image, "get_settings", lambda: settings)
+    monkeypatch.setattr(local_store, "get_settings", lambda: settings)
     asset_id = uuid4()
 
     result = await qwen_image.generate_qwen_image(

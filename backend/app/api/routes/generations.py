@@ -3,7 +3,7 @@ from pathlib import Path
 from urllib.parse import quote
 from uuid import UUID
 
-from fastapi import BackgroundTasks, Depends, HTTPException, Request, Response
+from fastapi import Depends, HTTPException, Request, Response
 from fastapi.responses import FileResponse
 
 from app.api.routes.workspace_common import (
@@ -59,7 +59,7 @@ async def get_generation_task(task_id: UUID, session: SessionDep) -> GenerationT
     dependencies=[Depends(require_task_owner)],
 )
 async def retry_generation_task(
-    task_id: UUID, request: Request, background_tasks: BackgroundTasks, session: SessionDep
+    task_id: UUID, request: Request, session: SessionDep
 ) -> GenerationTask:
     previous = await session.get(GenerationTaskRecord, task_id)
     if previous is None:
@@ -68,7 +68,6 @@ async def retry_generation_task(
         raise HTTPException(status_code=409, detail="只有失败的任务可以重试")
     return await _create_task(
         session,
-        background_tasks,
         owner_id=request.state.account_id,
         project_id=previous.project_id,
         episode_id=previous.episode_id,
@@ -90,7 +89,6 @@ async def create_episode_export(
     episode_id: UUID,
     body: ExportRequest,
     request: Request,
-    background_tasks: BackgroundTasks,
     session: SessionDep,
 ) -> GenerationTask:
     episode = await session.get(EpisodeRecord, episode_id)
@@ -98,7 +96,6 @@ async def create_episode_export(
         raise _not_found("故事单元")
     return await _create_task(
         session,
-        background_tasks,
         owner_id=request.state.account_id,
         project_id=episode.project_id,
         episode_id=episode.id,

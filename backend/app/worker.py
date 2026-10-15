@@ -9,7 +9,7 @@ from sqlalchemy import or_, select
 from app.db.models import GenerationTaskRecord
 from app.db.session import SessionFactory
 from app.services.task_queue import redis_settings
-from app.services.workspace_tasks import run_generation_task
+from app.tasks import run_generation_task
 
 
 async def run_queued_generation_task(ctx: dict[str, object], task_id: str) -> None:

@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from fastapi import BackgroundTasks, Depends, Request
+from fastapi import Depends, Request
 from sqlalchemy import select
 
 from app.api.routes.workspace_common import (
@@ -101,14 +101,12 @@ async def generate_characters(
     project_id: UUID,
     body: CharacterGenerationRequest,
     request: Request,
-    background_tasks: BackgroundTasks,
     session: SessionDep,
 ) -> GenerationTask:
     if await session.get(ProjectRecord, project_id) is None:
         raise _not_found("项目")
     return await _create_task(
         session,
-        background_tasks,
         owner_id=request.state.account_id,
         project_id=project_id,
         task_type="character_draft",
@@ -161,14 +159,12 @@ async def generate_scenes(
     project_id: UUID,
     body: SceneGenerationRequest,
     request: Request,
-    background_tasks: BackgroundTasks,
     session: SessionDep,
 ) -> GenerationTask:
     if await session.get(ProjectRecord, project_id) is None:
         raise _not_found("项目")
     return await _create_task(
         session,
-        background_tasks,
         owner_id=request.state.account_id,
         project_id=project_id,
         task_type="scene_reference_images" if body.image_only else "scene_draft",

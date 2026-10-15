@@ -11,17 +11,16 @@ from app.db.models import (
     SceneRecord,
 )
 from app.schemas.workspace import SceneProfile
-from app.services import workspace_tasks
-from app.services.workspace_tasks import (
+from app.tasks.handlers import characters as character_handler
+from app.tasks.handlers import scenes as scene_handler
+from app.tasks.handlers import storyboard as storyboard_handler
+from app.tasks.schemas import (
     CharacterGenerationOutput,
     GeneratedCharacter,
     GeneratedPanel,
     GeneratedScene,
     SceneGenerationOutput,
     StoryboardGenerationOutput,
-    _generate_characters,
-    _generate_panels,
-    _generate_scenes,
 )
 
 
@@ -87,16 +86,16 @@ async def test_storyboard_replacement_flushes_deletes_before_inserts(
             ]
         )
 
-    monkeypatch.setattr(workspace_tasks, "_configured_model", configured_model)
-    monkeypatch.setattr(workspace_tasks, "decrypt_secret", lambda _: "secret")
-    monkeypatch.setattr(workspace_tasks, "generate_structured_text", generate_text)
+    monkeypatch.setattr(storyboard_handler, "require_text_model", configured_model)
+    monkeypatch.setattr(storyboard_handler, "decrypt_secret", lambda _: "secret")
+    monkeypatch.setattr(storyboard_handler, "generate_structured_text", generate_text)
 
     task = SimpleNamespace(
         request_data={"episode_id": str(episode_id), "panel_count": 1},
         project_id=project_id,
     )
 
-    result = await _generate_panels(FakeSession(), task)  # type: ignore[arg-type]
+    result = await storyboard_handler.generate_panels(FakeSession(), task)  # type: ignore[arg-type]
 
     assert events == ["commit", "commit", "commit", "delete", "flush", "add", "flush"]
     assert result["episode_id"] == str(episode_id)
@@ -177,9 +176,9 @@ async def test_character_generation_calls_text_and_image_models_and_marks_ai_ori
         assert "沈知遥" in str(kwargs["prompt"])
         return "/api/v1/assets/generated.png"
 
-    monkeypatch.setattr(workspace_tasks, "_configured_model", configured_model)
+    monkeypatch.setattr(character_handler, "require_text_model", configured_model)
     monkeypatch.setattr(
-        workspace_tasks,
+        character_handler,
         "decrypt_secret",
         lambda encrypted: (
             "decrypted-text-key"
@@ -187,11 +186,11 @@ async def test_character_generation_calls_text_and_image_models_and_marks_ai_ori
             else "decrypted-image-key"
         ),
     )
-    monkeypatch.setattr(workspace_tasks, "generate_structured_text", generate_text)
-    monkeypatch.setattr(workspace_tasks, "generate_qwen_image", generate_image)
+    monkeypatch.setattr(character_handler, "generate_structured_text", generate_text)
+    monkeypatch.setattr(character_handler, "generate_image", generate_image)
 
     task = SimpleNamespace(id=task_id, project_id=project_id, progress=5)
-    result = await _generate_characters(FakeSession(), task)  # type: ignore[arg-type]
+    result = await character_handler.generate_characters(FakeSession(), task)  # type: ignore[arg-type]
 
     assert [name for name, _ in calls] == ["text", "image"]
     assert len(created) == 1
@@ -275,17 +274,17 @@ async def test_scene_generation_persists_only_scene_profile_fields(
         assert "雨夜废弃站台" in str(kwargs["prompt"])
         return f"/api/v1/assets/{kwargs['asset_id']}"
 
-    monkeypatch.setattr(workspace_tasks, "_configured_model", configured_model)
-    monkeypatch.setattr(workspace_tasks, "decrypt_secret", lambda _: "secret")
-    monkeypatch.setattr(workspace_tasks, "generate_structured_text", generate_text)
-    monkeypatch.setattr(workspace_tasks, "generate_qwen_image", generate_image)
+    monkeypatch.setattr(scene_handler, "require_text_model", configured_model)
+    monkeypatch.setattr(scene_handler, "decrypt_secret", lambda _: "secret")
+    monkeypatch.setattr(scene_handler, "generate_structured_text", generate_text)
+    monkeypatch.setattr(scene_handler, "generate_image", generate_image)
 
     task = SimpleNamespace(
         project_id=project_id,
         request_data={"episode_id": str(episode_id)},
         progress=5,
     )
-    result = await _generate_scenes(FakeSession(), task)  # type: ignore[arg-type]
+    result = await scene_handler.generate_scenes(FakeSession(), task)  # type: ignore[arg-type]
 
     assert result["scene_ids"] == [str(created[0].id)]
     assert created[0].name == "雨夜废弃站台"
@@ -346,9 +345,9 @@ async def test_image_only_scene_generation_skips_text_and_renders_missing_refere
     async def unexpected_text(**kwargs: object) -> None:
         raise AssertionError("image-only generation must skip text provider")
 
-    monkeypatch.setattr(workspace_tasks, "decrypt_secret", lambda _: "secret")
-    monkeypatch.setattr(workspace_tasks, "generate_qwen_image", generate_image)
-    monkeypatch.setattr(workspace_tasks, "generate_structured_text", unexpected_text)
+    monkeypatch.setattr(scene_handler, "decrypt_secret", lambda _: "secret")
+    monkeypatch.setattr(scene_handler, "generate_image", generate_image)
+    monkeypatch.setattr(scene_handler, "generate_structured_text", unexpected_text)
     task = SimpleNamespace(
         id=uuid4(),
         project_id=project_id,
@@ -356,7 +355,7 @@ async def test_image_only_scene_generation_skips_text_and_renders_missing_refere
         progress=5,
     )
 
-    result = await _generate_scenes(FakeSession(), task, image_only=True)  # type: ignore[arg-type]
+    result = await scene_handler.generate_scenes(FakeSession(), task, image_only=True)  # type: ignore[arg-type]
 
     assert scene.reference_asset_id is not None
     assert result["reference_images_generated"] == 1

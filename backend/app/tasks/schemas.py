@@ -1,0 +1,44 @@
+from pydantic import BaseModel, Field
+
+
+class GeneratedCharacter(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    role: str = Field(min_length=1, max_length=240)
+    appearance: str = Field(min_length=1, max_length=2000)
+    hairstyle: str = Field(min_length=1, max_length=500)
+    outfit: str = Field(min_length=1, max_length=1000)
+    signature_traits: list[str] = Field(min_length=1, max_length=8)
+    personality: str = Field(min_length=1, max_length=1000)
+    reference_image_prompt: str = Field(min_length=1, max_length=3000)
+
+
+class CharacterGenerationOutput(BaseModel):
+    character: GeneratedCharacter
+
+
+class GeneratedScene(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    description: str = Field(min_length=1, max_length=2000)
+    lighting: str = Field(min_length=1, max_length=500)
+    palette: str = Field(min_length=1, max_length=500)
+    visual_traits: list[str] = Field(default_factory=list, max_length=8)
+
+
+class SceneGenerationOutput(BaseModel):
+    scenes: list[GeneratedScene] = Field(min_length=1, max_length=4)
+
+
+class GeneratedPanel(BaseModel):
+    shot: str = Field(min_length=1, max_length=240)
+    scene_description: str = Field(min_length=1, max_length=2000)
+    composition: str = Field(min_length=1, max_length=1000)
+    character_actions: str = Field(min_length=1, max_length=1000)
+    emotion: str = Field(min_length=1, max_length=240)
+    dialogue: str = Field(default="", max_length=1000)
+    story_purpose: str = Field(min_length=1, max_length=1000)
+    image_prompt: str = Field(min_length=1, max_length=4000)
+    scene_name: str = Field(default="", max_length=120)
+
+
+class StoryboardGenerationOutput(BaseModel):
+    panels: list[GeneratedPanel] = Field(min_length=1, max_length=60)

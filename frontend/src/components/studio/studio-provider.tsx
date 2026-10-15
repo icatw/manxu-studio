@@ -16,7 +16,8 @@ import { toast } from "sonner";
 import { usePanelGeneration, type PanelGeneration } from "@/hooks/use-panel-generation";
 import { historyReducer, createHistory, type ProjectAction } from "@/lib/project-store";
 import { api } from "@/lib/api/client";
-import { createImageGenerationService } from "@/services/image-generation-service";
+import { aspectRatioToApi } from "@/lib/domain-mappings";
+import { imageGenerationService } from "@/services/image-generation-service";
 import {
   generateStoryAssets,
   toCharacterPatch,
@@ -99,7 +100,7 @@ async function persistProject(
   const aspectRatio = current.story.aspectRatio ?? "16:9";
   const previousAspectRatio = previous.story.aspectRatio ?? "16:9";
   if (aspectRatio !== previousAspectRatio) {
-    projectPatch.aspect_ratio = aspectRatio === "1:1" ? "square" : aspectRatio === "3:4" ? "portrait" : "landscape";
+    projectPatch.aspect_ratio = aspectRatioToApi(aspectRatio);
   }
   if (Object.keys(projectPatch).length) {
     const { data, error } = await api.PATCH("/projects/{project_id}", {
@@ -205,14 +206,10 @@ export function StudioProvider({
   const workspaceSignature = JSON.stringify(workspace);
   const workspaceSignatureRef = useRef(workspaceSignature);
 
-  const imageService = useMemo(
-    () => createImageGenerationService({ provider: "server", model: "", negativePrompt: "" }),
-    [],
-  );
   const generation = usePanelGeneration({
     projectRef,
     dispatch,
-    service: imageService,
+    service: imageGenerationService,
     onGenerated: () => void queryClient.invalidateQueries({ queryKey: ["workspace", workspace.project.id] }),
   });
   const isAnyGenerating = project.panels.some((panel) => panel.status === "generating");
