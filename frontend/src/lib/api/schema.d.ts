@@ -794,6 +794,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/episodes/{episode_id}/generation-tasks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                episode_id: components["parameters"]["EpisodeId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * List generation tasks for an episode
+         * @description Returns tasks owned through the episode. When active_only is true (default), only queued and running tasks are returned so the studio can resume polling after reload.
+         */
+        get: operations["listEpisodeGenerationTasks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/episodes/{episode_id}/exports": {
         parameters: {
             query?: never;
@@ -946,6 +968,9 @@ export interface components {
         };
         ApiSuccessGenerationTask: components["schemas"]["ApiSuccessEnvelope"] & {
             data?: components["schemas"]["GenerationTask"];
+        };
+        ApiSuccessGenerationTaskList: components["schemas"]["ApiSuccessEnvelope"] & {
+            data?: components["schemas"]["GenerationTask"][];
         };
         HealthStatus: {
             /** @constant */
@@ -1343,6 +1368,11 @@ export interface components {
             regenerate_characters: boolean;
             /** @default true */
             use_approved_assets: boolean;
+            /**
+             * @description Inject previous episode summaries and open plot threads
+             * @default true
+             */
+            use_continuity: boolean;
         };
         StoryboardPanelPatch: {
             position?: number;
@@ -1422,6 +1452,12 @@ export interface components {
         GenerationTask: {
             /** Format: uuid */
             id: string;
+            /** Format: uuid */
+            project_id?: string | null;
+            /** Format: uuid */
+            episode_id?: string | null;
+            /** Format: uuid */
+            panel_id?: string | null;
             /** @enum {string} */
             task_type: "character_draft" | "scene_draft" | "scene_reference_images" | "storyboard_draft" | "story_pipeline" | "panel_image" | "panel_image_edit" | "export";
             /** @enum {string} */
@@ -2937,6 +2973,32 @@ export interface operations {
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
             422: components["responses"]["ValidationError"];
+            default: components["responses"]["UnexpectedError"];
+        };
+    };
+    listEpisodeGenerationTasks: {
+        parameters: {
+            query?: {
+                active_only?: boolean;
+            };
+            header?: never;
+            path: {
+                episode_id: components["parameters"]["EpisodeId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Episode generation tasks */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiSuccessGenerationTaskList"];
+                };
+            };
+            404: components["responses"]["NotFound"];
             default: components["responses"]["UnexpectedError"];
         };
     };
