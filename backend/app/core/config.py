@@ -34,6 +34,9 @@ class Settings(BaseSettings):
     image_model_api_key: str = ""
     image_model_concurrency: int = 2
     image_model_negative_prompt: str = "text, watermark, signature, extra fingers, deformed hands"
+    image_model_allowlist: str = (
+        "qwen-image-3.0-pro,qwen-image-3.0,qwen-image-2.1-pro,qwen-image-2.1-turbo"
+    )
     redis_url: str = "redis://localhost:56379/0"
     email_code_pepper: str = ""
     email_code_ttl_seconds: int = 600
@@ -53,6 +56,10 @@ class Settings(BaseSettings):
     @property
     def cors_origin_list(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
+
+    @property
+    def image_model_allowlist_values(self) -> list[str]:
+        return [item.strip() for item in self.image_model_allowlist.split(",") if item.strip()]
 
 
 @lru_cache

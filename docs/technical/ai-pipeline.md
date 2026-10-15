@@ -40,7 +40,9 @@
 5. 校验产物后保存并标记 `succeeded`；失败记录可展示的错误摘要。
 6. 客户端可离开页面；重新进入后按任务 ID 恢复状态。
 
-重试建立新任务并记录 `retry_of_task_id`。使用幂等键避免网络重试造成重复执行。供应商临时 URL 仅作为传输地址，不作为长期引用。
+普通重试建立新任务并记录 `retry_of_task_id`，同时清除 provider/pipeline 检查点。若失败码为 `PROVIDER_SUBMIT_AMBIGUOUS` 或 `RECOVERY_EXHAUSTED`，或任务仍保留未完成的 provider checkpoint，即使最终错误来自数据库等其他环节，也禁止普通重试；须使用 `provider-resumes` 在同一任务上续跑（绑定已知远端任务 ID，或显式确认重新提交）。已绑定的远端任务 ID 不允许被另一个 ID 静默覆盖。使用幂等键避免网络重试造成重复执行。供应商临时 URL 仅作为传输地址，不作为长期引用。
+
+图像提交的 provider checkpoint 使用 `ready -> submitting -> submitted` 状态。Worker 在发送计费 POST 前先持久化 `submitting`；明确拒绝响应会持久化回 `ready`，成功响应则持久化远端任务 ID 与 `submitted`。重启后若发现 `submitting` 但没有远端 ID，任务进入歧义保护状态，不会再次自动提交。远端 ID 写入失败时，runtime 会尝试用新数据库会话保存该 ID。只要失败任务仍保留未完成的 provider checkpoint，普通重试就会被拒绝，即使其最终错误来自数据库写入等其他环节。只有 provider 明确归类的不可重试响应可降级为部分成功警告；未分类异常继续失败并保留续跑依据。
 
 ## 提示词与评估
 

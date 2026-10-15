@@ -474,6 +474,25 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/projects/{project_id}/story-generations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Generate character, scene, and storyboard drafts as one server-side pipeline */
+        post: operations["generateStoryPipeline"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/episodes/{episode_id}/panels": {
         parameters: {
             query?: never;
@@ -621,8 +640,33 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Retry a failed generation as a new task */
+        /**
+         * Retry a failed generation as a new task
+         * @description Creates a new task after stripping provider/pipeline checkpoints. Rejected with 409 when the failure code is PROVIDER_SUBMIT_AMBIGUOUS or RECOVERY_EXHAUSTED; use provider-resumes instead.
+         */
         post: operations["retryGenerationTask"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/generation-tasks/{task_id}/provider-resumes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                task_id: components["parameters"]["TaskId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Resume a provider-protected failed task without discarding checkpoints
+         * @description Requeues the same task while keeping provider/text checkpoints. Required for PROVIDER_SUBMIT_AMBIGUOUS and RECOVERY_EXHAUSTED failures. A remote task id already saved in the checkpoint is resumed automatically. Otherwise, ambiguous submits require a confirmed remote_task_id or acknowledge_resubmit=true to accept possible duplicate billing.
+         */
+        post: operations["resumeProviderGenerationTask"];
         delete?: never;
         options?: never;
         head?: never;
@@ -804,8 +848,8 @@ export interface components {
             text_base_url: string;
             /** @description Omit to keep the existing key, null to clear it, or provide a replacement. */
             text_api_key?: string | null;
-            /** @enum {string} */
-            image_model: "qwen-image-3.0-pro" | "qwen-image-3.0" | "qwen-image-2.1-pro" | "qwen-image-2.1-turbo";
+            /** @description Must be one of the server allowlisted image model IDs returned by GET /model-config. */
+            image_model: string;
             /**
              * Format: uri
              * @description Omit or set null to keep the existing address, or provide a Qwen Image API base URL.
@@ -830,6 +874,7 @@ export interface components {
             image_model: string;
             image_base_url: string;
             image_api_key_configured: boolean;
+            /** @description Server-configured parallel image job limit (IMAGE_MODEL_CONCURRENCY). Controls ARQ worker max_jobs and the studio batch concurrency hint; not editable via PUT /model-config. */
             image_concurrency: number;
             image_negative_prompt: string;
             /** @enum {string} */
@@ -986,6 +1031,20 @@ export interface components {
             /** @default true */
             use_approved_assets: boolean;
         };
+        StoryPipelineRequest: {
+            /** Format: uuid */
+            episode_id: string;
+            panel_count: number;
+            /**
+             * @default balanced
+             * @enum {string}
+             */
+            pacing: "fast" | "balanced" | "slow";
+            /** @default true */
+            regenerate_characters: boolean;
+            /** @default true */
+            use_approved_assets: boolean;
+        };
         StoryboardPanelPatch: {
             position?: number;
             scene_description?: string;
@@ -1050,15 +1109,26 @@ export interface components {
             /** @default false */
             include_unapproved_panels: boolean;
         };
+        GenerationProviderResumeRequest: {
+            /** @description Confirmed DashScope/async task id to bind before resume */
+            remote_task_id?: string | null;
+            /** @description Provider job checkpoint key, e.g. character:<uuid> */
+            job_key?: string | null;
+            /**
+             * @description Explicitly allow a new image submit when no remote_task_id is known; may duplicate billing.
+             * @default false
+             */
+            acknowledge_resubmit: boolean;
+        };
         GenerationTask: {
             /** Format: uuid */
             id: string;
             /** @enum {string} */
-            task_type: "character_draft" | "scene_draft" | "scene_reference_images" | "storyboard_draft" | "panel_image" | "panel_image_edit" | "export";
+            task_type: "character_draft" | "scene_draft" | "scene_reference_images" | "storyboard_draft" | "story_pipeline" | "panel_image" | "panel_image_edit" | "export";
             /** @enum {string} */
             status: "queued" | "running" | "succeeded" | "failed" | "cancelled";
             progress?: number | null;
-            result?: components["schemas"]["SceneGenerationResult"] | components["schemas"]["CharacterGenerationResult"] | components["schemas"]["StoryboardGenerationResult"] | components["schemas"]["PanelImageGenerationResult"] | components["schemas"]["ExportResult"] | null;
+            result?: components["schemas"]["SceneGenerationResult"] | components["schemas"]["CharacterGenerationResult"] | components["schemas"]["StoryboardGenerationResult"] | components["schemas"]["StoryPipelineResult"] | components["schemas"]["PanelImageGenerationResult"] | components["schemas"]["ExportResult"] | null;
             error?: components["schemas"]["Problem"] | null;
             /** Format: uuid */
             retry_of_task_id?: string | null;
@@ -1075,6 +1145,14 @@ export interface components {
             /** Format: uuid */
             episode_id: string;
             panel_ids: string[];
+        };
+        StoryPipelineResult: {
+            character_ids?: string[];
+            scene_ids?: string[];
+            /** Format: uuid */
+            episode_id: string;
+            panel_ids: string[];
+            warnings?: string[];
         };
         PanelImageGenerationResult: {
             /** Format: uuid */
@@ -2009,6 +2087,38 @@ export interface operations {
             default: components["responses"]["UnexpectedError"];
         };
     };
+    generateStoryPipeline: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StoryPipelineRequest"];
+            };
+        };
+        responses: {
+            /** @description Generation task accepted */
+            202: {
+                headers: {
+                    /** @description URL of the generation task */
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiSuccessGenerationTask"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["ValidationError"];
+            default: components["responses"]["UnexpectedError"];
+        };
+    };
     listPanels: {
         parameters: {
             query?: never;
@@ -2271,6 +2381,36 @@ export interface operations {
             };
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
+            default: components["responses"]["UnexpectedError"];
+        };
+    };
+    resumeProviderGenerationTask: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                task_id: components["parameters"]["TaskId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GenerationProviderResumeRequest"];
+            };
+        };
+        responses: {
+            /** @description Same task requeued for provider-safe resume */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiSuccessGenerationTask"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["ValidationError"];
             default: components["responses"]["UnexpectedError"];
         };
     };

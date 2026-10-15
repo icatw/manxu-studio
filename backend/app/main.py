@@ -10,6 +10,7 @@ from app.core.config import get_settings
 from app.core.logging import configure_api_logging
 from app.core.middleware import ApiResponseLoggingMiddleware
 from app.core.redis import close_redis_client
+from app.services.task_queue import close_arq_pool
 
 settings = get_settings()
 configure_api_logging(app_env=settings.app_env, log_dir=settings.log_dir)
@@ -18,6 +19,7 @@ configure_api_logging(app_env=settings.app_env, log_dir=settings.log_dir)
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     yield
+    await close_arq_pool()
     await close_redis_client()
 
 

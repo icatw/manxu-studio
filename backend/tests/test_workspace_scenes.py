@@ -45,7 +45,7 @@ async def test_scene_reference_asset_access_is_project_scoped(is_owner: bool) ->
 
     class FakeSession:
         def __init__(self) -> None:
-                self.scalar_results = iter([None, None, scene])
+            self.scalar_results = iter([None, None, scene])
 
         async def scalar(self, query: object) -> object | None:
             return next(self.scalar_results)
@@ -58,11 +58,14 @@ async def test_scene_reference_asset_access_is_project_scoped(is_owner: bool) ->
             return project
 
     if is_owner:
-        assert await require_asset_owner(
-            asset_id,
-            SimpleNamespace(id=account_id),  # type: ignore[arg-type]
-            FakeSession(),  # type: ignore[arg-type]
-        ) == asset_id
+        assert (
+            await require_asset_owner(
+                asset_id,
+                SimpleNamespace(id=account_id),  # type: ignore[arg-type]
+                FakeSession(),  # type: ignore[arg-type]
+            )
+            == asset_id
+        )
         return
 
     with pytest.raises(HTTPException) as error:

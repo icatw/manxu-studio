@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
-from fastapi import BackgroundTasks, Depends, HTTPException, Request, Response
+from fastapi import Depends, HTTPException, Request, Response
 from sqlalchemy import select
 
 from app.api.routes.workspace_common import (
@@ -36,6 +36,7 @@ from app.schemas.workspace import (
     StoryboardPanel,
     StoryboardPanelCreate,
     StoryboardPanelPatch,
+    StoryPipelineRequest,
 )
 
 router = create_workspace_router(tags=["Storyboards"])
@@ -52,7 +53,6 @@ async def generate_storyboard(
     project_id: UUID,
     body: StoryboardGenerationRequest,
     request: Request,
-    background_tasks: BackgroundTasks,
     session: SessionDep,
 ) -> GenerationTask:
     episode = await session.get(EpisodeRecord, body.episode_id)
@@ -60,11 +60,36 @@ async def generate_storyboard(
         raise _not_found("故事单元")
     return await _create_task(
         session,
-        background_tasks,
         owner_id=request.state.account_id,
         project_id=project_id,
         episode_id=episode.id,
         task_type="storyboard_draft",
+        request_data=body.model_dump(mode="json"),
+    )
+
+
+@router.post(
+    "/projects/{project_id}/story-generations",
+    operation_id="generateStoryPipeline",
+    response_model=GenerationTask,
+    status_code=202,
+    dependencies=[Depends(require_project_owner_dependency)],
+)
+async def generate_story_pipeline(
+    project_id: UUID,
+    body: StoryPipelineRequest,
+    request: Request,
+    session: SessionDep,
+) -> GenerationTask:
+    episode = await session.get(EpisodeRecord, body.episode_id)
+    if episode is None or episode.project_id != project_id:
+        raise _not_found("故事单元")
+    return await _create_task(
+        session,
+        owner_id=request.state.account_id,
+        project_id=project_id,
+        episode_id=episode.id,
+        task_type="story_pipeline",
         request_data=body.model_dump(mode="json"),
     )
 
@@ -233,7 +258,6 @@ async def generate_panel_image(
     panel_id: UUID,
     body: PanelImageGenerationRequest,
     request: Request,
-    background_tasks: BackgroundTasks,
     session: SessionDep,
 ) -> GenerationTask:
     panel = await session.get(PanelRecord, panel_id)
@@ -245,7 +269,6 @@ async def generate_panel_image(
     task_type = "panel_image_edit" if panel.current_image_asset_id else "panel_image"
     return await _create_task(
         session,
-        background_tasks,
         owner_id=request.state.account_id,
         project_id=episode.project_id,
         episode_id=episode.id,

@@ -2,7 +2,7 @@ from enum import Enum
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -72,7 +72,6 @@ def panel_view(panel: PanelRecord) -> dict[str, object]:
 
 async def create_task(
     session: AsyncSession,
-    background_tasks: BackgroundTasks,
     *,
     owner_id: UUID,
     project_id: UUID,
@@ -108,7 +107,7 @@ async def create_task(
     await session.commit()
     await session.refresh(task)
     try:
-        await enqueue_generation_task(task.id)
+        await enqueue_generation_task(task.id, reclaim_if_blocked=False)
     except Exception as error:
         raise HTTPException(503, "生成队列暂时不可用，任务已保存并将在服务恢复后重试") from error
     return task_view(task)

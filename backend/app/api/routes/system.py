@@ -5,7 +5,7 @@ from urllib.parse import urljoin
 from uuid import UUID
 
 import httpx
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -72,9 +72,7 @@ class ModelConfigUpdate(BaseModel):
     text_base_url: str = Field(min_length=9, max_length=2048)
     text_api_key: str | None = Field(default=None, min_length=1, max_length=4096)
     image_base_url: str | None = Field(default=None, min_length=9, max_length=2048)
-    image_model: Literal[
-        "qwen-image-3.0-pro", "qwen-image-3.0", "qwen-image-2.1-pro", "qwen-image-2.1-turbo"
-    ]
+    image_model: str = Field(min_length=1, max_length=80)
     image_api_key: str | None = Field(default=None, min_length=1, max_length=4096)
 
 
@@ -87,12 +85,6 @@ class ModelConnectionTest(BaseModel):
 
 
 SessionDep = Depends(get_session)
-IMAGE_MODELS = [
-    "qwen-image-3.0-pro",
-    "qwen-image-3.0",
-    "qwen-image-2.1-pro",
-    "qwen-image-2.1-turbo",
-]
 
 
 @router.get("/health", operation_id="getHealth", response_model=HealthStatus)
@@ -131,7 +123,7 @@ def _config_view(config: AccountModelConfigRecord) -> ModelConfig:
         image_concurrency=settings.image_model_concurrency,
         image_negative_prompt=settings.image_model_negative_prompt,
         image_status=config.image_status,
-        image_models=IMAGE_MODELS,
+        image_models=settings.image_model_allowlist_values,
         system_presets=[
             ModelPreset(
                 id="dashscope-default",
@@ -162,12 +154,16 @@ async def update_model_config(
     await validate_public_https_url(body.text_base_url)
     if body.image_base_url is not None:
         await validate_public_https_url(body.image_base_url)
+    settings = get_settings()
+    image_model = body.image_model.strip()
+    if image_model not in settings.image_model_allowlist_values:
+        raise HTTPException(status_code=422, detail="不支持的图像模型，请从推荐列表中选择")
     config = await _get_config(session, account.id)
     config.text_model = body.text_model.strip()
     config.text_base_url = body.text_base_url.rstrip("/")
     if body.image_base_url is not None:
         config.image_base_url = body.image_base_url.rstrip("/")
-    config.image_model = body.image_model
+    config.image_model = image_model
     if "text_api_key" in body.model_fields_set:
         config.text_api_key_encrypted = (
             encrypt_secret(body.text_api_key) if body.text_api_key else None
