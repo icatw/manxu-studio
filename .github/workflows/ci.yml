@@ -83,7 +83,7 @@ jobs:
         env:
           E2E_BASE_URL: http://localhost:15174
           E2E_MAILPIT_URL: http://localhost:8026
-        run: pnpm exec playwright test e2e/serial-core.spec.ts
+        run: pnpm exec playwright test e2e/serial-core.spec.ts e2e/generation-resume.spec.ts
         working-directory: frontend
       - name: Collect playground logs on failure
         if: failure()

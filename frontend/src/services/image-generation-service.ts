@@ -12,6 +12,7 @@ export interface ImageGenerationRequest {
   signal: AbortSignal
   kind?: 'panels' | 'characters' | 'scenes'
   onProgress?: (progress: number) => void
+  idempotencyKey?: string
 }
 
 export interface ImageGenerationResult {
@@ -27,6 +28,8 @@ export interface ImageGenerationResult {
 export interface ImageGenerationService {
   readonly providerName: string
   generate(request: ImageGenerationRequest): Promise<ImageGenerationResult>
+  /** Resume polling an already-submitted durable task. */
+  complete(request: ImageGenerationRequest, taskId: string): Promise<ImageGenerationResult>
 }
 
 export class ImageGenerationError extends Error {
@@ -46,15 +49,34 @@ export function isAbortError(error: unknown) {
 export class ServerImageGenerationService implements ImageGenerationService {
   readonly providerName = 'Server image provider'
 
-  async generate({ panelId, prompt, signal, onProgress }: ImageGenerationRequest): Promise<ImageGenerationResult> {
+  async generate({
+    panelId,
+    prompt,
+    signal,
+    onProgress,
+    idempotencyKey,
+  }: ImageGenerationRequest): Promise<ImageGenerationResult> {
     if (!prompt.trim()) throw new ImageGenerationError('提示词为空，无法提交生成任务', false)
     const { data: submitted, error } = await api.POST('/panels/{panel_id}/image-generations', {
       params: { path: { panel_id: panelId } },
-      body: { instruction: prompt },
+      body: {
+        instruction: prompt,
+        ...(idempotencyKey ? { idempotency_key: idempotencyKey } : {}),
+      },
       signal,
     })
     if (error || !submitted) throw new ImageGenerationError('无法提交图像任务，请检查 API 服务')
-    const task = await waitForGenerationTask(queryClient, submitted.id, { onProgress, signal })
+    return this.complete(
+      { panelId, prompt, aspectRatio: '4:3', referenceImageUrls: [], signal, onProgress },
+      submitted.id,
+    )
+  }
+
+  async complete(
+    { panelId, signal, onProgress }: ImageGenerationRequest,
+    taskId: string,
+  ): Promise<ImageGenerationResult> {
+    const task = await waitForGenerationTask(queryClient, taskId, { onProgress, signal })
     const { data: versions, error: versionsError } = await api.GET('/panels/{panel_id}/image-versions', {
       params: { path: { panel_id: panelId } },
       signal,

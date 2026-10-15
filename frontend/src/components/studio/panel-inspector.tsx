@@ -134,7 +134,7 @@ function PanelFields({ panel }: { panel: StoryboardPanel }) {
             <Progress value={panel.progress} aria-label="生成进度" />
             <Button variant="outline" size="sm" onClick={() => generation.cancelPanel(panel.id)}>
               <Square data-icon="inline-start" />
-              取消生成
+              停止跟踪
             </Button>
           </div>
         ) : panel.status === 'failed' ? (

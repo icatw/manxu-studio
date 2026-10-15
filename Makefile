@@ -58,7 +58,7 @@ test-api-playground: playground-up
 test-e2e-playground: playground-up
 	E2E_BASE_URL=$(PLAYGROUND_FRONTEND_URL) \
 	E2E_MAILPIT_URL=$(PLAYGROUND_MAILPIT_URL) \
-	pnpm --dir frontend exec playwright test e2e/serial-core.spec.ts
+	pnpm --dir frontend exec playwright test e2e/serial-core.spec.ts e2e/generation-resume.spec.ts
 
 test-playground: test-api-playground test-e2e-playground
 

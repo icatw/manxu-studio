@@ -143,8 +143,8 @@ export function StoryboardPanelCard({ panel, index, total, selected, onSelect, o
           </Button>
         </WithTooltip>
         {generating ? (
-          <WithTooltip label="取消生成">
-            <Button variant="ghost" size="icon-xs" onClick={onCancel} aria-label={`取消第 ${panel.panelNumber} 格生成`}>
+          <WithTooltip label="停止跟踪">
+            <Button variant="ghost" size="icon-xs" onClick={onCancel} aria-label={`停止跟踪第 ${panel.panelNumber} 格生成`}>
               <Square />
             </Button>
           </WithTooltip>
