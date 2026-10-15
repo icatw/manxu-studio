@@ -168,23 +168,34 @@ async def test_character_generation_calls_text_and_image_models_and_marks_ai_ori
         assert kwargs["model"] == config.text_model
         assert kwargs["api_key"] == "decrypted-text-key"
         return CharacterGenerationOutput(
-            character=GeneratedCharacter(
-                name="沈知遥",
-                role="表行学徒，能通过修表回放物件最后一次滴答",
-                appearance="二十六岁，清瘦，左眉有一道被玻璃划出的浅疤。",
-                hairstyle="齐耳黑发，雨水打湿后贴在脸侧。",
-                outfit="旧深绿工装外套，袖口缝着银线。",
-                signature_traits=["停摆的怀表", "左眉浅疤"],
-                personality="克制多疑，遇到失踪儿童线索时会冒险追查。",
-                reference_image_prompt="全身角色立绘，深绿工装外套，银线袖口，左眉浅疤。",
-            )
+            characters=[
+                GeneratedCharacter(
+                    name="沈知遥",
+                    role="表行学徒，能通过修表回放物件最后一次滴答",
+                    appearance="二十六岁，清瘦，左眉有一道被玻璃划出的浅疤。",
+                    hairstyle="齐耳黑发，雨水打湿后贴在脸侧。",
+                    outfit="旧深绿工装外套，袖口缝着银线。",
+                    signature_traits=["停摆的怀表", "左眉浅疤"],
+                    personality="克制多疑，遇到失踪儿童线索时会冒险追查。",
+                    reference_image_prompt="全身角色立绘，深绿工装外套，银线袖口，左眉浅疤。",
+                ),
+                GeneratedCharacter(
+                    name="苏晚",
+                    role="女主，调查记者",
+                    appearance="明亮大眼，气质干练。",
+                    hairstyle="侧扎长发",
+                    outfit="米色风衣、衬衫、及膝裙",
+                    signature_traits=["随身录音笔"],
+                    personality="敏锐、正直",
+                    reference_image_prompt="全身角色立绘，米色风衣，侧扎长发。",
+                ),
+            ]
         )
 
     async def generate_image(**kwargs: object) -> str:
         calls.append(("image", kwargs))
         assert kwargs["model"] == config.image_model
         assert kwargs["base_url"] == config.image_base_url
-        assert "沈知遥" in str(kwargs["prompt"])
         return "/api/v1/assets/generated.png"
 
     monkeypatch.setattr(character_handler, "require_text_model", configured_model)
@@ -201,18 +212,24 @@ async def test_character_generation_calls_text_and_image_models_and_marks_ai_ori
     task = SimpleNamespace(id=task_id, project_id=project_id, progress=5, request_data={})
     result = await character_handler.generate_characters(FakeSession(), task)  # type: ignore[arg-type]
 
-    assert [name for name, _ in calls] == ["text", "image"]
-    assert len(created) == 1
+    assert [name for name, _ in calls] == ["text", "image", "image"]
+    assert len(created) == 2
     assert created[0].name == "沈知遥"
+    assert created[1].name == "苏晚"
     assert created[0].profile["generation_source"] == "ai"
     assert created[0].reference_asset_id == dict(calls[1][1])["asset_id"]
+    assert created[1].reference_asset_id == dict(calls[2][1])["asset_id"]
+    assert "沈知遥" in str(calls[1][1]["prompt"])
+    assert "苏晚" in str(calls[2][1]["prompt"])
     assert result["generation_source"] == "ai"
     assert result["reference_image_generated"] is True
+    assert result["reference_images_generated"] == 2
     assert progress == sorted(progress)
     assert progress[-1] == 95
     assert task.request_data["text_checkpoints"]["characters"]["done"] is True
     assert task.request_data["text_checkpoints"]["characters"]["character_ids"] == [
-        str(created[0].id)
+        str(created[0].id),
+        str(created[1].id),
     ]
 
 
@@ -352,16 +369,18 @@ async def test_character_text_regen_clears_stale_image_checkpoint(
 
     async def generate_text(**kwargs: object) -> CharacterGenerationOutput:
         return CharacterGenerationOutput(
-            character=GeneratedCharacter(
-                name="新角色",
-                role="新设定",
-                appearance="新外貌",
-                hairstyle="短发",
-                outfit="新服装",
-                signature_traits=["新特征"],
-                personality="冷静",
-                reference_image_prompt="新参考图提示词",
-            )
+            characters=[
+                GeneratedCharacter(
+                    name="新角色",
+                    role="新设定",
+                    appearance="新外貌",
+                    hairstyle="短发",
+                    outfit="新服装",
+                    signature_traits=["新特征"],
+                    personality="冷静",
+                    reference_image_prompt="新参考图提示词",
+                )
+            ]
         )
 
     async def generate_image(**kwargs: object) -> str:

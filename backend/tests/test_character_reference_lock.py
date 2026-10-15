@@ -66,16 +66,18 @@ async def test_character_regen_preserves_locked_reference(
 
     async def generate_text(**kwargs: object) -> CharacterGenerationOutput:
         return CharacterGenerationOutput(
-            character=GeneratedCharacter(
-                name="沈知遥",
-                role="表行学徒",
-                appearance="二十六岁，清瘦。",
-                hairstyle="齐耳黑发",
-                outfit="旧深绿工装外套",
-                signature_traits=["停摆的怀表"],
-                personality="克制多疑",
-                reference_image_prompt="全身角色立绘",
-            )
+            characters=[
+                GeneratedCharacter(
+                    name="沈知遥",
+                    role="表行学徒",
+                    appearance="二十六岁，清瘦。",
+                    hairstyle="齐耳黑发",
+                    outfit="旧深绿工装外套",
+                    signature_traits=["停摆的怀表"],
+                    personality="克制多疑",
+                    reference_image_prompt="全身角色立绘",
+                )
+            ]
         )
 
     async def generate_image(**kwargs: object) -> str:

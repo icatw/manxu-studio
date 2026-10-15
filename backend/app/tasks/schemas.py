@@ -13,7 +13,7 @@ class GeneratedCharacter(BaseModel):
 
 
 class CharacterGenerationOutput(BaseModel):
-    character: GeneratedCharacter
+    characters: list[GeneratedCharacter] = Field(min_length=1, max_length=6)
 
 
 class GeneratedScene(BaseModel):
