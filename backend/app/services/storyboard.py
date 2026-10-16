@@ -4,10 +4,11 @@ from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
 from fastapi import HTTPException, Response
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import EpisodeRecord, ImageVersionRecord, PanelRecord
+from app.core.api_responses import ApiError
+from app.db.models import CharacterRecord, EpisodeRecord, ImageVersionRecord, PanelRecord
 from app.schemas.workspace import (
     GenerationTask,
     PanelImageGenerationRequest,
@@ -25,6 +26,32 @@ from app.services.generations import create_task as _create_task
 
 def _not_found(resource: str) -> HTTPException:
     return HTTPException(status_code=404, detail=f"{resource}不存在")
+
+
+async def _enforce_cast_gate(
+    session: AsyncSession,
+    *,
+    project_id: UUID,
+    panel: PanelRecord,
+    acknowledge_trial: bool,
+) -> None:
+    cast_count = await session.scalar(
+        select(func.count())
+        .select_from(CharacterRecord)
+        .where(CharacterRecord.project_id == project_id)
+    )
+    if int(cast_count or 0) > 0:
+        return
+    # No project cast: establishing shot (no character refs) still needs trial ack,
+    # because prompts often still depict people without linked IDs.
+    if acknowledge_trial:
+        return
+    _ = panel  # panel reserved for future per-slot exemptions
+    raise ApiError(
+        "CAST_REQUIRED",
+        "作品尚无角色。请先建立并确认角色（建议锁定定妆），或确认以试画方式继续（一致性与返工风险自负）。",
+        status_code=409,
+    )
 
 
 def _panel_view(panel: PanelRecord) -> dict[str, object]:
@@ -230,6 +257,12 @@ async def generate_panel_image(
     episode = await session.get(EpisodeRecord, panel.episode_id)
     if episode is None:
         raise _not_found("故事单元")
+    await _enforce_cast_gate(
+        session,
+        project_id=episode.project_id,
+        panel=panel,
+        acknowledge_trial=body.acknowledge_trial,
+    )
     task_type = "panel_image_edit" if panel.current_image_asset_id else "panel_image"
     return await _create_task(
         session,
@@ -279,9 +312,7 @@ async def select_panel_image_version(
     panel.current_image_asset_id = version.asset_id
     panel.current_image_url = version.image_url
     panel.version += 1
-    await retarget_slots_for_panel_version(
-        session, panel_id=panel_id, image_version_id=version.id
-    )
+    await retarget_slots_for_panel_version(session, panel_id=panel_id, image_version_id=version.id)
     await session.commit()
     return PanelImageVersion(
         id=version.id,

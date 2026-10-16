@@ -195,7 +195,7 @@ function ChapterList({
       return createEpisode(projectId, {
         title: `第 ${next} 话`,
         synopsis: "待补充本话梗概",
-        panel_count: 4,
+        panel_count: 8,
       });
     },
     onSuccess: (episode) => {

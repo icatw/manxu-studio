@@ -69,7 +69,7 @@ export async function loadWorkspace(projectId: string, episodeId?: string): Prom
   let episodes = await listEpisodes(projectId);
   if (episodes.length === 0) {
     episodes = [
-      await createEpisode(projectId, { title: project.title, synopsis: project.synopsis, panel_count: 4 }),
+      await createEpisode(projectId, { title: project.title, synopsis: project.synopsis, panel_count: 8 }),
     ];
   }
   const episode = episodes.find((item) => item.id === episodeId) ?? episodes[0];
@@ -169,9 +169,9 @@ export function toComicProject(workspace: WorkspaceData): ComicProject {
       reviewStatus: panel.review_status,
     };
   });
-  const panelCount = [2, 4, 6, 8, 10].includes(panelAssets.length)
+  const panelCount = [4, 6, 8, 10, 12].includes(panelAssets.length)
     ? (panelAssets.length as ComicProject["story"]["panelCount"])
-    : 4;
+    : 8;
   return {
     id: episode.id,
     title: project.title,

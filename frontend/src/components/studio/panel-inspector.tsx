@@ -204,16 +204,16 @@ function PanelFields({ panel }: { panel: StoryboardPanel }) {
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <FieldLabel htmlFor={id('dialogue')} hint={`${panel.dialogue.length}/60`}>
+        <FieldLabel htmlFor={id('dialogue')} hint={`${panel.dialogue.length}/4000`}>
           对白
         </FieldLabel>
         <Textarea
           id={id('dialogue')}
           value={panel.dialogue}
-          maxLength={60}
-          rows={2}
+          maxLength={4000}
+          rows={4}
           onChange={(e) => update({ dialogue: e.target.value })}
-          placeholder="留空则不显示对白气泡"
+          placeholder="写清角色说的话；阅读页与导出都会用到"
         />
       </div>
 

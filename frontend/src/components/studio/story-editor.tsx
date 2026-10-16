@@ -100,16 +100,16 @@ export function StoryEditor() {
           />
         </div>
         <div className="flex flex-col gap-1.5">
-          <FieldLabel htmlFor="story-synopsis" hint={`${story.synopsis.length}/300`}>
-            故事梗概
+          <FieldLabel htmlFor="story-synopsis" hint={`${story.synopsis.length}/2000`}>
+            本话梗概
           </FieldLabel>
           <Textarea
             id="story-synopsis"
             value={story.synopsis}
-            maxLength={300}
-            rows={4}
+            maxLength={2000}
+            rows={6}
             onChange={(e) => update({ synopsis: e.target.value })}
-            placeholder="描述主角、冲突与转折……"
+            placeholder="写清本话冲突、转折与想讲清的情节，便于生成更连贯的分镜……"
             aria-invalid={synopsisEmpty || undefined}
           />
           {synopsisEmpty && <p className="text-xs text-destructive">请填写故事梗概后再生成</p>}

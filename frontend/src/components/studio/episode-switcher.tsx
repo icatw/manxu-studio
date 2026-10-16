@@ -23,7 +23,7 @@ export function EpisodeSwitcher() {
       return createEpisode(projectId, {
         title: `第 ${nextNumber} 话`,
         synopsis: project.story.synopsis || "待补充本话梗概",
-        panel_count: project.story.panelCount || 4,
+        panel_count: project.story.panelCount || 8,
       });
     },
     onSuccess: async (episode) => {

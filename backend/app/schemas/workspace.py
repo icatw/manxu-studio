@@ -55,7 +55,7 @@ class ProjectPage(APIModel):
 class EpisodeCreate(APIModel):
     title: str = Field(min_length=1, max_length=120)
     synopsis: str = Field(min_length=1, max_length=10000)
-    panel_count: int = Field(default=4, ge=1, le=60)
+    panel_count: int = Field(default=8, ge=1, le=60)
 
 
 class EpisodePatch(APIModel):
@@ -341,6 +341,7 @@ class PanelImageGenerationRequest(APIModel):
     reference_character_ids: list[UUID] = Field(default_factory=list)
     reference_location_ids: list[UUID] = Field(default_factory=list)
     idempotency_key: str | None = Field(default=None, max_length=128)
+    acknowledge_trial: bool = False
 
 
 class PanelImageVersion(APIModel):

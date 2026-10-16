@@ -43,6 +43,7 @@ export function usePanelGeneration({
       panelId: string,
       controller: AbortController,
       submittedTaskId?: string,
+      acknowledgeTrial = false,
     ): Promise<GenerationOutcome> => {
       const panel = projectRef.current.panels.find((p) => p.id === panelId)
       if (!panel) return 'skipped'
@@ -59,6 +60,7 @@ export function usePanelGeneration({
           aspectRatio: panel.aspectRatio,
           referenceImageUrls,
           signal: controller.signal,
+          acknowledgeTrial,
           onProgress: (progress: number) =>
             dispatch({ type: 'panelRuntime', id: panelId, patch: { progress, status: 'generating' as const } }),
         }
@@ -103,10 +105,20 @@ export function usePanelGeneration({
   )
 
   const generatePanel = useCallback(
-    async (panelId: string, submittedTaskId?: string): Promise<GenerationOutcome> => {
+    async (
+      panelId: string,
+      submittedTaskId?: string,
+      acknowledgeTrial = false,
+    ): Promise<GenerationOutcome> => {
       if (controllers.current.has(panelId)) return 'skipped'
       const panel = projectRef.current.panels.find((p) => p.id === panelId)
       if (!panel) return 'skipped'
+      if (!acknowledgeTrial && projectRef.current.characters.length === 0 && !submittedTaskId) {
+        toast.error('作品尚无角色', {
+          description: '请先建立角色并建议锁定定妆；若要试画，请在分镜画布确认后继续。',
+        })
+        return 'skipped'
+      }
 
       const controller = new AbortController()
       controllers.current.set(panelId, controller)
@@ -116,7 +128,7 @@ export function usePanelGeneration({
         patch: { status: 'generating', progress: 0, errorMessage: null },
       })
       try {
-        return await runPanel(panelId, controller, submittedTaskId)
+        return await runPanel(panelId, controller, submittedTaskId, acknowledgeTrial)
       } finally {
         controllers.current.delete(panelId)
       }
@@ -155,14 +167,14 @@ export function usePanelGeneration({
   }, [resumeActive])
 
   const generateOne = useCallback(
-    async (panelId: string) => {
+    async (panelId: string, options?: { acknowledgeTrial?: boolean }) => {
       const panel = projectRef.current.panels.find((p) => p.id === panelId)
       if (!panel) return
       if (controllers.current.has(panelId)) {
         toast.info(`第 ${panel.panelNumber} 格正在生成，请勿重复提交`)
         return
       }
-      const outcome = await generatePanel(panelId)
+      const outcome = await generatePanel(panelId, undefined, options?.acknowledgeTrial ?? false)
       const n = projectRef.current.panels.find((p) => p.id === panelId)?.panelNumber ?? panel.panelNumber
       if (outcome === 'completed') toast.success(`第 ${n} 格已完成`)
       if (outcome === 'failed') toast.error(`第 ${n} 格生成失败`, { description: '可在面板或底部状态栏重试' })
@@ -171,11 +183,12 @@ export function usePanelGeneration({
           description: '服务端任务仍会继续，刷新后可恢复进度',
         })
       }
+      return outcome
     },
     [generatePanel, projectRef],
   )
 
-  const generateAll = useCallback(async () => {
+  const generateAll = useCallback(async (options?: { acknowledgeTrial?: boolean }) => {
     if (batchRunning) return
     const queue = projectRef.current.panels
       .filter((p) => !controllers.current.has(p.id))
@@ -185,11 +198,12 @@ export function usePanelGeneration({
     setBatchRunning(true)
     batchCancelled.current = false
     const outcomes: GenerationOutcome[] = []
+    const acknowledgeTrial = options?.acknowledgeTrial ?? false
 
     const worker = async () => {
       while (queue.length && !batchCancelled.current) {
         const next = queue.shift()!
-        outcomes.push(await generatePanel(next.id))
+        outcomes.push(await generatePanel(next.id, undefined, acknowledgeTrial))
       }
     }
     await Promise.all(Array.from({ length: concurrencyRef.current }, worker))

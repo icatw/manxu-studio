@@ -59,7 +59,7 @@ class EpisodeRecord(Base):
     title: Mapped[str] = mapped_column(String(120), nullable=False)
     synopsis: Mapped[str] = mapped_column(Text, nullable=False)
     summary: Mapped[str] = mapped_column(Text, nullable=False, default="")
-    panel_count: Mapped[int] = mapped_column(Integer, nullable=False, default=4)
+    panel_count: Mapped[int] = mapped_column(Integer, nullable=False, default=8)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()

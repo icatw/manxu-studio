@@ -1100,7 +1100,11 @@ paths:
       tags: [Storyboards, Generations]
       operationId: generatePanelImage
       summary: Generate a new image version for one panel
-      x-requirement-ids: [GEN-01]
+      description: >
+        When the project has no characters, requires acknowledge_trial=true or
+        returns 409 with code CAST_REQUIRED (GEN-05). Establishing shots
+        (empty character_ids) are only exempt when the project already has a cast.
+      x-requirement-ids: [GEN-01, GEN-05]
       requestBody:
         required: true
         content:
@@ -1123,7 +1127,11 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
-          $ref: '#/components/responses/Conflict'
+          description: Conflict, including CAST_REQUIRED when cast is missing without trial ack
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
         '422':
           $ref: '#/components/responses/ValidationError'
         default:
@@ -2233,7 +2241,7 @@ components:
           type: integer
           minimum: 1
           maximum: 60
-          default: 4
+          default: 8
     EpisodePatch:
       type: object
       additionalProperties: false
@@ -2706,6 +2714,13 @@ components:
         idempotency_key:
           type: string
           maxLength: 128
+        acknowledge_trial:
+          type: boolean
+          default: false
+          description: >
+            Required when the project has no characters and the panel is not an
+            empty-character establishing shot. Confirms the user accepts trial
+            generation without cast consistency.
     ExportRequest:
       type: object
       additionalProperties: false

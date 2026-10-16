@@ -34,7 +34,7 @@ export function ProjectLibrary() {
         title: title.trim(), synopsis: synopsis.trim(), genre: "都市", art_style: "电影感",
         aspect_ratio: "portrait",
       });
-      const episode = await createEpisode(project.id, { title: project.title, synopsis: project.synopsis, panel_count: 4 });
+      const episode = await createEpisode(project.id, { title: project.title, synopsis: project.synopsis, panel_count: 8 });
       return { project, episode };
     },
     onSuccess: async ({ project }) => {

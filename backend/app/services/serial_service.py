@@ -159,7 +159,7 @@ async def create_project_from_plan(
             position=index,
             title=chapter.title,
             synopsis=chapter.synopsis,
-            panel_count=4,
+            panel_count=8,
         )
         session.add(episode)
         episodes.append(episode)

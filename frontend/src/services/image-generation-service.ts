@@ -13,6 +13,7 @@ export interface ImageGenerationRequest {
   kind?: 'panels' | 'characters' | 'scenes'
   onProgress?: (progress: number) => void
   idempotencyKey?: string
+  acknowledgeTrial?: boolean
 }
 
 export interface ImageGenerationResult {
@@ -55,17 +56,25 @@ export class ServerImageGenerationService implements ImageGenerationService {
     signal,
     onProgress,
     idempotencyKey,
+    acknowledgeTrial,
   }: ImageGenerationRequest): Promise<ImageGenerationResult> {
     if (!prompt.trim()) throw new ImageGenerationError('提示词为空，无法提交生成任务', false)
     const { data: submitted, error } = await api.POST('/panels/{panel_id}/image-generations', {
       params: { path: { panel_id: panelId } },
       body: {
         instruction: prompt,
+        acknowledge_trial: Boolean(acknowledgeTrial),
         ...(idempotencyKey ? { idempotency_key: idempotencyKey } : {}),
       },
       signal,
     })
-    if (error || !submitted) throw new ImageGenerationError('无法提交图像任务，请检查 API 服务')
+    if (error || !submitted) {
+      const message =
+        error && typeof error === 'object' && 'message' in error && typeof error.message === 'string'
+          ? error.message
+          : '无法提交图像任务，请检查 API 服务'
+      throw new ImageGenerationError(message, false)
+    }
     return this.complete(
       { panelId, prompt, aspectRatio: '4:3', referenceImageUrls: [], signal, onProgress },
       submitted.id,

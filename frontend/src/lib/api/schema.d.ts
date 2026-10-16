@@ -726,7 +726,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Generate a new image version for one panel */
+        /**
+         * Generate a new image version for one panel
+         * @description When the project has no characters, requires acknowledge_trial=true or returns 409 with code CAST_REQUIRED (GEN-05). Establishing shots (empty character_ids) are only exempt when the project already has a cast.
+         */
         post: operations["generatePanelImage"];
         delete?: never;
         options?: never;
@@ -1404,7 +1407,7 @@ export interface components {
         EpisodeCreate: {
             title: string;
             synopsis: string;
-            /** @default 4 */
+            /** @default 8 */
             panel_count: number;
         };
         EpisodePatch: {
@@ -1654,6 +1657,11 @@ export interface components {
             reference_character_ids?: string[];
             reference_location_ids?: string[];
             idempotency_key?: string;
+            /**
+             * @description Required when the project has no characters and the panel is not an empty-character establishing shot. Confirms the user accepts trial generation without cast consistency.
+             * @default false
+             */
+            acknowledge_trial: boolean;
         };
         ExportRequest: {
             /**
@@ -3228,7 +3236,15 @@ export interface operations {
                 };
             };
             404: components["responses"]["NotFound"];
-            409: components["responses"]["Conflict"];
+            /** @description Conflict, including CAST_REQUIRED when cast is missing without trial ack */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
             422: components["responses"]["ValidationError"];
             default: components["responses"]["UnexpectedError"];
         };
