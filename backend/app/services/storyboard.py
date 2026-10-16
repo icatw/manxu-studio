@@ -270,6 +270,8 @@ async def list_panel_image_versions(
 async def select_panel_image_version(
     panel_id: UUID, version_id: UUID, session: AsyncSession
 ) -> PanelImageVersion:
+    from app.services.layout import retarget_slots_for_panel_version
+
     panel = await session.get(PanelRecord, panel_id)
     version = await session.get(ImageVersionRecord, version_id)
     if panel is None or version is None or version.panel_id != panel_id:
@@ -277,6 +279,9 @@ async def select_panel_image_version(
     panel.current_image_asset_id = version.asset_id
     panel.current_image_url = version.image_url
     panel.version += 1
+    await retarget_slots_for_panel_version(
+        session, panel_id=panel_id, image_version_id=version.id
+    )
     await session.commit()
     return PanelImageVersion(
         id=version.id,

@@ -352,6 +352,75 @@ class PanelImageVersion(APIModel):
     created_at: datetime
 
 
+class BootstrapLayoutRequest(APIModel):
+    default_height_px: int = Field(default=720, ge=80, le=4096)
+    default_gap_px: int = Field(default=24, ge=0, le=512)
+
+
+class SyncLayoutRequest(APIModel):
+    follow_current_version: bool = True
+
+
+class PageOrder(APIModel):
+    page_ids: list[UUID] = Field(min_length=1)
+
+
+class SlotOrder(APIModel):
+    slot_ids: list[UUID] = Field(min_length=1)
+
+
+class PageSlotPatch(APIModel):
+    height_px: int | None = Field(default=None, ge=80, le=4096)
+    gap_after_px: int | None = Field(default=None, ge=0, le=512)
+    image_version_id: UUID | None = None
+    follow_current_version: bool | None = None
+
+
+class PageSlot(APIModel):
+    id: UUID
+    page_id: UUID
+    position: int
+    panel_id: UUID
+    image_version_id: UUID | None = None
+    height_px: int
+    gap_after_px: int
+    follow_current_version: bool
+    created_at: datetime
+    updated_at: datetime
+
+
+class LayoutPage(APIModel):
+    id: UUID
+    episode_id: UUID
+    position: int
+    template: Literal["vertical_strip"]
+    slots: list[PageSlot]
+    created_at: datetime
+    updated_at: datetime
+
+
+class EpisodeLayout(APIModel):
+    episode_id: UUID
+    template: Literal["vertical_strip"]
+    pages: list[LayoutPage]
+
+
+class LayoutPreviewItem(APIModel):
+    slot_id: UUID
+    page_id: UUID
+    panel_id: UUID
+    height_px: int
+    gap_after_px: int
+    image_url: str | None = None
+
+
+class LayoutPreview(APIModel):
+    episode_id: UUID
+    kind: Literal["manuscript_preview"] = "manuscript_preview"
+    width_hint_px: int = 720
+    items: list[LayoutPreviewItem]
+
+
 class GenerationTask(APIModel):
     id: UUID
     project_id: UUID | None = None

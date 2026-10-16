@@ -98,9 +98,13 @@ async def generate_panel_image(session: AsyncSession, task: GenerationTaskRecord
         panel_id=panel.id, asset_id=image_job.asset_id, image_url=image_url
     )
     session.add(version)
+    await session.flush()
     panel.current_image_asset_id = image_job.asset_id
     panel.current_image_url = image_url
     panel.version += 1
+    from app.services.layout import retarget_slots_for_panel_version
+
+    await retarget_slots_for_panel_version(session, panel_id=panel.id, image_version_id=version.id)
     await session.flush()
     return {"panel_id": str(panel.id), "asset_id": str(image_job.asset_id)}
 

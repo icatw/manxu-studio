@@ -23,6 +23,8 @@ from app.db.models import (
     ExportRecord,
     GenerationTaskRecord,
     ImageVersionRecord,
+    LayoutPageRecord,
+    PageSlotRecord,
     PanelRecord,
     ProjectRecord,
     SceneRecord,
@@ -144,6 +146,41 @@ async def require_panel_owner(
     project = await session.get(ProjectRecord, episode.project_id)
     await _owned_project(project, account)
     return panel
+
+
+async def require_page_owner(
+    page_id: UUID,
+    account: Annotated[AccountRecord, Depends(current_account_dependency)],
+    session: SessionDep,
+) -> LayoutPageRecord:
+    page = await session.get(LayoutPageRecord, page_id)
+    if page is None:
+        raise HTTPException(404, "资源不存在")
+    episode = await session.get(EpisodeRecord, page.episode_id)
+    if episode is None:
+        raise HTTPException(404, "资源不存在")
+    project = await session.get(ProjectRecord, episode.project_id)
+    await _owned_project(project, account)
+    return page
+
+
+async def require_slot_owner(
+    slot_id: UUID,
+    account: Annotated[AccountRecord, Depends(current_account_dependency)],
+    session: SessionDep,
+) -> PageSlotRecord:
+    slot = await session.get(PageSlotRecord, slot_id)
+    if slot is None:
+        raise HTTPException(404, "资源不存在")
+    page = await session.get(LayoutPageRecord, slot.page_id)
+    if page is None:
+        raise HTTPException(404, "资源不存在")
+    episode = await session.get(EpisodeRecord, page.episode_id)
+    if episode is None:
+        raise HTTPException(404, "资源不存在")
+    project = await session.get(ProjectRecord, episode.project_id)
+    await _owned_project(project, account)
+    return slot
 
 
 async def require_task_owner(

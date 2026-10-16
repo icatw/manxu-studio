@@ -161,6 +161,51 @@ class ImageVersionRecord(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
+class LayoutPageRecord(Base):
+    __tablename__ = "layout_pages"
+    __table_args__ = (
+        Index("layout_pages_episode_position_idx", "episode_id", "position", unique=True),
+    )
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    episode_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("episodes.id", ondelete="CASCADE"), nullable=False
+    )
+    position: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    template: Mapped[str] = mapped_column(String(32), nullable=False, default="vertical_strip")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
+class PageSlotRecord(Base):
+    __tablename__ = "page_slots"
+    __table_args__ = (
+        Index("page_slots_page_position_idx", "page_id", "position", unique=True),
+        Index("page_slots_panel_idx", "panel_id"),
+    )
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    page_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("layout_pages.id", ondelete="CASCADE"), nullable=False
+    )
+    position: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    panel_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("storyboard_panels.id", ondelete="CASCADE"), nullable=False
+    )
+    image_version_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("panel_image_versions.id", ondelete="SET NULL")
+    )
+    height_px: Mapped[int] = mapped_column(Integer, nullable=False, default=720)
+    gap_after_px: Mapped[int] = mapped_column(Integer, nullable=False, default=24)
+    follow_current_version: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
 class GenerationTaskRecord(Base):
     __tablename__ = "generation_tasks"
     __table_args__ = (

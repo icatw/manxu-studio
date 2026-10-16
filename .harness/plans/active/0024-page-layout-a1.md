@@ -11,12 +11,14 @@
 
 ## Implementation
 
-- [ ] DB: `layout_pages`, `page_slots` + migration；归属经 Episode → Project → Account
-- [ ] Service + FastAPI routes matching operationIds
-- [ ] On `selectPanelImageVersion`: retarget slots with `follow_current_version`
-- [ ] Generate TS types; frontend route `/projects/:id/layout/:episodeId`
+- [x] DB: `layout_pages`, `page_slots` + migration；归属经 Episode → Project → Account
+- [x] Service + FastAPI routes matching operationIds
+- [x] On `selectPanelImageVersion` / panel image task: retarget slots with `follow_current_version`
+- [x] Generate TS types (with contract commit)
+- [ ] Frontend route `/projects/:id/layout/:episodeId`
 - [ ] UI: bootstrap, reorder, height/gap, preview, Studio handoff
-- [ ] Tests: ownership 404, bootstrap 409, sync, version follow
+- [x] Unit: bootstrap 409/422, reorder slots; contract route IDs
+- [ ] API integration: ownership 404, bootstrap/sync against DB
 
 ## Out of scope
 
