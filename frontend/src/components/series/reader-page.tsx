@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router";
-import { ChevronLeft, ChevronRight, List, PenLine } from "lucide-react";
+import { ChevronLeft, ChevronRight, LayoutTemplate, List, PenLine } from "lucide-react";
 import { ButtonLink } from "@/components/ui/button-link";
 import { getEpisodeReader } from "@/services/serial-api";
 
@@ -81,6 +81,15 @@ export function ReaderPage() {
               <ButtonLink href={`/projects/${projectId}`} variant="ghost" size="sm" className="text-neutral-300 hover:bg-white/10 hover:text-white">
                 <List data-icon="inline-start" />
                 目录
+              </ButtonLink>
+              <ButtonLink
+                href={`/projects/${projectId}/layout/${episode.id}`}
+                variant="ghost"
+                size="sm"
+                className="text-neutral-300 hover:bg-white/10 hover:text-white"
+              >
+                <LayoutTemplate data-icon="inline-start" />
+                成稿排版
               </ButtonLink>
               <ButtonLink href={`/projects/${projectId}/studio?episodeId=${episode.id}`} variant="ghost" size="sm" className="text-neutral-300 hover:bg-white/10 hover:text-white">
                 <PenLine data-icon="inline-start" />

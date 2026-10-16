@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useNavigate } from 'react-router'
-import { ArrowLeft, Check, CloudOff, Download, Eye, FileJson, Files, Loader2, Redo2, Settings2, Sparkles, Undo2 } from 'lucide-react'
+import { ArrowLeft, Check, CloudOff, Download, Eye, FileJson, Files, LayoutTemplate, Loader2, Redo2, Settings2, Sparkles, Undo2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { api } from '@/lib/api/client'
@@ -157,6 +157,18 @@ export function TopToolbar() {
         <Button variant="ghost" size="icon-sm" className="md:w-auto md:px-2.5" aria-label="预览" title="预览" onClick={() => setPreviewOpen(true)} disabled={!hasPanels}>
           <Eye data-icon="inline-start" />
           <span className="hidden md:inline">预览</span>
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          className="md:w-auto md:px-2.5"
+          aria-label="成稿排版"
+          title="成稿排版"
+          disabled={!hasPanels || !episodeId}
+          onClick={() => navigate(`/projects/${projectId}/layout/${episodeId}`)}
+        >
+          <LayoutTemplate data-icon="inline-start" />
+          <span className="hidden md:inline">成稿排版</span>
         </Button>
         <Button
           variant="outline"

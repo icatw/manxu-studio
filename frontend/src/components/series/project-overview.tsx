@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router";
-import { ArrowLeft, BookOpen, Files, Loader2, PenLine, Plus, ScrollText, Trash2 } from "lucide-react";
+import { ArrowLeft, BookOpen, Files, LayoutTemplate, Loader2, PenLine, Plus, ScrollText, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -267,6 +267,14 @@ function ChapterList({
               <Button size="sm" variant="outline" onClick={() => navigate(`/projects/${projectId}/read/${episode.id}`)}>
                 <BookOpen data-icon="inline-start" />
                 阅读
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => navigate(`/projects/${projectId}/layout/${episode.id}`)}
+              >
+                <LayoutTemplate data-icon="inline-start" />
+                成稿排版
               </Button>
               <Button size="sm" onClick={() => navigate(`/projects/${projectId}/studio?episodeId=${episode.id}`)}>
                 <PenLine data-icon="inline-start" />

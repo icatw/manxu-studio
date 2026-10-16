@@ -15,8 +15,8 @@
 - [x] Service + FastAPI routes matching operationIds
 - [x] On `selectPanelImageVersion` / panel image task: retarget slots with `follow_current_version`
 - [x] Generate TS types (with contract commit)
-- [ ] Frontend route `/projects/:id/layout/:episodeId`
-- [ ] UI: bootstrap, reorder, height/gap, preview, Studio handoff
+- [x] Frontend route `/projects/:projectId/layout/:episodeId`
+- [x] UI: bootstrap, reorder, height/gap, preview, Studio/overview/reader entry
 - [x] Unit: bootstrap 409/422, reorder slots; contract route IDs
 - [ ] API integration: ownership 404, bootstrap/sync against DB
 
