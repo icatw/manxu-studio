@@ -18,7 +18,7 @@ export function ComicPreviewDialog() {
         <DialogHeader>
           <DialogTitle>{project.title || '未命名项目'}</DialogTitle>
           <DialogDescription>
-            条漫预览 · {project.panels.length} 格{missing > 0 && ` · ${missing} 格尚未生成画面`}
+            制作预览（分镜序）· {project.panels.length} 格{missing > 0 && ` · ${missing} 格尚未生成画面`}
           </DialogDescription>
         </DialogHeader>
         <ScrollArea className="max-h-[70vh] rounded-md">

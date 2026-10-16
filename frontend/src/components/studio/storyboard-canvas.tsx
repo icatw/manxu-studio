@@ -60,7 +60,7 @@ export function StoryboardCanvas() {
           </Button>
           <Button onClick={() => void generateFromStory({ regenerateCharacters: false })} disabled={storyBusy}>
             {storyBusy ? <Loader2 className="animate-spin" data-icon="inline-start" /> : <Sparkles data-icon="inline-start" />}
-            生成分镜
+            生成分镜脚本
           </Button>
         </div>
       </div>

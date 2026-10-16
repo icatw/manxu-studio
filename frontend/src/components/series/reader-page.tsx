@@ -47,6 +47,7 @@ export function ReaderPage() {
       <main className="mx-auto flex max-w-2xl flex-col">
         <div className="flex flex-col items-center gap-2 px-6 py-12 text-center">
           <h1 className="text-2xl font-semibold text-balance">{episode.title}</h1>
+          <p className="text-xs text-neutral-500">按分镜顺序阅读 · 成稿布局请用「成稿排版」</p>
         </div>
         <ol className="flex flex-col gap-1">
           {panels.map((panel, index) => (

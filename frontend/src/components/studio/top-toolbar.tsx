@@ -1,16 +1,34 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
-import { ArrowLeft, Check, CloudOff, Download, Eye, FileJson, Files, LayoutTemplate, Loader2, Redo2, Settings2, Sparkles, Undo2 } from 'lucide-react'
+import {
+  ArrowLeft,
+  Check,
+  ChevronDown,
+  CloudOff,
+  Download,
+  Eye,
+  FileJson,
+  Files,
+  LayoutTemplate,
+  Loader2,
+  Redo2,
+  Settings2,
+  Sparkles,
+  Undo2,
+} from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { api } from '@/lib/api/client'
 import { waitForGenerationTask } from '@/lib/generation-task'
 import { queryClient } from '@/lib/query-client'
+import { cn } from '@/lib/utils'
 import { useStudio } from './studio-provider'
 import { WithTooltip } from './shared'
 import { RegenerateConfirmDialog } from './regenerate-confirm-dialog'
+
+type ExportFormat = 'png' | 'png_zip' | 'production_json'
 
 function formatTime(date: Date) {
   return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
@@ -45,13 +63,31 @@ function SaveIndicator() {
 export function TopToolbar() {
   const { project, dispatch, canUndo, canRedo, undo, redo, setPreviewOpen, storyBusy, generateFromStory, episodeId, projectId } = useStudio()
   const navigate = useNavigate()
-  type ExportFormat = 'png' | 'png_zip' | 'production_json'
   const [exportingFormat, setExportingFormat] = useState<ExportFormat | null>(null)
   const [confirmOpen, setConfirmOpen] = useState(false)
+  const [exportOpen, setExportOpen] = useState(false)
+  const exportMenuId = useId()
+  const exportWrapRef = useRef<HTMLDivElement>(null)
 
   const hasPanels = project.panels.length > 0
   const hasWork = project.panels.some((p) => p.imageUrl || p.dialogue)
   const exporting = exportingFormat !== null
+
+  useEffect(() => {
+    if (!exportOpen) return
+    const onPointerDown = (event: MouseEvent) => {
+      if (!exportWrapRef.current?.contains(event.target as Node)) setExportOpen(false)
+    }
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setExportOpen(false)
+    }
+    document.addEventListener('mousedown', onPointerDown)
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [exportOpen])
 
   const handleExport = async (format: ExportFormat) => {
     if (!hasPanels) {
@@ -138,25 +174,56 @@ export function TopToolbar() {
       </div>
 
       <div className="flex items-center gap-1">
-        <WithTooltip label="撤销 (⌘Z)">
-          <Button className="hidden md:inline-flex" variant="ghost" size="icon-sm" onClick={undo} disabled={!canUndo} aria-label="撤销">
+        <WithTooltip label="撤销编辑 (⌘Z)">
+          <Button
+            className="hidden md:inline-flex"
+            variant="ghost"
+            size="icon-sm"
+            onClick={undo}
+            disabled={!canUndo}
+            aria-label="撤销编辑"
+            title="撤销编辑 (⌘Z)"
+          >
             <Undo2 />
           </Button>
         </WithTooltip>
-        <WithTooltip label="重做 (⇧⌘Z)">
-          <Button className="hidden md:inline-flex" variant="ghost" size="icon-sm" onClick={redo} disabled={!canRedo} aria-label="重做">
+        <WithTooltip label="重做编辑 (⇧⌘Z)">
+          <Button
+            className="hidden md:inline-flex"
+            variant="ghost"
+            size="icon-sm"
+            onClick={redo}
+            disabled={!canRedo}
+            aria-label="重做编辑"
+            title="重做编辑 (⇧⌘Z)"
+          >
             <Redo2 />
           </Button>
         </WithTooltip>
+        {/* Desktop settings live in SidebarNav account area; keep icon for narrow layouts. */}
         <WithTooltip label="设置">
-          <Button variant="ghost" size="icon-sm" onClick={() => navigate('/settings')} aria-label="设置">
+          <Button
+            className="lg:hidden"
+            variant="ghost"
+            size="icon-sm"
+            onClick={() => navigate('/settings')}
+            aria-label="设置"
+          >
             <Settings2 />
           </Button>
         </WithTooltip>
         <div className="mx-1 hidden h-5 w-px bg-border md:block" aria-hidden />
-        <Button variant="ghost" size="icon-sm" className="md:w-auto md:px-2.5" aria-label="预览" title="预览" onClick={() => setPreviewOpen(true)} disabled={!hasPanels}>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          className="md:w-auto md:px-2.5"
+          aria-label="制作预览"
+          title="按分镜序预览本话（制作态，非成稿布局）"
+          onClick={() => setPreviewOpen(true)}
+          disabled={!hasPanels}
+        >
           <Eye data-icon="inline-start" />
-          <span className="hidden md:inline">预览</span>
+          <span className="hidden md:inline">制作预览</span>
         </Button>
         <Button
           variant="ghost"
@@ -170,45 +237,88 @@ export function TopToolbar() {
           <LayoutTemplate data-icon="inline-start" />
           <span className="hidden md:inline">成稿排版</span>
         </Button>
+        <div className="relative" ref={exportWrapRef}>
+          <Button
+            variant="outline"
+            size="icon-sm"
+            className="md:w-auto md:px-2.5"
+            aria-label="制作导出"
+            aria-haspopup="menu"
+            aria-expanded={exportOpen}
+            aria-controls={exportMenuId}
+            title="制作导出（长图 / 分页 ZIP / 制作资料）· 非成稿导出"
+            disabled={!hasPanels || exporting}
+            onClick={() => setExportOpen((open) => !open)}
+          >
+            {exporting ? (
+              <Loader2 className="animate-spin" data-icon="inline-start" />
+            ) : (
+              <Download data-icon="inline-start" />
+            )}
+            <span className="hidden md:inline">制作导出</span>
+            <ChevronDown className={cn('hidden size-3.5 md:inline', exportOpen && 'rotate-180')} aria-hidden />
+          </Button>
+          {exportOpen ? (
+            <div
+              id={exportMenuId}
+              role="menu"
+              aria-label="制作导出格式"
+              className="absolute right-0 z-40 mt-1 w-56 rounded-md border bg-popover p-1 text-popover-foreground shadow-md"
+            >
+              <p className="px-2 py-1.5 text-[11px] text-muted-foreground">制作预览导出 · 非成稿导出</p>
+              {(
+                [
+                  {
+                    format: 'png' as const,
+                    label: '长图 PNG',
+                    description: '本话竖向一条长图',
+                    icon: Download,
+                  },
+                  {
+                    format: 'png_zip' as const,
+                    label: '分页 ZIP',
+                    description: '按页高切成多张 PNG',
+                    icon: Files,
+                  },
+                  {
+                    format: 'production_json' as const,
+                    label: '制作资料 JSON',
+                    description: '分镜与文案元数据',
+                    icon: FileJson,
+                  },
+                ] as const
+              ).map((item) => (
+                <button
+                  key={item.format}
+                  type="button"
+                  role="menuitem"
+                  className="flex w-full items-start gap-2 rounded-sm px-2 py-2 text-left text-sm hover:bg-accent disabled:opacity-50"
+                  disabled={exporting}
+                  onClick={() => {
+                    setExportOpen(false)
+                    void handleExport(item.format)
+                  }}
+                >
+                  <item.icon className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />
+                  <span className="min-w-0">
+                    <span className="block font-medium">{item.label}</span>
+                    <span className="block text-xs text-muted-foreground">{item.description}</span>
+                  </span>
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </div>
         <Button
-          variant="outline"
           size="icon-sm"
-          className="md:w-auto md:px-2.5"
-          aria-label="导出长图 PNG"
-          title="导出本话竖向长图 PNG"
-          onClick={() => void handleExport('png')}
-          disabled={!hasPanels || exporting}
+          className="ml-1 md:h-8 md:w-auto md:px-2.5"
+          aria-label="生成分镜脚本"
+          title="根据本话故事生成或重写分镜脚本（不是出图）"
+          onClick={handleGenerate}
+          disabled={storyBusy}
         >
-          {exportingFormat === 'png' ? <Loader2 className="animate-spin" data-icon="inline-start" /> : <Download data-icon="inline-start" />}
-          <span className="hidden md:inline">长图</span>
-        </Button>
-        <Button
-          variant="outline"
-          size="icon-sm"
-          className="md:w-auto md:px-2.5"
-          aria-label="导出分页 ZIP"
-          title="按页高自动分页，导出 PNG ZIP（page-01.png…）"
-          onClick={() => void handleExport('png_zip')}
-          disabled={!hasPanels || exporting}
-        >
-          {exportingFormat === 'png_zip' ? <Loader2 className="animate-spin" data-icon="inline-start" /> : <Files data-icon="inline-start" />}
-          <span className="hidden md:inline">分页 ZIP</span>
-        </Button>
-        <Button
-          variant="outline"
-          size="icon-sm"
-          className="md:w-auto md:px-2.5"
-          aria-label="导出制作资料"
-          title="导出制作资料 JSON"
-          onClick={() => void handleExport('production_json')}
-          disabled={!hasPanels || exporting}
-        >
-          {exportingFormat === 'production_json' ? <Loader2 className="animate-spin" data-icon="inline-start" /> : <FileJson data-icon="inline-start" />}
-          <span className="hidden md:inline">制作资料</span>
-        </Button>
-        <Button size="icon-sm" className="ml-1 md:h-8 md:w-auto md:px-2.5" aria-label="生成分镜" title="生成分镜" onClick={handleGenerate} disabled={storyBusy}>
           {storyBusy ? <Loader2 className="animate-spin" data-icon="inline-start" /> : <Sparkles data-icon="inline-start" />}
-          <span className="hidden md:inline">{storyBusy ? '生成中…' : '生成分镜'}</span>
+          <span className="hidden md:inline">{storyBusy ? '脚本生成中…' : '生成分镜脚本'}</span>
         </Button>
       </div>
 

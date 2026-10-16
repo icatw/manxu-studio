@@ -194,7 +194,7 @@ export function LayoutPage() {
               disabled={!hasLayout}
               onClick={() => setMode("preview")}
             >
-              整话预览
+              成稿预览
             </Button>
             <ButtonLink
               href={`/projects/${projectId}/studio?episodeId=${episodeId}`}
@@ -403,7 +403,7 @@ export function LayoutPage() {
                 size="sm"
                 onClick={() => setMode("preview")}
               >
-                查看整话预览
+                查看成稿预览
               </Button>
             </aside>
           </section>

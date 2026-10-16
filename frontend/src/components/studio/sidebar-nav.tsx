@@ -3,7 +3,6 @@ import { useMutation } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
 import { api } from "@/lib/api/client";
 import { Button } from "@/components/ui/button";
-import { ButtonLink } from "@/components/ui/button-link";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useCurrentAccount } from "@/hooks/use-current-account";
 import { cn } from "@/lib/utils";
@@ -20,13 +19,16 @@ const STAGES: { id: StudioStage; label: string; hint: string; icon: typeof BookO
 ];
 
 export function SidebarNav() {
-  const { project, stage, setStage, selectedPanelId, selectPanel, projectId } = useStudio();
+  const { project, stage, setStage, selectedPanelId, selectPanel } = useStudio();
   const navigate = useNavigate();
   const account = useCurrentAccount();
-  const logout = useMutation({ mutationFn: async () => {
-    const { error } = await api.POST("/auth/logout");
-    if (error) throw new Error("登出失败");
-  }, onSuccess: () => window.location.assign("/login") });
+  const logout = useMutation({
+    mutationFn: async () => {
+      const { error } = await api.POST("/auth/logout");
+      if (error) throw new Error("登出失败");
+    },
+    onSuccess: () => window.location.assign("/login"),
+  });
   const stageMeta: Record<StudioStage, string> = {
     story: project.story.genre,
     characters: `${project.characters.length}`,
@@ -74,53 +76,64 @@ export function SidebarNav() {
 
       <div className="mx-3 h-px bg-border" aria-hidden />
       <div className="flex min-h-0 flex-1 flex-col">
-        <p className="px-4 pt-3 pb-2 text-[11px] font-medium text-muted-foreground/80">分镜列表</p>
-        <ScrollArea className="min-h-0 flex-1">
-          <ul className="flex flex-col gap-1 px-2 pb-2">
-            {project.panels.length === 0 && (
-              <li className="px-2 py-3 text-xs text-muted-foreground">暂无分镜</li>
-            )}
-            {project.panels.map((panel) => {
-              const active = stage === "storyboard" && selectedPanelId === panel.id;
-              return (
-                <li key={panel.id}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      selectPanel(panel.id);
-                      setStage("storyboard");
-                    }}
-                    aria-current={active ? "true" : undefined}
-                    className={cn(
-                      "flex w-full items-center gap-2.5 rounded-md p-1.5 text-left transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
-                      active ? "bg-sidebar-accent" : "hover:bg-sidebar-accent/60",
-                    )}
-                  >
-                    <div className="relative aspect-[4/3] w-14 shrink-0 overflow-hidden rounded bg-muted">
-                      {panel.imageUrl && <img src={panel.imageUrl} alt="" className="absolute inset-0 size-full object-cover" />}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-xs font-medium tabular-nums">第 {panel.panelNumber} 格</span>
-                        <StatusDot status={panel.status} />
-                      </div>
-                      <p className="truncate text-[11px] text-muted-foreground">
-                        {SHOT_TYPE_LABELS[panel.shotType]} · {panel.dialogue || panel.action}
-                      </p>
-                    </div>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        </ScrollArea>
+        {stage !== "storyboard" ? (
+          <div className="p-2">
+            <button
+              type="button"
+              onClick={() => setStage("storyboard")}
+              className="flex w-full items-center justify-between rounded-md px-2 py-2 text-left text-xs text-muted-foreground transition-colors hover:bg-sidebar-accent/60 hover:text-foreground"
+            >
+              <span>分镜列表</span>
+              <span className="tabular-nums">
+                {project.panels.length} 格 · 进入
+              </span>
+            </button>
+          </div>
+        ) : (
+          <>
+            <p className="px-4 pt-3 pb-2 text-[11px] font-medium text-muted-foreground/80">分镜列表</p>
+            <ScrollArea className="min-h-0 flex-1">
+              <ul className="flex flex-col gap-1 px-2 pb-2">
+                {project.panels.length === 0 && (
+                  <li className="px-2 py-3 text-xs text-muted-foreground">暂无分镜</li>
+                )}
+                {project.panels.map((panel) => {
+                  const active = selectedPanelId === panel.id;
+                  return (
+                    <li key={panel.id}>
+                      <button
+                        type="button"
+                        onClick={() => selectPanel(panel.id)}
+                        aria-current={active ? "true" : undefined}
+                        className={cn(
+                          "flex w-full items-center gap-2.5 rounded-md p-1.5 text-left transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
+                          active ? "bg-sidebar-accent" : "hover:bg-sidebar-accent/60",
+                        )}
+                      >
+                        <div className="relative aspect-[4/3] w-14 shrink-0 overflow-hidden rounded bg-muted">
+                          {panel.imageUrl && <img src={panel.imageUrl} alt="" className="absolute inset-0 size-full object-cover" />}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs font-medium tabular-nums">第 {panel.panelNumber} 格</span>
+                            <StatusDot status={panel.status} />
+                          </div>
+                          <p className="truncate text-[11px] text-muted-foreground">
+                            {SHOT_TYPE_LABELS[panel.shotType]} · {panel.dialogue || panel.action}
+                          </p>
+                        </div>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </ScrollArea>
+          </>
+        )}
       </div>
 
       <div className="border-t p-2">
-        <ButtonLink href={`/projects/${projectId}`} variant="ghost" size="sm" className="w-full justify-start text-muted-foreground">
-          返回作品总览
-        </ButtonLink>
-        <div className="mt-2 flex items-center gap-2 border-t px-2 pt-2">
+        <div className="flex items-center gap-2 px-2 pb-2">
           {account.data?.avatar_url
             ? <img src={account.data.avatar_url} alt="" className="size-8 shrink-0 rounded-full object-cover" />
             : <div className="grid size-8 shrink-0 place-items-center rounded-full bg-muted text-xs">{account.data?.github_login.slice(0, 1).toUpperCase() ?? "?"}</div>}
@@ -129,7 +142,7 @@ export function SidebarNav() {
             <p className="truncate text-[11px] text-muted-foreground">@{account.data?.github_login ?? ""}</p>
           </div>
         </div>
-        <div className="mt-1 flex gap-1">
+        <div className="flex gap-1">
           <Button variant="ghost" size="sm" className="flex-1 justify-start text-muted-foreground" onClick={() => navigate("/settings")}><Settings />设置</Button>
           <Button variant="ghost" size="icon-sm" aria-label="退出登录" title="退出登录" disabled={logout.isPending} onClick={() => logout.mutate()}><LogOut /></Button>
         </div>

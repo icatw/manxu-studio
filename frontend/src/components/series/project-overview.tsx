@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router";
-import { ArrowLeft, BookOpen, Files, LayoutTemplate, Loader2, PenLine, Plus, ScrollText, Trash2, Users } from "lucide-react";
+import { ArrowLeft, BookOpen, ChevronDown, Files, LayoutTemplate, Loader2, PenLine, Plus, ScrollText, Trash2, Users } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -344,12 +344,12 @@ function ChapterList({
     <section className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs text-muted-foreground">
-          下一话生成分镜前须完成上一话摘要；可在此导出跨话合集。
+          下一话生成分镜前须完成上一话摘要；跨话成册请用合集下载。
         </p>
         <div className="flex flex-wrap gap-2">
           <Button size="sm" variant="outline" disabled={episodes.length === 0} onClick={() => setExportOpen(true)}>
             <Files data-icon="inline-start" />
-            导出合集
+            合集下载
           </Button>
           <Button size="sm" onClick={() => continueNext.mutate()} disabled={continueNext.isPending}>
             {continueNext.isPending ? <Loader2 className="animate-spin" data-icon="inline-start" /> : <Plus data-icon="inline-start" />}
@@ -378,48 +378,122 @@ function ChapterList({
                 <p className="mt-2 text-xs text-amber-700 dark:text-amber-400">尚未生成摘要（续写下一话前需要）</p>
               )}
             </div>
-            <div className="flex flex-wrap gap-2">
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={busyId === episode.id}
-                onClick={async () => {
-                  setBusyId(episode.id);
-                  try {
-                    await generateEpisodeSummary(episode.id);
-                    toast.success("摘要已生成");
-                    onChanged();
-                  } catch (error) {
-                    toast.error("生成摘要失败", { description: error instanceof Error ? error.message : undefined });
-                  } finally {
-                    setBusyId(null);
-                  }
-                }}
-              >
-                <ScrollText data-icon="inline-start" />
-                {episode.summary ? "更新摘要" : "生成摘要"}
-              </Button>
-              <Button size="sm" variant="outline" onClick={() => navigate(`/projects/${projectId}/read/${episode.id}`)}>
-                <BookOpen data-icon="inline-start" />
-                阅读
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => navigate(`/projects/${projectId}/layout/${episode.id}`)}
-              >
-                <LayoutTemplate data-icon="inline-start" />
-                成稿排版
-              </Button>
-              <Button size="sm" onClick={() => navigate(`/projects/${projectId}/studio?episodeId=${episode.id}`)}>
-                <PenLine data-icon="inline-start" />
-                工作室
-              </Button>
-            </div>
+            <EpisodeRowActions
+              projectId={projectId}
+              episodeId={episode.id}
+              hasSummary={Boolean(episode.summary)}
+              busy={busyId === episode.id}
+              onGenerateSummary={async () => {
+                setBusyId(episode.id);
+                try {
+                  await generateEpisodeSummary(episode.id);
+                  toast.success("摘要已生成");
+                  onChanged();
+                } catch (error) {
+                  toast.error("生成摘要失败", { description: error instanceof Error ? error.message : undefined });
+                } finally {
+                  setBusyId(null);
+                }
+              }}
+            />
           </li>
         ))}
       </ul>
     </section>
+  );
+}
+
+function EpisodeRowActions({
+  projectId,
+  episodeId,
+  hasSummary,
+  busy,
+  onGenerateSummary,
+}: {
+  projectId: string;
+  episodeId: string;
+  hasSummary: boolean;
+  busy: boolean;
+  onGenerateSummary: () => void | Promise<void>;
+}) {
+  const navigate = useNavigate();
+  const [moreOpen, setMoreOpen] = useState(false);
+  const moreId = useId();
+  const moreRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!moreOpen) return;
+    const onPointerDown = (event: MouseEvent) => {
+      if (!moreRef.current?.contains(event.target as Node)) setMoreOpen(false);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setMoreOpen(false);
+    };
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [moreOpen]);
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <Button size="sm" onClick={() => navigate(`/projects/${projectId}/studio?episodeId=${episodeId}`)}>
+        <PenLine data-icon="inline-start" />
+        工作室
+      </Button>
+      <Button size="sm" variant="outline" disabled={busy} onClick={() => void onGenerateSummary()}>
+        <ScrollText data-icon="inline-start" />
+        {hasSummary ? "更新摘要" : "生成摘要"}
+      </Button>
+      <div className="relative" ref={moreRef}>
+        <Button
+          size="sm"
+          variant="ghost"
+          aria-haspopup="menu"
+          aria-expanded={moreOpen}
+          aria-controls={moreId}
+          onClick={() => setMoreOpen((open) => !open)}
+        >
+          更多
+          <ChevronDown className={cn("size-3.5", moreOpen && "rotate-180")} aria-hidden />
+        </Button>
+        {moreOpen ? (
+          <div
+            id={moreId}
+            role="menu"
+            aria-label="本话更多操作"
+            className="absolute right-0 z-20 mt-1 w-44 rounded-md border bg-popover p-1 text-popover-foreground shadow-md"
+          >
+            <button
+              type="button"
+              role="menuitem"
+              className="flex w-full items-center gap-2 rounded-sm px-2 py-2 text-left text-sm hover:bg-accent"
+              onClick={() => {
+                setMoreOpen(false);
+                navigate(`/projects/${projectId}/read/${episodeId}`);
+              }}
+            >
+              <BookOpen className="size-4 text-muted-foreground" aria-hidden />
+              阅读
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              className="flex w-full items-center gap-2 rounded-sm px-2 py-2 text-left text-sm hover:bg-accent"
+              onClick={() => {
+                setMoreOpen(false);
+                navigate(`/projects/${projectId}/layout/${episodeId}`);
+              }}
+            >
+              <LayoutTemplate className="size-4 text-muted-foreground" aria-hidden />
+              成稿排版
+            </button>
+          </div>
+        ) : null}
+      </div>
+    </div>
   );
 }
 
@@ -494,8 +568,8 @@ function AnthologyExportPanel({
     <div className="rounded-xl border bg-card p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-sm font-semibold">导出合集</h2>
-          <p className="mt-1 text-xs text-muted-foreground">勾选要收录的话，生成跨话分页 ZIP 或一本 PDF。</p>
+          <h2 className="text-sm font-semibold">合集下载</h2>
+          <p className="mt-1 text-xs text-muted-foreground">勾选要收录的话，下载跨话分页 ZIP 或一本 PDF（制作预览，非成稿导出）。</p>
         </div>
         <Button size="sm" variant="ghost" onClick={onClose} disabled={busy}>
           取消
