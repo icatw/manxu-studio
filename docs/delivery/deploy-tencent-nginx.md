@@ -99,6 +99,8 @@ sudo nginx -t && sudo systemctl reload nginx
 - 邮箱登录 / 建作品 / 出图（设置页填模型 Key）  
 - 图片刷新后仍在（`image-data` 卷）
 
+对象存储（INFRA-02 / ADR-004）：默认仍用卷上的 `IMAGE_STORAGE_DIR`。切腾讯云 COS 时在 `.env.prod` 设 `OBJECT_STORE_BACKEND=s3` 与 `S3_*`，并先完成卷内文件迁移与回滚说明；未验证前不要在生产强制切流。
+
 ## 更新（保留漫序数据）
 
 ```sh

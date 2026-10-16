@@ -1,7 +1,6 @@
 from uuid import UUID
 
 from fastapi import Depends, Query, Request, Response
-from fastapi.responses import FileResponse
 
 from app.api.routes.workspace_common import SessionDep, create_workspace_router
 from app.core.security import (
@@ -125,5 +124,5 @@ async def download_export(asset_id: UUID, session: SessionDep) -> Response:
 @router.get(
     "/assets/{asset_id}", operation_id="getImageAsset", dependencies=[Depends(require_asset_owner)]
 )
-async def get_image_asset(asset_id: UUID) -> FileResponse:
+async def get_image_asset(asset_id: UUID) -> Response:
     return await generations_service.get_image_asset(asset_id)

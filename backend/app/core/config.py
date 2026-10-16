@@ -23,6 +23,13 @@ class Settings(BaseSettings):
     session_ttl_days: int = 30
     model_encryption_key: str = ""
     image_storage_dir: str = "./var/images"
+    object_store_backend: Literal["local", "s3"] = "local"
+    s3_endpoint: str = ""
+    s3_region: str = "ap-guangzhou"
+    s3_bucket: str = ""
+    s3_access_key_id: str = ""
+    s3_secret_access_key: str = ""
+    s3_addressing_style: Literal["virtual", "path"] = "virtual"
     qwen_image_base_url: str = "https://dashscope.aliyuncs.com/api/v1"
     model_preset_base_url: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
     model_preset_text_model: str = DEFAULT_TEXT_MODEL
@@ -69,6 +76,19 @@ class Settings(BaseSettings):
                 "image_task_poll_interval_seconds * image_task_poll_max_attempts "
                 "must be <= generation_job_timeout_seconds - 60"
             )
+        if self.object_store_backend == "s3":
+            missing = [
+                name
+                for name, value in (
+                    ("S3_ENDPOINT", self.s3_endpoint),
+                    ("S3_BUCKET", self.s3_bucket),
+                    ("S3_ACCESS_KEY_ID", self.s3_access_key_id),
+                    ("S3_SECRET_ACCESS_KEY", self.s3_secret_access_key),
+                )
+                if not value.strip()
+            ]
+            if missing:
+                raise ValueError("object_store_backend=s3 requires " + ", ".join(missing))
         return self
 
     @property

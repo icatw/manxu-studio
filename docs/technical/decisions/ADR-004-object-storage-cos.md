@@ -2,7 +2,7 @@
 
 - 状态：accepted
 - 日期：2026-10-16
-- 关联需求：INFRA-02（`proposed`，实现前须升为 `confirmed` 并 YAML-first）
+- 关联需求：INFRA-02（`confirmed`；生产强制切 S3/COS 前须完成桶与迁移验证）
 
 ## 背景
 

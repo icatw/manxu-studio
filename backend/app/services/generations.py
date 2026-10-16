@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
@@ -10,13 +9,13 @@ from urllib.parse import quote
 from uuid import UUID
 
 from fastapi import HTTPException
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm.attributes import flag_modified
 
-from app.core.config import get_settings
 from app.db.models import EpisodeRecord, ExportRecord, GenerationTaskRecord, ProjectRecord
+from app.providers.object_store import get_object_store
 from app.schemas.workspace import (
     AnthologyExportRequest,
     ExportRequest,
@@ -306,19 +305,13 @@ async def download_export(session: AsyncSession, asset_id: UUID) -> Response:
     )
 
 
-async def get_image_asset(asset_id: UUID) -> FileResponse:
-    storage = await asyncio.to_thread(Path(get_settings().image_storage_dir).resolve)
-    for suffix, media_type in (
-        (".png", "image/png"),
-        (".jpg", "image/jpeg"),
-        (".webp", "image/webp"),
-    ):
-        path = storage / f"{asset_id}{suffix}"
-        if await asyncio.to_thread(path.is_file):
-            return FileResponse(
-                path,
-                media_type=media_type,
-                filename=f"{asset_id}{suffix}",
-                headers={"Cache-Control": "private, no-store"},
-            )
-    raise not_found("图片资源")
+async def get_image_asset(asset_id: UUID) -> Response:
+    opened = await get_object_store().open_asset_async(str(asset_id))
+    if opened is None:
+        raise not_found("图片资源")
+    content, media_type = opened
+    return Response(
+        content=content,
+        media_type=media_type,
+        headers={"Cache-Control": "private, no-store"},
+    )

@@ -541,15 +541,20 @@ paths:
     get:
       tags: [Generations]
       operationId: getImageAsset
-      summary: Read a generated image from private persistent storage
-      x-requirement-ids: [MODEL-02, GEN-02]
+      summary: Read a generated image via ownership-checked API proxy
+      description: >
+        Streams image bytes from private object storage (local directory or S3-compatible
+        backend). Missing and foreign-owned assets both return 404. Presigned public URLs
+        are out of scope for this operation.
+      x-requirement-ids: [MODEL-02, GEN-02, INFRA-02]
       responses:
         '200':
-          description: Generated image bytes
+          description: Generated image bytes (private; Cache-Control private, no-store)
           content:
             image/png: { schema: { type: string, format: binary } }
             image/jpeg: { schema: { type: string, format: binary } }
             image/webp: { schema: { type: string, format: binary } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
 
   /projects/{project_id}:

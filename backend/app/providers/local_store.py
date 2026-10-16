@@ -3,9 +3,15 @@ from pathlib import Path
 
 from app.core.config import get_settings
 
+_MEDIA_TYPES = {
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".webp": "image/webp",
+}
+
 
 class LocalObjectStore:
-    """Filesystem-backed object store used until S3-compatible storage is wired."""
+    """Filesystem-backed object store used for local development and CI."""
 
     def __init__(self, root: str | None = None) -> None:
         self._root = root
@@ -31,3 +37,25 @@ class LocalObjectStore:
             if candidate.is_file():
                 return candidate
         return None
+
+    def find_asset_key(self, asset_id: str) -> str | None:
+        path = self.find_asset_file(asset_id)
+        return path.name if path is not None else None
+
+    def read_asset_bytes(self, asset_id: str) -> bytes | None:
+        path = self.find_asset_file(asset_id)
+        return path.read_bytes() if path is not None else None
+
+    def open_asset(self, asset_id: str) -> tuple[bytes, str] | None:
+        path = self.find_asset_file(asset_id)
+        if path is None:
+            return None
+        media_type = _MEDIA_TYPES.get(path.suffix.lower(), "application/octet-stream")
+        return path.read_bytes(), media_type
+
+    async def get_bytes(self, key: str) -> bytes:
+        path = self.resolve_path(key)
+        return await asyncio.to_thread(path.read_bytes)
+
+    async def open_asset_async(self, asset_id: str) -> tuple[bytes, str] | None:
+        return await asyncio.to_thread(self.open_asset, asset_id)

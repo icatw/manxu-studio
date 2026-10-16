@@ -13,7 +13,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import EpisodeRecord, ExportRecord, GenerationTaskRecord, PanelRecord
-from app.providers import LocalObjectStore
+from app.providers.object_store import get_object_store
+from app.providers.protocols import ObjectStore
 from app.tasks.registry import register
 from app.tasks.types import TaskType
 
@@ -110,16 +111,16 @@ def _wrap_text(
     return lines
 
 
-def _panel_source(store: LocalObjectStore, panel: PanelRecord) -> Path | None:
+def _panel_image_bytes(store: ObjectStore, panel: PanelRecord) -> bytes | None:
     if panel.current_image_asset_id:
-        source = store.find_asset_file(str(panel.current_image_asset_id))
-        if source is not None and source.is_file():
-            return source
+        content = store.read_asset_bytes(str(panel.current_image_asset_id))
+        if content is not None:
+            return content
     image_name = Path(panel.current_image_url or "").name
     if not image_name:
         return None
     candidate = SAMPLE_DIR / image_name
-    return candidate if candidate.is_file() else None
+    return candidate.read_bytes() if candidate.is_file() else None
 
 
 @dataclass(frozen=True)
@@ -127,16 +128,16 @@ class _PanelLayout:
     panel: PanelRecord
     index: int
     height: int
-    source: Path | None
+    source: bytes | None
 
 
-def _measure_panels(store: LocalObjectStore, panels: list[PanelRecord]) -> list[_PanelLayout]:
+def _measure_panels(store: ObjectStore, panels: list[PanelRecord]) -> list[_PanelLayout]:
     content_width = PAGE_WIDTH - 2 * MARGIN
     layouts: list[_PanelLayout] = []
     for index, panel in enumerate(panels):
-        source = _panel_source(store, panel)
+        source = _panel_image_bytes(store, panel)
         if source is not None:
-            with Image.open(source) as image:
+            with Image.open(io.BytesIO(source)) as image:
                 ratio = image.height / max(image.width, 1)
         else:
             ratio = 0.75
@@ -158,7 +159,7 @@ def _draw_panel(
 ) -> None:
     cell_height = layout.height
     if layout.source is not None:
-        with Image.open(layout.source) as image:
+        with Image.open(io.BytesIO(layout.source)) as image:
             fitted = ImageOps.fit(image.convert("RGB"), (content_width, cell_height))
             canvas.paste(fitted, (x, y))
     else:
@@ -263,7 +264,7 @@ def render_png(title: str, panels: list[PanelRecord]) -> bytes:
     """Compose one vertical comic-strip PNG for an episode."""
     if not panels:
         raise ValueError("没有可导出的已确认分镜")
-    store = LocalObjectStore()
+    store = get_object_store()
     layouts = _measure_panels(store, panels)
     return _compose_page(
         title,
@@ -303,7 +304,7 @@ def render_episode_pages(title: str, panels: list[PanelRecord]) -> list[bytes]:
     """Return page-sized PNG bytes for one episode (may be empty if no panels)."""
     if not panels:
         return []
-    store = LocalObjectStore()
+    store = get_object_store()
     layouts = _measure_panels(store, panels)
     pages = _pack_pages(layouts)
     return [

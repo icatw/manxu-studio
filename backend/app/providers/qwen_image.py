@@ -12,7 +12,8 @@ from app.providers.errors import (
     ProviderCheckpointError,
     RecoverableProviderError,
 )
-from app.providers.local_store import LocalObjectStore
+from app.providers.object_store import get_object_store
+from app.providers.protocols import ObjectStore
 
 OnSubmitted = Callable[[str], Awaitable[None]]
 _TERMINAL_REMOTE = frozenset({"FAILED", "CANCELED", "UNKNOWN"})
@@ -42,8 +43,8 @@ def normalize_dashscope_api_base(configured_base_url: str) -> str:
 class QwenImageProvider:
     """DashScope async image generation with persistent local storage."""
 
-    def __init__(self, store: LocalObjectStore | None = None) -> None:
-        self._store = store or LocalObjectStore()
+    def __init__(self, store: ObjectStore | None = None) -> None:
+        self._store = store or get_object_store()
 
     async def generate(
         self,

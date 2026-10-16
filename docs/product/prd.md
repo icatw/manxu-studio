@@ -31,13 +31,14 @@
 - **AUTH-05** (`confirmed`)：账户可查看邮箱和 GitHub 登录身份；只有保留至少一种其他登录方式时才可解除身份。不同 provider 的身份不得仅凭相同邮箱自动合并。
 - **AUTH-06** (`confirmed`)：浏览器认证使用 HttpOnly Cookie 会话与 CSRF 校验；服务端兼容 opaque Bearer session，浏览器不将 token 持久化到 localStorage。
 - **MODEL-01** (`confirmed`)：用户可以配置 OpenAI 兼容文本模型的公网 HTTPS Base URL、模型 ID 与 API Key，并测试连通性；API Key 在服务端加密保存且永不回显。
-- **MODEL-02** (`confirmed`)：用户可以选择 Qwen Image 官方支持型号并发起异步图像生成；任务状态和生成结果可在刷新后恢复，图片存储于服务端持久目录。
+- **MODEL-02** (`confirmed`)：用户可以选择 Qwen Image 官方支持型号并发起异步图像生成；任务状态和生成结果可在刷新后恢复，图片经服务端持久对象存储保存（见 INFRA-02）。
 - **MODEL-03** (`confirmed`)：用户可按账户配置 Qwen Image API Base URL；服务端限制为公网 HTTPS，并使用该地址提交与轮询图像任务。
 
 ### SaaS 身份认证方向（待契约确认）
 
 - **AUTH-07** (`deferred`)：账户可主动把新的邮箱或第三方身份绑定到既有账户；绑定流程需要已登录账户确认，禁止仅凭相同邮箱自动合并账户。
 - **INFRA-01** (`confirmed`)：Redis 为邮箱验证码 TTL、请求限流和异步生成任务提供短期状态与调度；PostgreSQL 保留账户、身份、会话、任务状态、任务结果和错误等持久事实。
+- **INFRA-02** (`confirmed`)：生成图像经 `ObjectStore` 持久化（本地目录或 S3 兼容对象存储，生产默认腾讯云 COS，见 [ADR-004](../technical/decisions/ADR-004-object-storage-cos.md)）；业务侧以资产 ID / 对象键引用。`GET /assets/{asset_id}` 在校验账户所有权后以 API 代理流返回字节（私有桶，不默认公网直链）。导出制作包一期可仍落在数据库；迁出对象存储为同需求后续切片。生产强制 `OBJECT_STORE_BACKEND=s3` 前须完成桶与迁移验证。
 
 邮箱验证码主登录代表用户可访问该邮箱，不是 MFA，也不具备抗钓鱼能力。首版邮件服务通过 SMTP 配置，开发环境可使用 Mailpit。
 
@@ -117,8 +118,8 @@
 
 ### 成刊前置（建议先于 PAGE 落地，仍多为规划）
 
-- **INFRA-02** (`proposed`)：图像与导出产物迁至对象存储；数据库仅存对象键与元数据；下载校验账户所有权后使用短时预签名 URL 或 API 代理流。**供应商决策**见 [ADR-004](../technical/decisions/ADR-004-object-storage-cos.md)（腾讯云 COS + S3 兼容适配器，`accepted`）。升为 `confirmed` 并更新契约后方可强制生产切流。
 - **AUTH-07** (`deferred`)：见上文；设置页主动绑定身份，开放自助使用前宜完成。
+- 存储与下载契约以已确认的 **INFRA-02** 为准；成刊成稿导出（PUBLISH）另立需求，不扩大 INFRA-02 本期切片。
 
 ### 页与排版
 
