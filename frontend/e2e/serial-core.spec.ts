@@ -47,6 +47,16 @@ test("email login → create project → bible/threads → studio → reader →
 
   await page.getByRole("tab", { name: "章节" }).click();
   await expect(page.locator("p", { hasText: "第 1 话" })).toBeVisible();
+  // SERIAL-03: next episode requires a non-empty summary on the previous one.
+  const summaryResponse = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" &&
+      response.url().includes("/summary") &&
+      response.ok(),
+  );
+  await page.getByRole("button", { name: "生成摘要" }).first().click();
+  await summaryResponse;
+  await expect(page.getByText(/摘要：/)).toBeVisible();
   await page.getByRole("button", { name: "续写下一话" }).click();
   await expect(page).toHaveURL(/\/studio/);
   await page.goBack();

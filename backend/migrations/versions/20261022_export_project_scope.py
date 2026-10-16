@@ -25,7 +25,12 @@ def upgrade() -> None:
         ["id"],
         ondelete="CASCADE",
     )
-    op.alter_column("exports", "episode_id", existing_type=postgresql.UUID(as_uuid=True), nullable=True)
+    op.alter_column(
+        "exports",
+        "episode_id",
+        existing_type=postgresql.UUID(as_uuid=True),
+        nullable=True,
+    )
     op.create_index("exports_project_idx", "exports", ["project_id"])
     # Backfill project_id from episode for existing rows.
     op.execute(
@@ -36,12 +41,22 @@ def upgrade() -> None:
         WHERE e.episode_id = ep.id AND e.project_id IS NULL
         """
     )
-    op.alter_column("exports", "project_id", existing_type=postgresql.UUID(as_uuid=True), nullable=False)
+    op.alter_column(
+        "exports",
+        "project_id",
+        existing_type=postgresql.UUID(as_uuid=True),
+        nullable=False,
+    )
 
 
 def downgrade() -> None:
     op.execute("DELETE FROM exports WHERE episode_id IS NULL")
-    op.alter_column("exports", "episode_id", existing_type=postgresql.UUID(as_uuid=True), nullable=False)
+    op.alter_column(
+        "exports",
+        "episode_id",
+        existing_type=postgresql.UUID(as_uuid=True),
+        nullable=False,
+    )
     op.drop_index("exports_project_idx", table_name="exports")
     op.drop_constraint("exports_project_id_fkey", "exports", type_="foreignkey")
     op.drop_column("exports", "project_id")
