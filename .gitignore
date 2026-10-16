@@ -4,6 +4,9 @@
 .playwright-cli/
 output/
 var/images/
+# Local ops dumps + private deploy helpers (personal host/DNS/secrets workflows).
+var/prod-sync/
+var/ops-private/
 backend/.data/logs/
 .venv/
 __pycache__/
