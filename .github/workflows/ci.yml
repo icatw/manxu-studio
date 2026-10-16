@@ -32,6 +32,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Install CJK fonts for export PNG tests
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends fonts-wqy-microhei
       - uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true

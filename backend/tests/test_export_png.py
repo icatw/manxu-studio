@@ -2,7 +2,7 @@ from io import BytesIO
 from types import SimpleNamespace
 from zipfile import ZipFile
 
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFont
 
 from app.tasks.handlers.export import (
     PAGE_MAX_HEIGHT,
@@ -28,6 +28,16 @@ def test_wrap_text_breaks_cjk_without_spaces() -> None:
     image = Image.new("RGB", (400, 200), "white")
     draw = ImageDraw.Draw(image)
     font = _load_export_font(24)
+    lines = _wrap_text(draw, "这是一句比较长的中文对白用来测试换行", font, max_width=120)
+    assert len(lines) >= 2
+    assert all(lines)
+
+
+def test_wrap_text_breaks_cjk_with_default_bitmap_font() -> None:
+    """CI runners without CJK faces fall back to PIL's bitmap default."""
+    image = Image.new("RGB", (400, 200), "white")
+    draw = ImageDraw.Draw(image)
+    font = ImageFont.load_default()
     lines = _wrap_text(draw, "这是一句比较长的中文对白用来测试换行", font, max_width=120)
     assert len(lines) >= 2
     assert all(lines)

@@ -52,6 +52,27 @@ def _load_export_font(size: int) -> ImageFont.ImageFont | ImageFont.FreeTypeFont
     return ImageFont.load_default()
 
 
+def _measure_text_width(
+    draw: ImageDraw.ImageDraw,
+    text: str,
+    font: ImageFont.ImageFont | ImageFont.FreeTypeFont,
+) -> float:
+    """Width for wrapping.
+
+    PIL's embedded default face (and some Latin-only installs) under-report CJK
+    advance, so long Chinese dialogue never wraps. Floor by em-box estimate when
+    CJK characters are present; real CJK fonts still win via max().
+    """
+    measured = float(draw.textlength(text, font=font))
+    cjk = sum(1 for char in text if "\u4e00" <= char <= "\u9fff")
+    if cjk == 0:
+        return measured
+    size = float(getattr(font, "size", None) or 10)
+    latin = len(text) - cjk
+    floor = cjk * size * 0.9 + latin * size * 0.55
+    return max(measured, floor)
+
+
 def _wrap_text(
     draw: ImageDraw.ImageDraw,
     text: str,
@@ -68,7 +89,7 @@ def _wrap_text(
     overflow = False
     for char in cleaned:
         trial = current + char
-        if draw.textlength(trial, font=font) <= max_width:
+        if _measure_text_width(draw, trial, font) <= max_width:
             current = trial
             continue
         if len(lines) + 1 >= max_lines:
@@ -83,7 +104,7 @@ def _wrap_text(
         lines.append(current)
     if overflow and lines:
         last = lines[-1]
-        while last and draw.textlength(last + "…", font=font) > max_width:
+        while last and _measure_text_width(draw, last + "…", font) > max_width:
             last = last[:-1]
         lines[-1] = f"{last}…" if last else "…"
     return lines
