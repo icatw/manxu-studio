@@ -1,7 +1,9 @@
 # 项目状态
 
-- 更新时间：2026-10-16
-- 当前阶段：公网演示与 VPS（nginx 边缘）已落地；**下一工程重点为 SaaS 稳托**；**完整漫画 / 成刊为长期目标（规划文档已写入，未授权实现）**
+- 更新时间：2026-10-17
+- 里程碑 tag：`v0.1.0-storyboard`（commit `310d85e`）— 分镜/画格工作台 + 生产 COS 切流快照
+- **生产部署冻结**：tag 之后默认**不**向 `manxu.icatw.site` 推送应用更新，直至产品规划与对外表述对齐、并明确解除冻结。线上继续跑该里程碑对应能力；仅紧急热修（安全/数据损坏）可破例，且须单独记录。
+- 当前阶段：公网演示保持 tag 态；仓库内推进 **文档对齐 → SaaS 稳托设计 → 作者验证**；成稿 PAGE/LETTER 仍 `proposed`
 - 代码阶段：邮箱/GitHub 登录、资源隔离、Redis/ARQ、providers/tasks 分层、应用服务层、定妆锁定、多话壳、连载层、Playwright E2E、playground、生成归属收口、多人角色参考图、VPS nginx overlay、合集导出与摘要门禁已接入
 
 ## 当前事实
@@ -15,12 +17,13 @@
 - API 资源名仍为 Project/Episode；产品文案为作品/话。迁移 head：`20261022_export_project_scope`。
 - Playwright：`frontend/e2e` + Mailpit 登录；`make test-e2e` / `make test-e2e-ai`；E2E 用 `docker-compose.e2e.yml` + `--profile local`。
 - Playground：`docker-compose.playground.yml`（独立卷/端口、fake-llm、Mailpit）；`make test-api-playground` / `test-e2e-playground` / `test-playground`。
-- 部署：`docker-compose.prod.yml` + 共用机 `docker-compose.prod.nginx.yml`（禁 Caddy）；公网 `manxu.icatw.site`；私有运维脚本在 gitignored 的 `var/ops-private/`。图像第一期仍为 `image-data` 卷（ADR-003）。
+- 部署：`docker-compose.prod.yml` + 共用机 `docker-compose.prod.nginx.yml`（禁 Caddy）；公网 `manxu.icatw.site`；私有运维脚本在 gitignored 的 `var/ops-private/`。生产图像已切 COS 并迁移校验 89 张；api/worker 正式镜像重建与密钥轮换仍待收口。
 - 角色草稿：一次生成 2–6 人阵容并为每人出参考图（定妆锁定保留）。默认 `cast_mode=append`；`replace` 仅危险整队重建。
 - 本话生成：已有作品角色库时默认 `regenerate_characters=false` 复用。
 - 导出：本话长图/分页 ZIP；作品总览「导出合集」（ZIP/PDF，EXP-02）。
 - 连载：第 N 话生成分镜前须有第 N-1 话非空摘要（409）。
-- **长期目标文档**：`docs/product/roadmap-complete-comic.md`；PRD 中 `PAGE-*` / `LETTER-*` / `PUBLISH-*` / `INFRA-02` 均为 `proposed`。
+- **产品方向**：面向个人连载漫画作者的静态图片创作工作台，竖条漫优先；路线、市场观察与阶段门槛见 `docs/product/roadmap-complete-comic.md`。
+- **需求门禁**：成稿页 `PAGE-*`、独立文字层 `LETTER-*`、成稿/分享 `PUBLISH-*` 仍为 `proposed`；`INFRA-02` 已 `confirmed`，生产 COS 已切流。
 
 ## 阶段与进度
 
@@ -40,10 +43,13 @@
 | 生成归属收口 | 完成 | hydrate 合并、resume、停止跟踪、idempotency（#4） |
 | 发布与交付 | 基本完成 | 公网可访问、演示录屏与提交材料已具备；CI 与运维脚本持续收口 |
 | SaaS 稳托（对象存储等） | 进行中 | 生产已切 COS（89 图已迁）；待正式镜像重建与密钥轮换；导出 blob / AUTH-07 仍待 |
-| **完整漫画 / 成刊层** | **长期目标（规划）** | 见 `docs/product/roadmap-complete-comic.md`；需求仍为 `proposed` |
+| **静态漫画成稿层** | **规划中，未授权实现** | 见 `docs/product/roadmap-complete-comic.md`；PAGE/LETTER/PUBLISH 仍为 `proposed` |
 
-## 下一步
+## 下一步（tag 之后；默认不上线）
 
-1. **工程近期（SaaS Phase A）**：生产 COS 已切流。下一步：轮换 `manxu-cos` 密钥、正式重建 api/worker 镜像、导出 blob 迁出；再 AUTH-07 / 邮件与配额。
-2. **长期目标（不抢近期排期）**：成刊 MVP — 见 `docs/product/roadmap-complete-comic.md`。
-3. 保持 CI 绿灯；私有运维保留在 `var/ops-private/`。
+1. **文档对齐（优先，可合 main，不部署）**：`saas-readiness.md` 现状化；PRD INFRA-02 / EXP vs PUBLISH 表述；brief 对外边界；cutover 手册标明「已切流 + 部署冻结」。
+2. **规划收口**：确认路线图阶段 0/1 哪些不挡试用、哪些挡开放注册；写清与 `v0.1.0-storyboard` 线上能力的差异清单。
+3. **本地/CI 工程（仍不上线）**：Dockerfile 镜像源优化、导出 blob 设计、AUTH-07 契约草案、用量账本设计；正式镜像可在本机构建验证，**不** `up` 到生产。
+4. **运维例外**：COS 密钥轮换若必须改 `.env.prod` 并重启，算热修；改完记一笔，尽量不带应用代码变更。
+5. **作者验证**：邀请向可在**当前线上 tag 能力**上做两话（分镜/画格），成稿层承诺不写进试用话术。
+6. **解除冻结条件**（需显式决定）：规划文档与对外口径一致 + 明确下一版发布范围（仍可不含 PAGE/LETTER）。

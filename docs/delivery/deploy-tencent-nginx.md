@@ -115,6 +115,24 @@ docker compose \
 
 **禁止**对漫序 project 使用 `down -v`，除非你明确要清空库和图片。
 
+### 构建为什么慢 / 怎么加速
+
+国内 VPS 直连 `ghcr.io`、PyPI、npm 常极慢或超时（本次正式重建失败点：`uv` 镜像与 `asyncpg` wheel）。
+
+已做的镜像内优化：
+
+- backend：不再 `FROM ghcr.io/astral-sh/uv`，改用清华 PyPI 装 `uv`，`UV_HTTP_TIMEOUT=120`
+- frontend：`registry.npmmirror.com`
+
+仍慢时的运维手段：
+
+1. **本机构建再导入**（最稳）：Mac 上 `docker compose build`，`docker save … | gzip | ssh tencent docker load`，服务器只 `up -d --no-build`。
+2. **Build 走主机代理**：若主机 Mihomo 在 `7890`，构建时加  
+   `docker compose build --build-arg HTTP_PROXY=http://172.17.0.1:7890 --build-arg HTTPS_PROXY=…`（并保证防火墙放行）。  
+   注意：compose `up --build` 默认**不会**把运行时 `.env.prod` 的 `HTTP_PROXY` 传给 `RUN` 层。
+3. **Docker Hub 镜像加速**：在 `/etc/docker/daemon.json` 配置腾讯云/DaoCloud registry-mirrors（只加速 Hub，不加速 ghcr）。
+4. 磁盘 >85% 时先 `docker builder prune`（勿对漫序 `down -v`）。
+
 ## 可选：从本机迁入演示数据
 
 仅当要把本地 Postgres / 图片带到服务器时：

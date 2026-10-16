@@ -1,6 +1,6 @@
 # 漫序 Studio 文档
 
-漫序 Studio 是面向独立漫剧创作者和小型工作室的 AI 预制作工作台。文档记录产品范围、交互流程、领域数据和技术决策，作为后续实现与验收的共同依据。
+漫序 Studio 面向个人连载漫画创作者，帮助作者管理作品连续性并制作静态图片漫画。文档记录产品范围、用户流程、路线、领域数据和技术决策，作为实现与验收依据。
 
 ## 文档索引
 
@@ -8,8 +8,8 @@
 
 - [产品简报](product/brief.md)：目标用户、问题、定位和产品原则。
 - [需求文档](product/prd.md)：目标、范围、功能需求、非目标和验收条件。
-- [长期目标：完整漫画 / 成刊层](product/roadmap-complete-comic.md)：预制作之上的成刊愿景与分期（规划中，不授权实现）。
-- [核心用户流程](product/user-flows.md)：从故事创意到分镜交付的主路径（含成刊草案，标注长期）。
+- [个人连载漫画工作台路线图](product/roadmap-complete-comic.md)：产品定位、市场观察、SaaS 阶段、验证门槛与完整产品路线。
+- [核心用户流程](product/user-flows.md)：当前已交付流程与规划中的完整漫画创作流程。
 
 ### 设计
 
@@ -41,4 +41,4 @@
 
 ## 状态
 
-当前已确认交付聚焦 **预制作工作台**（部署与演示路径已可用）。**完整漫画 / 成刊** 记为长期目标，见 [roadmap-complete-comic.md](product/roadmap-complete-comic.md)；`proposed` 需求在确认前不得当作实现授权。对象存储、托管库等基础设施仍按 ADR 与 SaaS 清单推进。技术实现应遵守 [架构决策](technical/architecture.md)，变更关键选择时在 `technical/decisions/` 记录原因。
+当前已确认交付覆盖个人连载工作台的作品/话管理、连续性资料、分镜、静态画格和制作导出。完整可编辑页面、独立对白层及公开发布仍须通过 PRD `proposed` 需求门禁；实现前应先验证目标作者需求并按 YAML-first 更新契约。SaaS 基础设施按项目状态和 ADR 推进。技术实现应遵守 [架构决策](technical/architecture.md)，关键选择记录在 `technical/decisions/`。

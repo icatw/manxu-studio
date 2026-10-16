@@ -2,7 +2,8 @@ FROM node:22-alpine AS build
 
 WORKDIR /app
 RUN corepack enable
-ENV CI=true
+ENV CI=true \
+    npm_config_registry=https://registry.npmmirror.com
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile

@@ -18,7 +18,7 @@ PRD 中每项需求分配稳定 ID，并标记为以下状态之一：
 - `deferred`：已讨论但不在当前版本。
 - `rejected`：有记录地不采用。
 
-只有 `confirmed` 需求可以成为当前版本的正式业务 API 操作或 schema。每个业务 OpenAPI operation 使用 `x-requirement-ids` 关联需求 ID；不承载产品能力的 `System` 运维操作（例如 health/version）可以不关联需求，但必须有契约和自动检查。需求变更必须同时更新对应验收条件和接口定义。核心预制作工作流契约现已冻结；扩展能力需先更新需求和契约再实现。
+只有 `confirmed` 需求可以成为当前版本的正式业务 API 操作或 schema。每个业务 OpenAPI operation 使用 `x-requirement-ids` 关联需求 ID；不承载产品能力的 `System` 运维操作（例如 health/version）可以不关联需求，但必须有契约和自动检查。需求变更必须同时更新对应验收条件和接口定义。核心漫画创作与连载工作流契约现已冻结；扩展能力需先更新需求和契约再实现。
 
 ## 每项需求的确认清单
 

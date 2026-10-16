@@ -2,7 +2,12 @@
 
 将生产图像从 Docker 卷 `image-data`（`IMAGE_STORAGE_DIR`）迁到 **私有** 腾讯云 COS。应用侧使用 S3 兼容客户端；读路径仍是鉴权后的 `GET /api/v1/assets/{id}` 代理流。
 
-默认与 CI 保持 `OBJECT_STORE_BACKEND=local`。**未完成迁移校验前不要在生产强制 `s3`。**
+## 生产状态（2026-10-16 / 里程碑 `v0.1.0-storyboard`）
+
+- 桶：`manxu-assets-1255546834`（广州）；已迁移并校验 **89** 张资产；`OBJECT_STORE_BACKEND=s3`。
+- 本地与 CI 仍默认 `OBJECT_STORE_BACKEND=local`。
+- **应用部署冻结**：tag 之后默认不向生产推送应用镜像/代码更新（见 `.harness/status.md`）。密钥轮换等纯运维热修另计。
+- 待办：轮换曾暴露于聊天的 CAM 密钥；正式 Dockerfile 重建 api/worker（可本机构建导入，冻结期内不强制上线）。
 
 ---
 
