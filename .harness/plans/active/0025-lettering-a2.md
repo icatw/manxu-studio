@@ -11,14 +11,14 @@
 - [x] domain-model / roadmap / brief / api README
 - [x] OpenAPI `Lettering` tag：`seedLetteringFromDialogue`, `createLetteringObject`, `updateLetteringObject`, `deleteLetteringObject`；`PageSlot.lettering` / `LayoutPreviewItem.lettering` 可选数组
 
-## Implementation (not started)
+## Implementation
 
-- [ ] DB：`lettering_objects` + migration；FK → `page_slots` ON DELETE CASCADE；归属经 Slot → Page → Episode → Project → Account
-- [ ] Service + FastAPI routes matching operationIds；`require_slot_owner` / `require_lettering_owner`
-- [ ] Layout/get/preview 响应附带 lettering（空数组亦可）
-- [ ] Frontend：成稿页字效编辑 + 预览叠字 + 「从分镜生成气泡」
-- [ ] 生成 TS types；ownership / seed 测试
-- [ ] 手验验收条；**不部署生产**
+- [x] DB：`lettering_objects` + migration `20261024_lettering_objects`
+- [x] Service + FastAPI routes；`require_lettering_owner`
+- [x] Layout/get/preview 附带 lettering
+- [x] Frontend：成稿页字效编辑 + 预览叠字 + 「从分镜生成气泡」
+- [x] ownership / create / seed-empty 测试（CI）
+- [ ] 本地手验；**不部署生产**
 
 ## Out of scope
 

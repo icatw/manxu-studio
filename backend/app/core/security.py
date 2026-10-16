@@ -24,6 +24,7 @@ from app.db.models import (
     GenerationTaskRecord,
     ImageVersionRecord,
     LayoutPageRecord,
+    LetteringObjectRecord,
     PageSlotRecord,
     PanelRecord,
     ProjectRecord,
@@ -181,6 +182,18 @@ async def require_slot_owner(
     project = await session.get(ProjectRecord, episode.project_id)
     await _owned_project(project, account)
     return slot
+
+
+async def require_lettering_owner(
+    lettering_id: UUID,
+    account: Annotated[AccountRecord, Depends(current_account_dependency)],
+    session: SessionDep,
+) -> LetteringObjectRecord:
+    row = await session.get(LetteringObjectRecord, lettering_id)
+    if row is None:
+        raise HTTPException(404, "资源不存在")
+    await require_slot_owner(row.slot_id, account, session)
+    return row
 
 
 async def require_task_owner(

@@ -5,7 +5,7 @@ from uuid import uuid4
 import pytest
 from fastapi import HTTPException
 
-from app.db.models import LayoutPageRecord, PageSlotRecord, PanelRecord
+from app.db.models import LetteringObjectRecord, LayoutPageRecord, PageSlotRecord, PanelRecord
 from app.schemas.workspace import BootstrapLayoutRequest, SlotOrder, SyncLayoutRequest
 from app.services import layout as layout_service
 
@@ -113,6 +113,9 @@ async def test_reorder_page_slots() -> None:
             return None
 
         async def scalars(self, query: object) -> SimpleNamespace:
+            entity = _root_entity(query)
+            if entity is LetteringObjectRecord:
+                return SimpleNamespace(all=lambda: [])
             calls["scalars"] += 1
             # reorder loads slots; then _layout_view loads pages then slots
             if calls["scalars"] == 1:
@@ -171,6 +174,8 @@ async def test_bootstrap_creates_one_slot_per_panel() -> None:
                 return SimpleNamespace(all=lambda: list(panels))
             if entity is PageSlotRecord:
                 return SimpleNamespace(all=lambda: list(slots))
+            if entity is LetteringObjectRecord:
+                return SimpleNamespace(all=lambda: [])
             return SimpleNamespace(all=lambda: [])
 
     result = await layout_service.bootstrap_episode_layout(
@@ -258,6 +263,8 @@ async def test_sync_appends_new_panels_and_drops_deleted() -> None:
                 return SimpleNamespace(all=lambda: list(panels))
             if entity is PageSlotRecord:
                 return SimpleNamespace(all=lambda: list(slots))
+            if entity is LetteringObjectRecord:
+                return SimpleNamespace(all=lambda: [])
             return SimpleNamespace(all=lambda: [])
 
     result = await layout_service.sync_episode_layout(

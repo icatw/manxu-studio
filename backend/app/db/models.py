@@ -5,6 +5,7 @@ from sqlalchemy import (
     Boolean,
     CheckConstraint,
     DateTime,
+    Float,
     ForeignKey,
     Index,
     Integer,
@@ -200,6 +201,30 @@ class PageSlotRecord(Base):
     height_px: Mapped[int] = mapped_column(Integer, nullable=False, default=720)
     gap_after_px: Mapped[int] = mapped_column(Integer, nullable=False, default=24)
     follow_current_version: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
+class LetteringObjectRecord(Base):
+    __tablename__ = "lettering_objects"
+    __table_args__ = (
+        Index("lettering_objects_slot_position_idx", "slot_id", "position", unique=True),
+    )
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    slot_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("page_slots.id", ondelete="CASCADE"), nullable=False
+    )
+    kind: Mapped[str] = mapped_column(String(32), nullable=False)
+    text: Mapped[str] = mapped_column(Text, nullable=False)
+    x_pct: Mapped[float] = mapped_column(Float, nullable=False, default=8.0)
+    y_pct: Mapped[float] = mapped_column(Float, nullable=False, default=6.0)
+    width_pct: Mapped[float] = mapped_column(Float, nullable=False, default=60.0)
+    tail: Mapped[str] = mapped_column(String(32), nullable=False, default="bottom_left")
+    font_size: Mapped[str] = mapped_column(String(8), nullable=False, default="md")
+    position: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()

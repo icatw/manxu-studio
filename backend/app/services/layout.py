@@ -13,6 +13,7 @@ from app.schemas.workspace import (
     LayoutPage,
     LayoutPreview,
     LayoutPreviewItem,
+    LetteringObject,
     PageOrder,
     PageSlot,
     PageSlotPatch,
@@ -29,7 +30,9 @@ def _conflict(message: str) -> HTTPException:
     return HTTPException(status_code=409, detail=message)
 
 
-def _slot_view(slot: PageSlotRecord) -> PageSlot:
+def _slot_view(
+    slot: PageSlotRecord, lettering: list[LetteringObject] | None = None
+) -> PageSlot:
     return PageSlot(
         id=slot.id,
         page_id=slot.page_id,
@@ -39,12 +42,15 @@ def _slot_view(slot: PageSlotRecord) -> PageSlot:
         height_px=slot.height_px,
         gap_after_px=slot.gap_after_px,
         follow_current_version=slot.follow_current_version,
+        lettering=lettering or [],
         created_at=slot.created_at,
         updated_at=slot.updated_at,
     )
 
 
-async def _pages_for_episode(session: AsyncSession, episode_id: UUID) -> list[LayoutPageRecord]:
+async def list_pages_for_episode(
+    session: AsyncSession, episode_id: UUID
+) -> list[LayoutPageRecord]:
     result = await session.scalars(
         select(LayoutPageRecord)
         .where(LayoutPageRecord.episode_id == episode_id)
@@ -53,7 +59,10 @@ async def _pages_for_episode(session: AsyncSession, episode_id: UUID) -> list[La
     return list(result.all())
 
 
-async def _slots_for_pages(
+_pages_for_episode = list_pages_for_episode
+
+
+async def list_slots_for_pages(
     session: AsyncSession, page_ids: list[UUID]
 ) -> dict[UUID, list[PageSlotRecord]]:
     if not page_ids:
@@ -69,9 +78,17 @@ async def _slots_for_pages(
     return grouped
 
 
+_slots_for_pages = list_slots_for_pages
+
+
 async def _layout_view(session: AsyncSession, episode_id: UUID) -> EpisodeLayout:
+    # Lazy import avoids circular dependency with lettering → layout.
+    from app.services.lettering import lettering_for_slots
+
     pages = await _pages_for_episode(session, episode_id)
     slots_by_page = await _slots_for_pages(session, [page.id for page in pages])
+    all_slots = [slot for slots in slots_by_page.values() for slot in slots]
+    lettering_by_slot = await lettering_for_slots(session, [slot.id for slot in all_slots])
     return EpisodeLayout(
         episode_id=episode_id,
         template="vertical_strip",
@@ -81,7 +98,10 @@ async def _layout_view(session: AsyncSession, episode_id: UUID) -> EpisodeLayout
                 episode_id=page.episode_id,
                 position=page.position,
                 template="vertical_strip",
-                slots=[_slot_view(slot) for slot in slots_by_page.get(page.id, [])],
+                slots=[
+                    _slot_view(slot, lettering_by_slot.get(slot.id, []))
+                    for slot in slots_by_page.get(page.id, [])
+                ],
                 created_at=page.created_at,
                 updated_at=page.updated_at,
             )
@@ -262,6 +282,7 @@ async def get_episode_layout_preview(episode_id: UUID, session: AsyncSession) ->
                     image_url=url_by_version.get(slot.image_version_id)
                     if slot.image_version_id
                     else None,
+                    lettering=list(slot.lettering),
                 )
             )
     return LayoutPreview(
@@ -332,7 +353,10 @@ async def update_page_slot(slot_id: UUID, body: PageSlotPatch, session: AsyncSes
             slot.follow_current_version = False
     await session.commit()
     await session.refresh(slot)
-    return _slot_view(slot)
+    from app.services.lettering import lettering_for_slots
+
+    lettering = (await lettering_for_slots(session, [slot.id])).get(slot.id, [])
+    return _slot_view(slot, lettering)
 
 
 async def retarget_slots_for_panel_version(

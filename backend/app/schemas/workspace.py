@@ -377,6 +377,51 @@ class PageSlotPatch(APIModel):
     follow_current_version: bool | None = None
 
 
+LetteringKind = Literal["speech_bubble", "narration"]
+LetteringTail = Literal["none", "bottom_left", "bottom_right", "top_left", "top_right"]
+LetteringFontSize = Literal["sm", "md", "lg"]
+
+
+class SeedLetteringRequest(APIModel):
+    replace_existing: bool = False
+
+
+class LetteringObjectCreate(APIModel):
+    kind: LetteringKind
+    text: str = Field(min_length=1, max_length=4000)
+    x_pct: float = Field(default=8, ge=0, le=100)
+    y_pct: float = Field(default=6, ge=0, le=100)
+    width_pct: float = Field(default=60, ge=10, le=100)
+    tail: LetteringTail = "bottom_left"
+    font_size: LetteringFontSize = "md"
+
+
+class LetteringObjectPatch(APIModel):
+    kind: LetteringKind | None = None
+    text: str | None = Field(default=None, min_length=1, max_length=4000)
+    x_pct: float | None = Field(default=None, ge=0, le=100)
+    y_pct: float | None = Field(default=None, ge=0, le=100)
+    width_pct: float | None = Field(default=None, ge=10, le=100)
+    tail: LetteringTail | None = None
+    font_size: LetteringFontSize | None = None
+    position: int | None = Field(default=None, ge=0)
+
+
+class LetteringObject(APIModel):
+    id: UUID
+    slot_id: UUID
+    kind: LetteringKind
+    text: str
+    x_pct: float
+    y_pct: float
+    width_pct: float
+    tail: LetteringTail
+    font_size: LetteringFontSize
+    position: int
+    created_at: datetime
+    updated_at: datetime
+
+
 class PageSlot(APIModel):
     id: UUID
     page_id: UUID
@@ -386,6 +431,7 @@ class PageSlot(APIModel):
     height_px: int
     gap_after_px: int
     follow_current_version: bool
+    lettering: list[LetteringObject] = Field(default_factory=list)
     created_at: datetime
     updated_at: datetime
 
@@ -413,6 +459,7 @@ class LayoutPreviewItem(APIModel):
     height_px: int
     gap_after_px: int
     image_url: str | None = None
+    lettering: list[LetteringObject] = Field(default_factory=list)
 
 
 class LayoutPreview(APIModel):

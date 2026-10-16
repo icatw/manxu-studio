@@ -3,7 +3,7 @@
 - 更新时间：2026-10-17
 - 里程碑 tag：`v0.1.0-storyboard`（commit `310d85e`）— 分镜/画格工作台 + 生产 COS 切流快照
 - **生产部署冻结**：tag 之后默认**不**向 `manxu.icatw.site` 推送应用更新，直至产品规划与对外表述对齐、并明确解除冻结。线上继续跑该里程碑对应能力；仅紧急热修（安全/数据损坏）可破例，且须单独记录。
-- 当前阶段：公网演示保持 tag 态；**A1 PAGE 已交付**；**LETTER A2 已确认 + OpenAPI**（实现见 `0025`）；PUBLISH 仍 `proposed`；生产部署仍冻结
+- 当前阶段：公网演示保持 tag 态；**A1 PAGE 已交付**；**LETTER A2 已实现**（待本地手验）；PUBLISH 仍 `proposed`；生产部署仍冻结
 - 代码阶段：邮箱/GitHub 登录、资源隔离、Redis/ARQ、providers/tasks 分层、应用服务层、定妆锁定、多话壳、连载层、Playwright E2E、playground、生成归属收口、多人角色参考图、VPS nginx overlay、合集导出与摘要门禁已接入
 
 ## 当前事实
@@ -14,7 +14,7 @@
 - Phase 1 工作区对齐：PNG + 制作资料 JSON 导出；检查器可编辑构图/剧情作用；侧栏多话切换与新建；角色 `reference_locked` 定妆锁定；作品库卡片与派生 `cover_image_url`。
 - Phase 2 连载层：PRD 解冻 SERIAL-01..04 与 PROJ-04；作品设定集；伏笔 CRUD；AI 季策划与 from-plan 创建；话摘要与 continuity 注入分镜；作品总览 Tabs；独立阅读页。
 - 路由：`/projects` 作品库；`/projects/new` 策划；`/projects/:id` 总览；`/projects/:id/studio` 工作区；`/projects/:id/read/:episodeId` 阅读。
-- API 资源名仍为 Project/Episode；产品文案为作品/话。迁移 head：`20261022_export_project_scope`。
+- API 资源名仍为 Project/Episode；产品文案为作品/话。迁移 head：`20261024_lettering_objects`。
 - Playwright：`frontend/e2e` + Mailpit 登录；`make test-e2e` / `make test-e2e-ai`；E2E 用 `docker-compose.e2e.yml` + `--profile local`。
 - Playground：`docker-compose.playground.yml`（独立卷/端口、fake-llm、Mailpit）；`make test-api-playground` / `test-e2e-playground` / `test-playground`。
 - 部署：`docker-compose.prod.yml` + 共用机 `docker-compose.prod.nginx.yml`（禁 Caddy）；公网 `manxu.icatw.site`；私有运维脚本在 gitignored 的 `var/ops-private/`。生产图像已切 COS 并迁移校验 89 张；api/worker 正式镜像重建与密钥轮换仍待收口。
@@ -23,7 +23,7 @@
 - 导出：本话长图/分页 ZIP；作品总览「导出合集」（ZIP/PDF，EXP-02）。
 - 连载：第 N 话生成分镜前须有第 N-1 话非空摘要（409）。
 - **产品方向**：面向个人连载漫画作者的静态图片创作工作台，竖条漫优先；路线、市场观察与阶段门槛见 `docs/product/roadmap-complete-comic.md`。
-- **需求门禁**：`PAGE-01…03` 已交付；`LETTER-01…02` 已 `confirmed`（契约已入 YAML，待实现）；`PUBLISH-*` 仍 `proposed`；`INFRA-02` 已切流。
+- **需求门禁**：`PAGE-01…03` 已交付；`LETTER-01…02` 已实现（仓库内）；`PUBLISH-*` 仍 `proposed`；`INFRA-02` 已切流。
 
 ## 阶段与进度
 
@@ -43,10 +43,10 @@
 | 生成归属收口 | 完成 | hydrate 合并、resume、停止跟踪、idempotency（#4） |
 | 发布与交付 | 基本完成 | 公网可访问、演示录屏与提交材料已具备；CI 与运维脚本持续收口 |
 | SaaS 稳托（对象存储等） | 进行中 | 生产已切 COS（89 图已迁）；待正式镜像重建与密钥轮换；导出 blob / AUTH-07 仍待 |
-| **静态漫画成稿层** | **A1 已交付；A2 已授权** | PAGE 已实现；LETTER confirmed + OpenAPI；PUBLISH 仍 `proposed` |
+| **静态漫画成稿层** | **A1/A2 已交付（本地）** | PAGE + LETTER 已实现；PUBLISH 仍 `proposed`；生产仍冻结 |
 
 ## 下一步（tag 之后；默认不上线）
 
-1. **实现 A2**：计划 `0025-lettering-a2.md`（表 → API → 成稿页叠字编辑）；**不部署生产**。
+1. **本地验收 A2**：成稿页「从分镜生成气泡」+ 叠字预览；Docker 需重建 api/frontend 并跑迁移；**不部署生产**。
 2. **A3 / PUBLISH**：仍 `proposed`，勿实现。
 3. **SaaS / 生产**：COS 正式镜像重建 + CAM 密钥轮换；部署冻结保持。

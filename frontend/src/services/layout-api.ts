@@ -12,6 +12,9 @@ export type PageSlot = components["schemas"]["PageSlot"];
 export type LayoutPreview = components["schemas"]["LayoutPreview"];
 export type BootstrapLayoutRequest = components["schemas"]["BootstrapLayoutRequest"];
 export type PageSlotPatch = components["schemas"]["PageSlotPatch"];
+export type LetteringObject = components["schemas"]["LetteringObject"];
+export type LetteringObjectCreate = components["schemas"]["LetteringObjectCreate"];
+export type LetteringObjectPatch = components["schemas"]["LetteringObjectPatch"];
 
 export async function getEpisodeLayout(episodeId: string) {
   const { data, error } = await api.GET("/episodes/{episode_id}/layout", {
@@ -63,4 +66,40 @@ export async function updatePageSlot(slotId: string, body: PageSlotPatch) {
     body,
   });
   return required(data, error);
+}
+
+export async function seedLetteringFromDialogue(
+  episodeId: string,
+  body?: components["schemas"]["SeedLetteringRequest"],
+) {
+  const { data, error } = await api.POST("/episodes/{episode_id}/layout/lettering/seed", {
+    params: { path: { episode_id: episodeId } },
+    ...(body ? { body } : {}),
+  });
+  return required(data, error);
+}
+
+export async function createLetteringObject(slotId: string, body: LetteringObjectCreate) {
+  const { data, error } = await api.POST("/slots/{slot_id}/lettering", {
+    params: { path: { slot_id: slotId } },
+    body,
+  });
+  return required(data, error);
+}
+
+export async function updateLetteringObject(letteringId: string, body: LetteringObjectPatch) {
+  const { data, error } = await api.PATCH("/lettering/{lettering_id}", {
+    params: { path: { lettering_id: letteringId } },
+    body,
+  });
+  return required(data, error);
+}
+
+export async function deleteLetteringObject(letteringId: string) {
+  const { error, response } = await api.DELETE("/lettering/{lettering_id}", {
+    params: { path: { lettering_id: letteringId } },
+  });
+  if (error || (response && response.status !== 204)) {
+    throw toApiError(error, "删除字效失败");
+  }
 }
