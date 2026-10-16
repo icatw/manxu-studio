@@ -85,9 +85,9 @@ HTTP 请求创建持久化任务并立即返回任务 ID。任务执行器负责
 ## 待决事项
 
 - 文本和图像模型的具体供应商/模型与地域可用性。
-- PostgreSQL 托管与对象存储供应商（第一期单机部署见 [ADR-003](decisions/ADR-003-vps-compose-caddy.md)，图像暂用本地卷）。
+- PostgreSQL 是否托管：仍待决。对象存储供应商已定腾讯云 COS（S3 兼容），见 [ADR-004](decisions/ADR-004-object-storage-cos.md)；一期卷见 [ADR-003](decisions/ADR-003-vps-compose-caddy.md)，切 COS 以实现确认的 INFRA-02 为准。
 - 生成任务是否需要服务端推送（当前以 Query 轮询为准）。
-- 导出制作包的最终格式和是否支持多页排版。
+- 导出制作包的最终格式和是否支持多页排版（成刊层为长期目标，见产品路线图）。
 
 ## 技术参考
 

@@ -44,6 +44,6 @@
 
 ## 下一步
 
-1. **工程近期**：对象存储（INFRA-02 草案评审）、AUTH-07、生产邮件与配额；更新 SaaS 清单与现状对齐。
-2. **长期目标（不抢近期排期）**：成刊 MVP — 页模型 + 条漫排版 + 气泡层 + 成稿导出（PAGE / LETTER / PUBLISH）；确认需求并 YAML-first 后再开计划。
+1. **工程近期（SaaS Phase A）**：对象存储按 [ADR-004](../docs/technical/decisions/ADR-004-object-storage-cos.md)（腾讯 COS + S3 兼容）；计划 `.harness/plans/active/0021-saas-phase-a-object-storage.md`。先将 INFRA-02 升为 `confirmed` 再切生产。随后 AUTH-07、生产邮件与配额。
+2. **长期目标（不抢近期排期）**：成刊 MVP — 见 `docs/product/roadmap-complete-comic.md`。
 3. 保持 CI 绿灯；私有运维保留在 `var/ops-private/`。

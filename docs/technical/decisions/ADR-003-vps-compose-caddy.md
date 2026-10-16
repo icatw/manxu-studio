@@ -28,3 +28,7 @@
 - 运维需自行备份 `postgres-data` 与 `image-data`。  
 - 水平扩展与多区域不在第一期范围。  
 - 生产使用 `docker-compose.prod.yml` overlay；本地 `start.sh` 使用 `--profile local`（Mailpit），二者不得混用。
+
+## 后续
+
+图像持久化下一阶段见 [ADR-004](ADR-004-object-storage-cos.md)（腾讯云 COS + S3 兼容；INFRA-02）。

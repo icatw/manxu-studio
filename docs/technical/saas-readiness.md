@@ -85,7 +85,7 @@ GitHub OAuth 与账户级模型配置适合作为 SaaS 的基础。当前代码�
 
 ### P1：SaaS 存储与后台任务
 
-- 将本地 `IMAGE_STORAGE_DIR` 迁移到私有对象存储，数据库只存对象键和元数据；下载需校验账户所有权后返回短时签名 URL 或代理流。
+- 将本地 `IMAGE_STORAGE_DIR` 迁移到私有对象存储，数据库只存对象键和元数据；下载需校验账户所有权后返回短时签名 URL 或代理流。供应商已定腾讯云 COS（S3 兼容适配器），见 [ADR-004](decisions/ADR-004-object-storage-cos.md)；需求 INFRA-02 仍为 `proposed` 直至确认实现。
 - 将 FastAPI `BackgroundTasks` 换成可恢复的任务 worker/队列；任务记录需要带账户归属、幂等键、重试策略、并发配额和用量统计。
 - 为账户删除定义项目、模型密钥、任务、图片和导出数据的保留/清理策略。
 
