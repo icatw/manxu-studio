@@ -8,11 +8,15 @@ Project
   ├── CharacterAsset ── AssetVersion
   ├── LocationAsset ─── AssetVersion
   └── Episode
-        └── StoryboardPanel
-              ├── PanelVersion
-              └── GenerationTask
-                    └── GeneratedAsset
+        ├── StoryboardPanel
+        │     ├── PanelVersion
+        │     └── GenerationTask ── GeneratedAsset
+        ├── Page（规划 proposed）
+        │     └── PageSlot → PanelVersion
+        └── LetteringObject（规划 proposed）
 ```
+
+已交付实体支撑 L1（连载分镜/画格）。`Page` / `PageSlot` / `LetteringObject` 为成稿层规划对象，见 [路线图](../product/roadmap-complete-comic.md)；**未 confirmed 前不建表、不实现 API。**
 
 ## 实体
 
@@ -52,10 +56,18 @@ Project
 
 生成或上传的文件元数据。保存对象存储键、MIME、尺寸、哈希、来源任务和创建时间；不把短时签名 URL 当作永久数据。
 
+### Page / PageSlot（规划）
+
+一话内有序「页」或条漫段落。槽位引用 `PanelVersion`（而非临时 URL）。重绘出新 PanelVersion 时，默认槽位可改挂新版本而保留页序与几何。
+
+### LetteringObject（规划）
+
+气泡、旁白等文字对象：文案、几何、样式持久化；归属 Page 或 Slot；与底图像分层。成稿导出时再栅格合成。对白真源以此为准，不以模型绘字为唯一来源。
+
 ## 生命周期
 
 - 资产和分镜状态：`draft` → `in_review` → `approved`。
-- 生成任务状态：`queued` → `running` → `succeeded` / `failed` / `cancelled`。
+- 生成任务状态：`queued` → `running` → `succeeded` / `failed`（无 `cancelled`；见现行契约）。
 - 失败可产生新的重试任务；历史任务和已生成资产保留。
 - 用户确认某版本后，后续生成显式引用该版本。
 
@@ -65,3 +77,4 @@ Project
 - 项目内资产 ID 不能被其他项目的分镜引用。
 - 一个生成任务只负责一个目标对象/操作，避免整页局部失败无法恢复。
 - 当前版本变化不覆盖历史版本或历史任务输入快照。
+- （规划）同一 Episode 内 Page 序号唯一；Slot 只引用本项目 PanelVersion；Lettering 不孤立于已删 Page。
