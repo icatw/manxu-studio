@@ -17,8 +17,9 @@
 - [x] Generate TS types (with contract commit)
 - [x] Frontend route `/projects/:projectId/layout/:episodeId`
 - [x] UI: bootstrap, reorder, height/gap, preview, Studio/overview/reader entry
-- [x] Unit: bootstrap 409/422, reorder slots; contract route IDs
-- [ ] API integration: ownership 404, bootstrap/sync against DB
+- [x] Unit: bootstrap 409/422, reorder slots; bootstrap success; sync append/drop
+- [x] API integration: ownership 404 for layout/page/slot routes; owner empty layout
+- [x] Playground: bootstrap/sync + foreign 404 (`tests/playground/test_layout_workflow.py`)
 
 ## Out of scope
 
