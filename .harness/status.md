@@ -39,11 +39,11 @@
 | Playground 测试环境 | 完成 | 独立 Compose + fake-llm API 套件 + Playwright + CI job（#3） |
 | 生成归属收口 | 完成 | hydrate 合并、resume、停止跟踪、idempotency（#4） |
 | 发布与交付 | 基本完成 | 公网可访问、演示录屏与提交材料已具备；CI 与运维脚本持续收口 |
-| SaaS 稳托（对象存储等） | 进行中 | INFRA-02 代码就绪；待生产建桶+迁移切流，见 `object-storage-cos-cutover.md` |
+| SaaS 稳托（对象存储等） | 进行中 | 生产已切 COS（89 图已迁）；待正式镜像重建与密钥轮换；导出 blob / AUTH-07 仍待 |
 | **完整漫画 / 成刊层** | **长期目标（规划）** | 见 `docs/product/roadmap-complete-comic.md`；需求仍为 `proposed` |
 
 ## 下一步
 
-1. **工程近期（SaaS Phase A）**：迁移 CLI 与切流手册已就绪。**操作侧**：建 COS 桶 → 填 `S3_*` → `migrate_images_to_s3` → `OBJECT_STORE_BACKEND=s3` 冒烟。随后导出 blob 迁出、AUTH-07、邮件与配额。计划 `0021`；手册 `docs/delivery/object-storage-cos-cutover.md`。
+1. **工程近期（SaaS Phase A）**：生产 COS 已切流。下一步：轮换 `manxu-cos` 密钥、正式重建 api/worker 镜像、导出 blob 迁出；再 AUTH-07 / 邮件与配额。
 2. **长期目标（不抢近期排期）**：成刊 MVP — 见 `docs/product/roadmap-complete-comic.md`。
 3. 保持 CI 绿灯；私有运维保留在 `var/ops-private/`。

@@ -26,7 +26,7 @@ Replace Docker `image-data` volume dependency for production assets with Tencent
 - [x] One-shot migrate CLI: `python -m app.cli.migrate_images_to_s3` (+ dry-run / verify / skip-existing).
 - [x] Tests: mock S3; settings validation; migrate unit tests; local backend still green in CI.
 - [x] Cutover + rollback runbook: `docs/delivery/object-storage-cos-cutover.md`.
-- [ ] Prod: operator creates same-region bucket, fills `S3_*`, runs migrate, sets `OBJECT_STORE_BACKEND=s3`, smokes.
+- [x] Prod: bucket `manxu-assets-1255546834`; migrate **89/89 verified**; `OBJECT_STORE_BACKEND=s3`; `open_asset` smoke OK (2026-10-16). Note: api/worker image was docker-commit hotpatch (boto3); formal rebuild when ghcr pull is healthy. **Rotate leaked CAM keys.**
 
 ## Out of scope
 

@@ -95,6 +95,9 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    # ARQ worker has no HTTP port; do not inherit an API image HEALTHCHECK.
+    healthcheck:
+      disable: true
     command: ["uv", "run", "arq", "app.worker.WorkerSettings"]
   frontend:
     build:

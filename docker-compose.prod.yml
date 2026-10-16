@@ -46,6 +46,8 @@ services:
 
   api:
     ports: !reset []
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     env_file: !override
       - path: .env.prod
         required: true
@@ -57,6 +59,8 @@ services:
         condition: service_healthy
 
   worker:
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     env_file: !override
       - path: .env.prod
         required: true
