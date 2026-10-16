@@ -80,7 +80,7 @@ class S3ObjectStore:
     def _bucket(self) -> str:
         return self._resolved_settings().s3_bucket
 
-    def _put_bytes_sync(self, key: str, content: bytes) -> str:
+    def put_bytes_sync(self, key: str, content: bytes) -> str:
         self._s3().put_object(
             Bucket=self._bucket(),
             Key=key,
@@ -89,20 +89,24 @@ class S3ObjectStore:
         )
         return _asset_url(key)
 
-    def _get_bytes_sync(self, key: str) -> bytes:
+    def get_bytes_sync(self, key: str) -> bytes:
         response = self._s3().get_object(Bucket=self._bucket(), Key=key)
         body: Any = response["Body"]
         return bytes(body.read())
 
-    def _head_exists(self, key: str) -> bool:
+    def content_length(self, key: str) -> int | None:
         try:
-            self._s3().head_object(Bucket=self._bucket(), Key=key)
+            response = self._s3().head_object(Bucket=self._bucket(), Key=key)
         except ClientError as error:
             code = error.response.get("Error", {}).get("Code", "")
             if code in {"404", "NoSuchKey", "NotFound"}:
-                return False
+                return None
             raise
-        return True
+        length = response.get("ContentLength")
+        return int(length) if length is not None else None
+
+    def _head_exists(self, key: str) -> bool:
+        return self.content_length(key) is not None
 
     def find_asset_key(self, asset_id: str) -> str | None:
         for suffix in _ASSET_SUFFIXES:
@@ -115,19 +119,19 @@ class S3ObjectStore:
         key = self.find_asset_key(asset_id)
         if key is None:
             return None
-        return self._get_bytes_sync(key)
+        return self.get_bytes_sync(key)
 
     def open_asset(self, asset_id: str) -> tuple[bytes, str] | None:
         key = self.find_asset_key(asset_id)
         if key is None:
             return None
-        return self._get_bytes_sync(key), _content_type_for_key(key)
+        return self.get_bytes_sync(key), _content_type_for_key(key)
 
     async def put_bytes(self, key: str, content: bytes) -> str:
-        return await asyncio.to_thread(self._put_bytes_sync, key, content)
+        return await asyncio.to_thread(self.put_bytes_sync, key, content)
 
     async def get_bytes(self, key: str) -> bytes:
-        return await asyncio.to_thread(self._get_bytes_sync, key)
+        return await asyncio.to_thread(self.get_bytes_sync, key)
 
     async def open_asset_async(self, asset_id: str) -> tuple[bytes, str] | None:
         return await asyncio.to_thread(self.open_asset, asset_id)

@@ -23,18 +23,19 @@ Replace Docker `image-data` volume dependency for production assets with Tencent
 - [x] `S3ObjectStore` implementing `ObjectStore`; wire Qwen download + export + asset GET.
 - [ ] Persist export blobs in object store (still `exports.content` bytea this slice).
 - [x] Ownership-checked download: existing API proxy stream (presigned GET deferred).
-- [ ] One-shot migrate script: volume files → COS + verify.
-- [x] Tests: mock S3; settings validation; local backend still green in CI.
-- [ ] Prod: create same-region bucket, IAM/key, cut over with rollback note in deploy docs.
+- [x] One-shot migrate CLI: `python -m app.cli.migrate_images_to_s3` (+ dry-run / verify / skip-existing).
+- [x] Tests: mock S3; settings validation; migrate unit tests; local backend still green in CI.
+- [x] Cutover + rollback runbook: `docs/delivery/object-storage-cos-cutover.md`.
+- [ ] Prod: operator creates same-region bucket, fills `S3_*`, runs migrate, sets `OBJECT_STORE_BACKEND=s3`, smokes.
 
 ## Out of scope
 
 - AUTH-07, billing, CDN public assets, multi-cloud replication, 成刊 PAGE/LETTER.
 - Forcing production `OBJECT_STORE_BACKEND=s3` before migrate verification.
+- Automated COS → volume reverse migrate.
 
 ## Verification
 
-- `uv run --directory backend ruff check .` — pass
-- `uv run --directory backend ruff format --check .` — pass
-- `uv run --directory backend mypy app` — pass
-- `uv run --directory backend pytest tests/test_s3_object_store.py tests/test_object_store_settings.py tests/test_qwen_image.py tests/test_export_png.py -q` — 24 passed
+- `ruff` / `mypy app` — pass
+- targeted pytest (s3/settings/migrate/qwen/export) — 27 passed
+- full `pytest` — 127 passed

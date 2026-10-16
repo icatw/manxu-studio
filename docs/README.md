@@ -36,6 +36,8 @@
 
 - [验收清单](delivery/acceptance.md)：端到端验收条件和演示路径。
 - [单机 VPS 部署](delivery/deploy-vps.md)：Compose + Caddy 一键部署、备份与更新。
+- [腾讯云共用机 nginx 部署](delivery/deploy-tencent-nginx.md)：与现有站点共存时的 Compose + 主机 nginx。
+- [COS 对象存储切流](delivery/object-storage-cos-cutover.md)：卷 → 腾讯云 COS 迁移、切流与回滚（INFRA-02）。
 
 ## 状态
 

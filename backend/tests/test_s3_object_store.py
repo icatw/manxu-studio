@@ -37,14 +37,14 @@ class FakeS3Client:
             )
         return {"Body": FakeBody(self.objects[key])}
 
-    def head_object(self, **kwargs: object) -> dict[str, str]:
+    def head_object(self, **kwargs: object) -> dict[str, int]:
         key = str(kwargs["Key"])
         if key not in self.objects:
             raise ClientError(
                 {"Error": {"Code": "404", "Message": "missing"}},
                 "HeadObject",
             )
-        return {}
+        return {"ContentLength": len(self.objects[key])}
 
 
 @pytest.mark.asyncio
