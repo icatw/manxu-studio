@@ -58,9 +58,16 @@ function WorkspaceShell() {
   );
 }
 
+const STUDIO_STAGES = new Set(["story", "characters", "scenes", "storyboard"]);
+
 export function StudioWorkspace({ projectId }: { projectId: string }) {
   const [searchParams] = useSearchParams();
   const episodeId = searchParams.get("episodeId") ?? undefined;
+  const stageParam = searchParams.get("stage");
+  const initialStage =
+    stageParam && STUDIO_STAGES.has(stageParam)
+      ? (stageParam as "story" | "characters" | "scenes" | "storyboard")
+      : undefined;
   const workspaceQuery = useQuery({
     queryKey: ["workspace", projectId, episodeId ?? "first"],
     queryFn: () => loadWorkspace(projectId, episodeId),
@@ -87,9 +94,10 @@ export function StudioWorkspace({ projectId }: { projectId: string }) {
 
   return (
     <StudioProvider
-      key={`${projectId}:${workspaceQuery.data.episode.id}`}
+      key={`${projectId}:${workspaceQuery.data.episode.id}:${initialStage ?? "default"}`}
       workspace={workspaceQuery.data}
       onReload={() => workspaceQuery.refetch()}
+      initialStage={initialStage}
     >
       <WorkspaceShell />
     </StudioProvider>

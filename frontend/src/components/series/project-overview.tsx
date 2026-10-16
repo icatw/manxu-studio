@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router";
-import { ArrowLeft, BookOpen, Files, LayoutTemplate, Loader2, PenLine, Plus, ScrollText, Trash2 } from "lucide-react";
+import { ArrowLeft, BookOpen, Files, LayoutTemplate, Loader2, PenLine, Plus, ScrollText, Trash2, Users } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { api, toApiError } from "@/lib/api/client";
 import { waitForGenerationTask } from "@/lib/generation-task";
 import { queryClient as appQueryClient } from "@/lib/query-client";
-import { createEpisode, deleteProject, listEpisodes } from "@/services/workspace-api";
+import {
+  createEpisode,
+  deleteProject,
+  listCharacters,
+  listEpisodes,
+  type CharacterDto,
+} from "@/services/workspace-api";
 import {
   createPlotThread,
   deletePlotThread,
@@ -23,7 +29,7 @@ import {
 } from "@/services/serial-api";
 import { cn } from "@/lib/utils";
 
-type Tab = "chapters" | "bible" | "threads";
+type Tab = "chapters" | "cast" | "bible" | "threads";
 
 export function ProjectOverview() {
   const { projectId = "" } = useParams();
@@ -51,6 +57,11 @@ export function ProjectOverview() {
     queryFn: () => listPlotThreads(projectId),
     enabled: Boolean(projectId),
   });
+  const characters = useQuery({
+    queryKey: ["characters", projectId],
+    queryFn: () => listCharacters(projectId),
+    enabled: Boolean(projectId),
+  });
   const remove = useMutation({
     mutationFn: () => deleteProject(projectId),
     onSuccess: () => navigate("/projects"),
@@ -73,6 +84,10 @@ export function ProjectOverview() {
 
   const detail = project.data;
   const openThreads = (threads.data ?? []).filter((thread) => !thread.resolved).length;
+  const cast = characters.data ?? [];
+  const approvedCast = cast.filter((item) => item.status === "approved").length;
+  const lockedCast = cast.filter((item) => item.reference_locked).length;
+  const firstEpisodeId = episodes.data?.[0]?.id;
 
   return (
     <div className="min-h-dvh bg-background text-foreground">
@@ -102,8 +117,9 @@ export function ProjectOverview() {
             </div>
             <h1 className="text-3xl font-semibold tracking-tight">{detail.title}</h1>
             <p className="text-sm leading-relaxed text-muted-foreground">{detail.synopsis}</p>
-            <dl className="flex gap-6 pt-1 text-sm">
+            <dl className="flex flex-wrap gap-6 pt-1 text-sm">
               <div><dt className="text-xs text-muted-foreground">章节</dt><dd className="text-lg font-semibold tabular-nums">{episodes.data?.length ?? 0}</dd></div>
+              <div><dt className="text-xs text-muted-foreground">全剧角色</dt><dd className="text-lg font-semibold tabular-nums">{cast.length}</dd></div>
               <div><dt className="text-xs text-muted-foreground">未回收伏笔</dt><dd className="text-lg font-semibold tabular-nums">{openThreads}</dd></div>
             </dl>
           </div>
@@ -113,6 +129,7 @@ export function ProjectOverview() {
           <div role="tablist" aria-label="作品内容" className="flex gap-1">
             {([
               { id: "chapters" as const, label: "章节" },
+              { id: "cast" as const, label: "角色" },
               { id: "bible" as const, label: "设定集" },
               { id: "threads" as const, label: "伏笔" },
             ]).map((item) => (
@@ -148,6 +165,21 @@ export function ProjectOverview() {
             }}
           />
         ) : null}
+        {tab === "cast" ? (
+          <CastRoster
+            projectId={projectId}
+            characters={cast}
+            approvedCount={approvedCast}
+            lockedCount={lockedCast}
+            studioHref={
+              firstEpisodeId
+                ? `/projects/${projectId}/studio?episodeId=${firstEpisodeId}&stage=characters`
+                : `/projects/${projectId}/studio?stage=characters`
+            }
+            loading={characters.isPending}
+            onRefresh={() => void characters.refetch()}
+          />
+        ) : null}
         {tab === "bible" ? (
           <BibleForm
             projectId={projectId}
@@ -167,6 +199,109 @@ export function ProjectOverview() {
         ) : null}
       </main>
     </div>
+  );
+}
+
+function statusLabel(status: CharacterDto["status"]) {
+  if (status === "approved") return "已确认";
+  if (status === "in_review") return "待审阅";
+  return "草稿";
+}
+
+function CastRoster({
+  characters,
+  approvedCount,
+  lockedCount,
+  studioHref,
+  loading,
+  onRefresh,
+}: {
+  projectId: string;
+  characters: CharacterDto[];
+  approvedCount: number;
+  lockedCount: number;
+  studioHref: string;
+  loading: boolean;
+  onRefresh: () => void;
+}) {
+  return (
+    <section className="flex flex-col gap-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h2 className="text-base font-semibold">全剧角色库</h2>
+          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+            角色属于整部作品，各话共用同一批人。工作室「作品角色」编辑的就是这里；某一话只决定谁出场，不会单独另建一套角色库。
+          </p>
+          <p className="mt-2 text-xs text-muted-foreground">
+            共 {characters.length} 人 · 已确认 {approvedCount} · 定妆锁定 {lockedCount}
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button size="sm" variant="outline" onClick={onRefresh} disabled={loading}>
+            刷新
+          </Button>
+          <ButtonLink href={studioHref} size="sm">
+            <Users data-icon="inline-start" />
+            在工作室编辑
+          </ButtonLink>
+        </div>
+      </div>
+
+      {loading ? (
+        <p className="text-sm text-muted-foreground">正在加载角色…</p>
+      ) : characters.length === 0 ? (
+        <div className="rounded-xl border px-6 py-12 text-center">
+          <Users className="mx-auto size-8 text-muted-foreground" aria-hidden />
+          <h3 className="mt-3 text-sm font-medium">还没有角色</h3>
+          <p className="mt-1 text-sm text-muted-foreground">先进入工作室生成或手动建立角色，并建议锁定定妆后再出图。</p>
+          <ButtonLink href={studioHref} className="mt-4">
+            去建立角色
+          </ButtonLink>
+        </div>
+      ) : (
+        <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {characters.map((character) => {
+            const imageUrl = character.reference_asset_id
+              ? `/api/v1/assets/${character.reference_asset_id}`
+              : "";
+            return (
+              <li key={character.id} className="overflow-hidden rounded-xl border bg-card">
+                <div className="relative aspect-[4/3] bg-muted">
+                  {imageUrl ? (
+                    <img src={imageUrl} alt="" className="absolute inset-0 size-full object-cover" />
+                  ) : (
+                    <div className="flex size-full items-center justify-center text-sm text-muted-foreground">
+                      暂无定妆图
+                    </div>
+                  )}
+                </div>
+                <div className="flex flex-col gap-2 p-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <h3 className="truncate font-medium">{character.name}</h3>
+                      <p className="truncate text-xs text-muted-foreground">
+                        {character.profile.role || "未标注身份"}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 flex-col items-end gap-1">
+                      <Badge variant={character.status === "approved" ? "secondary" : "outline"}>
+                        {statusLabel(character.status)}
+                      </Badge>
+                      {character.reference_locked ? (
+                        <Badge variant="outline">定妆锁定</Badge>
+                      ) : null}
+                    </div>
+                  </div>
+                  {character.profile.appearance ? (
+                    <p className="line-clamp-2 text-xs text-muted-foreground">{character.profile.appearance}</p>
+                  ) : null}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </section>
   );
 }
 

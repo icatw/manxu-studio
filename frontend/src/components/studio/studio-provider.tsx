@@ -81,10 +81,12 @@ export function StudioProvider({
   children,
   workspace,
   onReload,
+  initialStage,
 }: {
   children: ReactNode;
   workspace: WorkspaceData;
   onReload: () => Promise<unknown>;
+  initialStage?: StudioStage;
 }) {
   const queryClient = useQueryClient();
   const initialProject = toComicProject(workspace);
@@ -94,7 +96,9 @@ export function StudioProvider({
   projectRef.current = project;
   const baselineRef = useRef(initialProject);
   const lastSignatureRef = useRef(comparable(initialProject));
-  const [stage, setStage] = useState<StudioStage>(initialProject.panels.length ? "storyboard" : "story");
+  const [stage, setStage] = useState<StudioStage>(
+    initialStage ?? (initialProject.panels.length ? "storyboard" : "story"),
+  );
   const [selectedPanelId, setSelectedPanelId] = useState<string | null>(initialProject.panels[0]?.id ?? null);
   const [storyBusy, setStoryBusy] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);

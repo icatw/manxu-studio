@@ -86,11 +86,15 @@ export async function loadWorkspace(projectId: string, episodeId?: string): Prom
   return { project, episode, characters, scenes, panels, versions };
 }
 
-async function getCharacters(projectId: string) {
+export async function listCharacters(projectId: string) {
   const { data, error } = await api.GET("/projects/{project_id}/characters", {
     params: { path: { project_id: projectId } },
   });
   return required(data, error);
+}
+
+async function getCharacters(projectId: string) {
+  return listCharacters(projectId);
 }
 
 async function getScenes(projectId: string) {
