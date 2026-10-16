@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { setEpisodeSummaryViaApi } from "./helpers/api";
 import { deleteProjectByTitle, loginWithEmail } from "./helpers/auth";
 
 const stamp = Date.now();
@@ -47,15 +48,21 @@ test("email login → create project → bible/threads → studio → reader →
 
   await page.getByRole("tab", { name: "章节" }).click();
   await expect(page.locator("p", { hasText: "第 1 话" })).toBeVisible();
-  // SERIAL-03: next episode requires a non-empty summary on the previous one.
-  const summaryResponse = page.waitForResponse(
-    (response) =>
-      response.request().method() === "POST" &&
-      response.url().includes("/summary") &&
-      response.ok(),
-  );
-  await page.getByRole("button", { name: "生成摘要" }).first().click();
-  await summaryResponse;
+  // SERIAL-03 gate needs a prior summary; set via API (no model keys in serial-core).
+  const projectId = page.url().match(/\/projects\/([0-9a-f-]+)/)?.[1];
+  expect(projectId).toBeTruthy();
+  const episodesResponse = await page.request.get(`/api/v1/projects/${projectId}/episodes`);
+  expect(episodesResponse.ok()).toBeTruthy();
+  const episodesBody = (await episodesResponse.json()) as {
+    data: Array<{ id: string }>;
+  };
+  const firstEpisodeId = episodesBody.data[0]?.id;
+  if (!firstEpisodeId) {
+    throw new Error("expected first episode id");
+  }
+  await setEpisodeSummaryViaApi(page, firstEpisodeId, "雾港灯塔守夜人失踪，主角收到一封未署名的信。");
+  await page.reload();
+  await page.getByRole("tab", { name: "章节" }).click();
   await expect(page.getByText(/摘要：/)).toBeVisible();
   await page.getByRole("button", { name: "续写下一话" }).click();
   await expect(page).toHaveURL(/\/studio/);

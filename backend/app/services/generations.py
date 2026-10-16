@@ -297,7 +297,7 @@ async def download_export(session: AsyncSession, asset_id: UUID) -> Response:
     filename = Path(record.filename).name
     ascii_name = _ascii_export_filename(filename, record.content_type)
     content_disposition = (
-        f'attachment; filename="{ascii_name}"; filename*=UTF-8\'\'{quote(filename)}'
+        f"attachment; filename=\"{ascii_name}\"; filename*=UTF-8''{quote(filename)}"
     )
     return Response(
         content=record.content,

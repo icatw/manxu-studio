@@ -48,6 +48,20 @@ export async function createProjectViaApi(
   return { projectId: project.id, episodeId: episodes[0].id };
 }
 
+export async function setEpisodeSummaryViaApi(
+  page: Page,
+  episodeId: string,
+  summary: string,
+): Promise<void> {
+  const headers = await csrfHeader(page);
+  await readData(
+    await page.request.patch(`/api/v1/episodes/${episodeId}`, {
+      headers,
+      data: { summary },
+    }),
+  );
+}
+
 export async function createPanelViaApi(
   page: Page,
   episodeId: string,
