@@ -10,11 +10,12 @@
 - [x] `prd.md`：阶段 A1–A3 验收意向与规划决策；C 不抢 A
 - [x] `domain-model.md`：Page / PageSlot / LetteringObject 规划实体
 - [x] status 下一步改为产品主线
+- [x] A1 屏幕流：`user-flows.md` + `screens.md` §9（仍 `proposed`）
 
 ## Not done（需显式 confirm 后）
 
 - [ ] PAGE/LETTER/PUBLISH → `confirmed` + OpenAPI
-- [ ] 屏幕流 / user-flows 成稿模式细则
+- [ ] A2/A3 屏幕流细则
 - [ ] 任何实现或生产部署
 
 ## Gate
