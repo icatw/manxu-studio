@@ -3,7 +3,7 @@
 - 更新时间：2026-10-17
 - 里程碑 tag：`v0.1.0-storyboard`（commit `310d85e`）— 分镜/画格工作台 + 生产 COS 切流快照
 - **生产部署冻结**：tag 之后默认**不**向 `manxu.icatw.site` 推送应用更新，直至产品规划与对外表述对齐、并明确解除冻结。线上继续跑该里程碑对应能力；仅紧急热修（安全/数据损坏）可破例，且须单独记录。
-- 当前阶段：公网演示保持 tag 态；仓库内推进 **文档对齐 → SaaS 稳托设计 → 作者验证**；成稿 PAGE/LETTER 仍 `proposed`
+- 当前阶段：公网演示保持 tag 态；仓库内推进 **A1 PAGE 实现**（需求已确认 + OpenAPI）；LETTER/PUBLISH 仍 `proposed`；生产部署仍冻结
 - 代码阶段：邮箱/GitHub 登录、资源隔离、Redis/ARQ、providers/tasks 分层、应用服务层、定妆锁定、多话壳、连载层、Playwright E2E、playground、生成归属收口、多人角色参考图、VPS nginx overlay、合集导出与摘要门禁已接入
 
 ## 当前事实
@@ -23,7 +23,7 @@
 - 导出：本话长图/分页 ZIP；作品总览「导出合集」（ZIP/PDF，EXP-02）。
 - 连载：第 N 话生成分镜前须有第 N-1 话非空摘要（409）。
 - **产品方向**：面向个人连载漫画作者的静态图片创作工作台，竖条漫优先；路线、市场观察与阶段门槛见 `docs/product/roadmap-complete-comic.md`。
-- **需求门禁**：成稿页 `PAGE-*`、独立文字层 `LETTER-*`、成稿/分享 `PUBLISH-*` 仍为 `proposed`；`INFRA-02` 已 `confirmed`，生产 COS 已切流。
+- **需求门禁**：`PAGE-01…03` 已 `confirmed`（契约已入 YAML）；`LETTER-*` / `PUBLISH-*` 仍 `proposed`；`INFRA-02` 已切流。
 
 ## 阶段与进度
 
@@ -43,11 +43,11 @@
 | 生成归属收口 | 完成 | hydrate 合并、resume、停止跟踪、idempotency（#4） |
 | 发布与交付 | 基本完成 | 公网可访问、演示录屏与提交材料已具备；CI 与运维脚本持续收口 |
 | SaaS 稳托（对象存储等） | 进行中 | 生产已切 COS（89 图已迁）；待正式镜像重建与密钥轮换；导出 blob / AUTH-07 仍待 |
-| **静态漫画成稿层** | **规划中，未授权实现** | 见 `docs/product/roadmap-complete-comic.md`；PAGE/LETTER/PUBLISH 仍为 `proposed` |
+| **静态漫画成稿层** | **A1 已授权实现** | PAGE confirmed + OpenAPI；LETTER/PUBLISH 仍 `proposed` |
 
 ## 下一步（tag 之后；默认不上线）
 
-1. **产品主线（规划）**：A1 屏幕流已写入 `user-flows.md` / `screens.md`；下一步可细化 **A2 Lettering** 或 **确认 PAGE 前的契约草案**；全部保持 `proposed`，确认前不实现、不部署。
-2. **领域与契约预备**：在确认 PAGE 时 YAML-first；领域草图已写入 `domain-model.md`（规划实体）。
+1. **实现 A1**：按计划 `0024-page-layout-a1.md` — 表/服务/路由 → 前端成稿排版屏 → 契约与归属测试；**不部署生产**。
+2. **A2/A3**：仍 `proposed`；可并行写屏幕流，确认前不实现。
 3. **SaaS 面（阶段 C，不抢 A）**：AUTH-07 / 用量叙事可并行设计。
 4. **生产**：保持部署冻结；紧急热修另记。

@@ -2,22 +2,20 @@
 
 ## Goal
 
-把「SaaS 个人漫画制作平台」的产品主线钉为 L1 底座 + 阶段 A（PAGE→LETTER→成稿导出），写入路线图/PRD/领域模型；需求保持 `proposed`。
+把「SaaS 个人漫画制作平台」的产品主线钉为 L1 底座 + 阶段 A（PAGE→LETTER→成稿导出），写入路线图/PRD/领域模型。
 
 ## Done
 
 - [x] `roadmap-complete-comic.md`：四层 + A/B/C/D + 领域关系图
-- [x] `prd.md`：阶段 A1–A3 验收意向与规划决策；C 不抢 A
-- [x] `domain-model.md`：Page / PageSlot / LetteringObject 规划实体
-- [x] status 下一步改为产品主线
-- [x] A1 屏幕流：`user-flows.md` + `screens.md` §9（仍 `proposed`）
+- [x] `prd.md`：阶段 A1–A3；PAGE 已升 `confirmed`
+- [x] `domain-model.md`：Page / PageSlot / LetteringObject
+- [x] A1 屏幕流：`user-flows.md` + `screens.md` §9
+- [x] PAGE OpenAPI（Layout tag）— 见计划 0024
 
-## Not done（需显式 confirm 后）
+## Follow-on
 
-- [ ] PAGE/LETTER/PUBLISH → `confirmed` + OpenAPI
-- [ ] A2/A3 屏幕流细则
-- [ ] 任何实现或生产部署
+实现切片见 `0024-page-layout-a1.md`。LETTER/PUBLISH 仍 `proposed`。
 
 ## Gate
 
-不实现；生产继续冻结于 `v0.1.0-storyboard` 政策。
+生产继续冻结于 `v0.1.0-storyboard` 政策。

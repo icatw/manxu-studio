@@ -27,6 +27,8 @@ tags:
     description: Reusable scene profiles
   - name: Storyboards
     description: Ordered panels and storyboard versions
+  - name: Layout
+    description: Episode page layout and vertical-strip slots (PAGE A1)
   - name: Generations
     description: Asynchronous text and image generation tasks
   - name: Exports
@@ -1298,6 +1300,201 @@ paths:
         default:
           $ref: '#/components/responses/UnexpectedError'
 
+  /episodes/{episode_id}/layout:
+    parameters:
+      - $ref: '#/components/parameters/EpisodeId'
+    get:
+      tags: [Layout]
+      operationId: getEpisodeLayout
+      summary: Get persisted page layout for an episode
+      x-requirement-ids: [PAGE-01, PAGE-02]
+      responses:
+        '200':
+          description: Episode layout (empty pages array when not bootstrapped)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccessEpisodeLayout'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        default:
+          $ref: '#/components/responses/UnexpectedError'
+
+  /episodes/{episode_id}/layout/bootstrap:
+    parameters:
+      - $ref: '#/components/parameters/EpisodeId'
+    post:
+      tags: [Layout]
+      operationId: bootstrapEpisodeLayout
+      summary: Create default vertical-strip pages from current panel order
+      description: >
+        Creates one vertical_strip page with one slot per panel in storyboard order.
+        Slots pin each panel's current image version when present.
+        Fails with 409 if a layout already exists; use sync to reconcile panel changes.
+      x-requirement-ids: [PAGE-01, PAGE-02]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BootstrapLayoutRequest'
+      responses:
+        '201':
+          description: Default layout created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccessEpisodeLayout'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        default:
+          $ref: '#/components/responses/UnexpectedError'
+
+  /episodes/{episode_id}/layout/sync:
+    parameters:
+      - $ref: '#/components/parameters/EpisodeId'
+    post:
+      tags: [Layout]
+      operationId: syncEpisodeLayout
+      summary: Reconcile layout slots with current storyboard panels
+      description: >
+        Adds slots for new panels (append), removes slots for deleted panels,
+        and retargets slots to each panel's current image version when
+        follow_current_version is true (default). Preserves height and gap for
+        surviving slots. Requires an existing layout.
+      x-requirement-ids: [PAGE-03]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SyncLayoutRequest'
+      responses:
+        '200':
+          description: Layout after sync
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccessEpisodeLayout'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        default:
+          $ref: '#/components/responses/UnexpectedError'
+
+  /episodes/{episode_id}/layout/preview:
+    parameters:
+      - $ref: '#/components/parameters/EpisodeId'
+    get:
+      tags: [Layout]
+      operationId: getEpisodeLayoutPreview
+      summary: Manuscript-style vertical preview payload for the episode layout
+      x-requirement-ids: [PAGE-01, PAGE-02]
+      responses:
+        '200':
+          description: Ordered preview strip items (may include placeholders)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccessLayoutPreview'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        default:
+          $ref: '#/components/responses/UnexpectedError'
+
+  /episodes/{episode_id}/pages/order:
+    parameters:
+      - $ref: '#/components/parameters/EpisodeId'
+    put:
+      tags: [Layout]
+      operationId: reorderPages
+      summary: Replace the ordered page IDs for an episode
+      x-requirement-ids: [PAGE-01, PAGE-03]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PageOrder'
+      responses:
+        '200':
+          description: Updated layout
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccessEpisodeLayout'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        default:
+          $ref: '#/components/responses/UnexpectedError'
+
+  /pages/{page_id}/slots/order:
+    parameters:
+      - $ref: '#/components/parameters/PageId'
+    put:
+      tags: [Layout]
+      operationId: reorderPageSlots
+      summary: Replace the ordered slot IDs within a page
+      x-requirement-ids: [PAGE-03]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SlotOrder'
+      responses:
+        '200':
+          description: Updated page with slots
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccessLayoutPage'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        default:
+          $ref: '#/components/responses/UnexpectedError'
+
+  /slots/{slot_id}:
+    parameters:
+      - $ref: '#/components/parameters/SlotId'
+    patch:
+      tags: [Layout]
+      operationId: updatePageSlot
+      summary: Update slot geometry or pinned image version
+      x-requirement-ids: [PAGE-02, PAGE-03]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PageSlotPatch'
+      responses:
+        '200':
+          description: Updated slot
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccessPageSlot'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        default:
+          $ref: '#/components/responses/UnexpectedError'
+
   /exports/{asset_id}:
     parameters:
       - name: asset_id
@@ -1363,6 +1560,20 @@ components:
         format: uuid
     PanelId:
       name: panel_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    PageId:
+      name: page_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    SlotId:
+      name: slot_id
       in: path
       required: true
       schema:
@@ -1614,6 +1825,26 @@ components:
         - type: object
           properties:
             data: { type: array, items: { $ref: '#/components/schemas/PanelImageVersion' } }
+    ApiSuccessEpisodeLayout:
+      allOf:
+        - $ref: '#/components/schemas/ApiSuccessEnvelope'
+        - type: object
+          properties: { data: { $ref: '#/components/schemas/EpisodeLayout' } }
+    ApiSuccessLayoutPage:
+      allOf:
+        - $ref: '#/components/schemas/ApiSuccessEnvelope'
+        - type: object
+          properties: { data: { $ref: '#/components/schemas/LayoutPage' } }
+    ApiSuccessPageSlot:
+      allOf:
+        - $ref: '#/components/schemas/ApiSuccessEnvelope'
+        - type: object
+          properties: { data: { $ref: '#/components/schemas/PageSlot' } }
+    ApiSuccessLayoutPreview:
+      allOf:
+        - $ref: '#/components/schemas/ApiSuccessEnvelope'
+        - type: object
+          properties: { data: { $ref: '#/components/schemas/LayoutPreview' } }
     ApiSuccessGenerationTask:
       allOf:
         - $ref: '#/components/schemas/ApiSuccessEnvelope'
@@ -2680,6 +2911,202 @@ components:
         created_at:
           type: string
           format: date-time
+    BootstrapLayoutRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        default_height_px:
+          type: integer
+          minimum: 80
+          maximum: 4096
+          default: 720
+        default_gap_px:
+          type: integer
+          minimum: 0
+          maximum: 512
+          default: 24
+    SyncLayoutRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        follow_current_version:
+          type: boolean
+          default: true
+          description: When true, retarget existing slots to each panel's current image version.
+    PageOrder:
+      type: object
+      additionalProperties: false
+      required: [page_ids]
+      properties:
+        page_ids:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            type: string
+            format: uuid
+    SlotOrder:
+      type: object
+      additionalProperties: false
+      required: [slot_ids]
+      properties:
+        slot_ids:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            type: string
+            format: uuid
+    PageSlotPatch:
+      type: object
+      additionalProperties: false
+      properties:
+        height_px:
+          type: integer
+          minimum: 80
+          maximum: 4096
+        gap_after_px:
+          type: integer
+          minimum: 0
+          maximum: 512
+        image_version_id:
+          type: [string, 'null']
+          format: uuid
+          description: Must belong to the slot's panel; null clears the pin (placeholder).
+        follow_current_version:
+          type: boolean
+          description: When true, future panel version selections update this slot by default.
+    PageSlot:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - page_id
+        - position
+        - panel_id
+        - image_version_id
+        - height_px
+        - gap_after_px
+        - follow_current_version
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        page_id:
+          type: string
+          format: uuid
+        position:
+          type: integer
+          minimum: 0
+        panel_id:
+          type: string
+          format: uuid
+        image_version_id:
+          type: [string, 'null']
+          format: uuid
+        height_px:
+          type: integer
+          minimum: 80
+          maximum: 4096
+        gap_after_px:
+          type: integer
+          minimum: 0
+          maximum: 512
+        follow_current_version:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    LayoutPage:
+      type: object
+      additionalProperties: false
+      required: [id, episode_id, position, template, slots, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        episode_id:
+          type: string
+          format: uuid
+        position:
+          type: integer
+          minimum: 0
+        template:
+          type: string
+          enum: [vertical_strip]
+        slots:
+          type: array
+          items:
+            $ref: '#/components/schemas/PageSlot'
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    EpisodeLayout:
+      type: object
+      additionalProperties: false
+      required: [episode_id, template, pages]
+      properties:
+        episode_id:
+          type: string
+          format: uuid
+        template:
+          type: string
+          enum: [vertical_strip]
+        pages:
+          type: array
+          items:
+            $ref: '#/components/schemas/LayoutPage'
+    LayoutPreviewItem:
+      type: object
+      additionalProperties: false
+      required: [slot_id, page_id, panel_id, height_px, gap_after_px, image_url]
+      properties:
+        slot_id:
+          type: string
+          format: uuid
+        page_id:
+          type: string
+          format: uuid
+        panel_id:
+          type: string
+          format: uuid
+        height_px:
+          type: integer
+        gap_after_px:
+          type: integer
+        image_url:
+          type: [string, 'null']
+          format: uri-reference
+          description: Null when the slot has no pinned image version.
+    LayoutPreview:
+      type: object
+      additionalProperties: false
+      required: [episode_id, kind, width_hint_px, items]
+      properties:
+        episode_id:
+          type: string
+          format: uuid
+        kind:
+          type: string
+          const: manuscript_preview
+          description: Distinguishes from Studio production view and EXP downloads.
+        width_hint_px:
+          type: integer
+          minimum: 320
+          maximum: 1200
+          default: 720
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/LayoutPreviewItem'
     ExportResult:
       type: object
       additionalProperties: false

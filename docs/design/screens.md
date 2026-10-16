@@ -32,9 +32,9 @@ Tabs：章节（话列表、续写下一话、生成摘要、进入工作室/阅
 
 预览排序与画面；导出 PNG 或制作资料 JSON（EXP：制作预览/资料，非成稿）。
 
-## 9. 成稿排版（阶段 A1，`proposed`）
+## 9. 成稿排版（阶段 A1，`confirmed`）
 
-> 未确认前不实现。流程见 [user-flows.md · 阶段 A1](../product/user-flows.md)。对应 PAGE-01…03。
+> PAGE-01…03 已确认；实现见计划 `0024-page-layout-a1.md`。流程见 [user-flows.md · 阶段 A1](../product/user-flows.md)。
 
 **路由意向**：`/projects/:id/layout/:episodeId`。
 

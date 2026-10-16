@@ -11,12 +11,12 @@ Project
         ├── StoryboardPanel
         │     ├── PanelVersion
         │     └── GenerationTask ── GeneratedAsset
-        ├── Page（规划 proposed）
-        │     └── PageSlot → PanelVersion
+        ├── Page（A1 confirmed）
+        │     └── PageSlot → PanelImageVersion
         └── LetteringObject（规划 proposed）
 ```
 
-已交付实体支撑 L1（连载分镜/画格）。`Page` / `PageSlot` / `LetteringObject` 为成稿层规划对象，见 [路线图](../product/roadmap-complete-comic.md)；**未 confirmed 前不建表、不实现 API。**
+已交付实体支撑 L1。`Page` / `PageSlot` 已确认（PAGE-01…03），契约见 OpenAPI `Layout` tag；**LETTER 未确认前不建字效表。**
 
 ## 实体
 
@@ -56,9 +56,9 @@ Project
 
 生成或上传的文件元数据。保存对象存储键、MIME、尺寸、哈希、来源任务和创建时间；不把短时签名 URL 当作永久数据。
 
-### Page / PageSlot（规划）
+### Page / PageSlot（A1 confirmed）
 
-一话内有序「页」或条漫段落。槽位引用 `PanelVersion`（而非临时 URL）。重绘出新 PanelVersion 时，默认槽位可改挂新版本而保留页序与几何。
+一话内有序「页」或条漫段落。槽位引用 `panel_image_versions.id`（而非临时 URL）。`follow_current_version` 为真时，用户选定新图版后槽位改挂并保留页序与几何。
 
 ### LetteringObject（规划）
 

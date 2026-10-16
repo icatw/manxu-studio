@@ -392,7 +392,10 @@ export interface paths {
             };
             cookie?: never;
         };
-        /** Read a generated image from private persistent storage */
+        /**
+         * Read a generated image via ownership-checked API proxy
+         * @description Streams image bytes from private object storage (local directory or S3-compatible backend). Missing and foreign-owned assets both return 404. Presigned public URLs are out of scope for this operation.
+         */
         get: operations["getImageAsset"];
         put?: never;
         post?: never;
@@ -854,6 +857,145 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/episodes/{episode_id}/layout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                episode_id: components["parameters"]["EpisodeId"];
+            };
+            cookie?: never;
+        };
+        /** Get persisted page layout for an episode */
+        get: operations["getEpisodeLayout"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/episodes/{episode_id}/layout/bootstrap": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                episode_id: components["parameters"]["EpisodeId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create default vertical-strip pages from current panel order
+         * @description Creates one vertical_strip page with one slot per panel in storyboard order. Slots pin each panel's current image version when present. Fails with 409 if a layout already exists; use sync to reconcile panel changes.
+         */
+        post: operations["bootstrapEpisodeLayout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/episodes/{episode_id}/layout/sync": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                episode_id: components["parameters"]["EpisodeId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reconcile layout slots with current storyboard panels
+         * @description Adds slots for new panels (append), removes slots for deleted panels, and retargets slots to each panel's current image version when follow_current_version is true (default). Preserves height and gap for surviving slots. Requires an existing layout.
+         */
+        post: operations["syncEpisodeLayout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/episodes/{episode_id}/layout/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                episode_id: components["parameters"]["EpisodeId"];
+            };
+            cookie?: never;
+        };
+        /** Manuscript-style vertical preview payload for the episode layout */
+        get: operations["getEpisodeLayoutPreview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/episodes/{episode_id}/pages/order": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                episode_id: components["parameters"]["EpisodeId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /** Replace the ordered page IDs for an episode */
+        put: operations["reorderPages"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/pages/{page_id}/slots/order": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                page_id: components["parameters"]["PageId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /** Replace the ordered slot IDs within a page */
+        put: operations["reorderPageSlots"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/slots/{slot_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slot_id: components["parameters"]["SlotId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update slot geometry or pinned image version */
+        patch: operations["updatePageSlot"];
+        trace?: never;
+    };
     "/exports/{asset_id}": {
         parameters: {
             query?: never;
@@ -984,6 +1126,18 @@ export interface components {
         };
         ApiSuccessPanelImageVersionList: components["schemas"]["ApiSuccessEnvelope"] & {
             data?: components["schemas"]["PanelImageVersion"][];
+        };
+        ApiSuccessEpisodeLayout: components["schemas"]["ApiSuccessEnvelope"] & {
+            data?: components["schemas"]["EpisodeLayout"];
+        };
+        ApiSuccessLayoutPage: components["schemas"]["ApiSuccessEnvelope"] & {
+            data?: components["schemas"]["LayoutPage"];
+        };
+        ApiSuccessPageSlot: components["schemas"]["ApiSuccessEnvelope"] & {
+            data?: components["schemas"]["PageSlot"];
+        };
+        ApiSuccessLayoutPreview: components["schemas"]["ApiSuccessEnvelope"] & {
+            data?: components["schemas"]["LayoutPreview"];
         };
         ApiSuccessGenerationTask: components["schemas"]["ApiSuccessEnvelope"] & {
             data?: components["schemas"]["GenerationTask"];
@@ -1596,6 +1750,102 @@ export interface components {
             /** Format: date-time */
             created_at: string;
         };
+        BootstrapLayoutRequest: {
+            /** @default 720 */
+            default_height_px: number;
+            /** @default 24 */
+            default_gap_px: number;
+        };
+        SyncLayoutRequest: {
+            /**
+             * @description When true, retarget existing slots to each panel's current image version.
+             * @default true
+             */
+            follow_current_version: boolean;
+        };
+        PageOrder: {
+            page_ids: string[];
+        };
+        SlotOrder: {
+            slot_ids: string[];
+        };
+        PageSlotPatch: {
+            height_px?: number;
+            gap_after_px?: number;
+            /**
+             * Format: uuid
+             * @description Must belong to the slot's panel; null clears the pin (placeholder).
+             */
+            image_version_id?: string | null;
+            /** @description When true, future panel version selections update this slot by default. */
+            follow_current_version?: boolean;
+        };
+        PageSlot: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            page_id: string;
+            position: number;
+            /** Format: uuid */
+            panel_id: string;
+            /** Format: uuid */
+            image_version_id: string | null;
+            height_px: number;
+            gap_after_px: number;
+            follow_current_version: boolean;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+        };
+        LayoutPage: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            episode_id: string;
+            position: number;
+            /** @enum {string} */
+            template: "vertical_strip";
+            slots: components["schemas"]["PageSlot"][];
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+        };
+        EpisodeLayout: {
+            /** Format: uuid */
+            episode_id: string;
+            /** @enum {string} */
+            template: "vertical_strip";
+            pages: components["schemas"]["LayoutPage"][];
+        };
+        LayoutPreviewItem: {
+            /** Format: uuid */
+            slot_id: string;
+            /** Format: uuid */
+            page_id: string;
+            /** Format: uuid */
+            panel_id: string;
+            height_px: number;
+            gap_after_px: number;
+            /**
+             * Format: uri-reference
+             * @description Null when the slot has no pinned image version.
+             */
+            image_url: string | null;
+        };
+        LayoutPreview: {
+            /** Format: uuid */
+            episode_id: string;
+            /**
+             * @description Distinguishes from Studio production view and EXP downloads.
+             * @constant
+             */
+            kind: "manuscript_preview";
+            /** @default 720 */
+            width_hint_px: number;
+            items: components["schemas"]["LayoutPreviewItem"][];
+        };
         ExportResult: {
             /** Format: uuid */
             asset_id: string;
@@ -1695,6 +1945,8 @@ export interface components {
         ProjectId: string;
         EpisodeId: string;
         PanelId: string;
+        PageId: string;
+        SlotId: string;
         TaskId: string;
         Cursor: string;
         Limit: number;
@@ -2361,7 +2613,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Generated image bytes */
+            /** @description Generated image bytes (private; Cache-Control private, no-store) */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -2372,6 +2624,7 @@ export interface operations {
                     "image/webp": string;
                 };
             };
+            401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
         };
     };
@@ -3137,6 +3390,202 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiSuccessGenerationTask"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationError"];
+            default: components["responses"]["UnexpectedError"];
+        };
+    };
+    getEpisodeLayout: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                episode_id: components["parameters"]["EpisodeId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Episode layout (empty pages array when not bootstrapped) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiSuccessEpisodeLayout"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            default: components["responses"]["UnexpectedError"];
+        };
+    };
+    bootstrapEpisodeLayout: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                episode_id: components["parameters"]["EpisodeId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["BootstrapLayoutRequest"];
+            };
+        };
+        responses: {
+            /** @description Default layout created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiSuccessEpisodeLayout"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["ValidationError"];
+            default: components["responses"]["UnexpectedError"];
+        };
+    };
+    syncEpisodeLayout: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                episode_id: components["parameters"]["EpisodeId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["SyncLayoutRequest"];
+            };
+        };
+        responses: {
+            /** @description Layout after sync */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiSuccessEpisodeLayout"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationError"];
+            default: components["responses"]["UnexpectedError"];
+        };
+    };
+    getEpisodeLayoutPreview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                episode_id: components["parameters"]["EpisodeId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Ordered preview strip items (may include placeholders) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiSuccessLayoutPreview"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            default: components["responses"]["UnexpectedError"];
+        };
+    };
+    reorderPages: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                episode_id: components["parameters"]["EpisodeId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PageOrder"];
+            };
+        };
+        responses: {
+            /** @description Updated layout */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiSuccessEpisodeLayout"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["ValidationError"];
+            default: components["responses"]["UnexpectedError"];
+        };
+    };
+    reorderPageSlots: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                page_id: components["parameters"]["PageId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SlotOrder"];
+            };
+        };
+        responses: {
+            /** @description Updated page with slots */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiSuccessLayoutPage"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["ValidationError"];
+            default: components["responses"]["UnexpectedError"];
+        };
+    };
+    updatePageSlot: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slot_id: components["parameters"]["SlotId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PageSlotPatch"];
+            };
+        };
+        responses: {
+            /** @description Updated slot */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiSuccessPageSlot"];
                 };
             };
             404: components["responses"]["NotFound"];
