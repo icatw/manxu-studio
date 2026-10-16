@@ -8,7 +8,8 @@
 
 - [产品简报](product/brief.md)：目标用户、问题、定位和产品原则。
 - [需求文档](product/prd.md)：目标、范围、功能需求、非目标和验收条件。
-- [核心用户流程](product/user-flows.md)：从故事创意到分镜交付的主路径。
+- [长期目标：完整漫画 / 成刊层](product/roadmap-complete-comic.md)：预制作之上的成刊愿景与分期（规划中，不授权实现）。
+- [核心用户流程](product/user-flows.md)：从故事创意到分镜交付的主路径（含成刊草案，标注长期）。
 
 ### 设计
 
@@ -38,4 +39,4 @@
 
 ## 状态
 
-这些文档是项目初始产品定义。模型供应商、数据库托管、对象存储和认证方式尚待结合部署环境确认。技术实现应遵守 [架构决策](technical/architecture.md)，变更关键选择时在 `technical/decisions/` 记录原因。
+当前已确认交付聚焦 **预制作工作台**（部署与演示路径已可用）。**完整漫画 / 成刊** 记为长期目标，见 [roadmap-complete-comic.md](product/roadmap-complete-comic.md)；`proposed` 需求在确认前不得当作实现授权。对象存储、托管库等基础设施仍按 ADR 与 SaaS 清单推进。技术实现应遵守 [架构决策](technical/architecture.md)，变更关键选择时在 `technical/decisions/` 记录原因。

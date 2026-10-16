@@ -5,6 +5,7 @@ Keep this file as a short map for coding agents. Product and technical facts liv
 ## Source of Truth
 
 - Product goals, confirmed scope, and requirement IDs: `docs/product/prd.md`.
+- Long-term complete-comic / publication-layer vision (proposed only): `docs/product/roadmap-complete-comic.md`.
 - User journeys and screen behavior: `docs/product/user-flows.md` and `docs/design/screens.md`.
 - HTTP contract: `docs/api/openapi.yaml` (YAML first; do not hand-edit generated client types).
 - Architecture choices and rationale: `docs/technical/architecture.md` and `docs/technical/decisions/`.
