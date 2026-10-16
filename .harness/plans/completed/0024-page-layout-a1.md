@@ -1,5 +1,7 @@
 # 0024 A1 页与竖条排版实现
 
+> **Completed** 2026-10-17 — moved from active after ownership/bootstrap/sync tests landed.
+
 ## Goal
 
 交付 PAGE-01…03：持久化 Episode layout、竖条槽位编辑、成稿预览、重绘后默认保布局；不实现 LETTER/PUBLISH。

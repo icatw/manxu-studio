@@ -21,7 +21,7 @@
 | 层 | 用户得到什么 | 现状 |
 | --- | --- | --- |
 | **L1 连载工作台** | 作品/话、设定、伏笔摘要、分镜、出图、版本、制作预览导出（EXP） | **已交付**（`v0.1.0-storyboard`） |
-| **L2 成稿层** | 可存的页/条漫布局 + 独立文字对象；改字不重绘 | **PAGE 已确认待实现**；LETTER 仍 `proposed` |
+| **L2 成稿层** | 可存的页/条漫布局 + 独立文字对象；改字不重绘 | **PAGE 已交付**；**LETTER 已确认待实现**；PUBLISH 仍 `proposed` |
 | **L3 成稿交付** | 成稿导出语义；可选私密评审链接 | EXP ≠ 成稿；PUBLISH `proposed` |
 | **L4 SaaS 产品面** | 个人工作室心智：用量/套餐、带走与删除、身份恢复 | 账户骨架已有；包装与账本未立 |
 
@@ -35,7 +35,7 @@ Project（作品）
         ├── StoryboardPanel / PanelVersion / 图像资产     ← L1 已有
         ├── Page（页/条段落，有序）                      ← L2 proposed
         │     └── PageSlot → 引用 PanelVersion
-        └── LetteringObject（气泡/旁白…）               ← L2 proposed
+        └── LetteringObject（气泡/旁白…）               ← L2 confirmed（待实现）
               └── 挂在 Page 或 Slot；与底图分层存储
 Export
   ├── EXP_*     制作预览 / 制作资料（可烘焙气泡）       ← L1 已有
@@ -80,7 +80,7 @@ Export
 | 子阶段 | 能力 | PRD |
 | --- | --- | --- |
 | **A1** | Page 模型；竖条模板（序/距/高）；整话成稿预览；重绘默认保布局 | PAGE-01…03 **`confirmed`**；契约已入 OpenAPI |
-| **A2** | Lettering 对象（文案/位/样式）；改字不重绘；导出时合成 | LETTER-01…02 |
+| **A2** | Lettering 对象（文案/位/样式）；改字不重绘；成稿预览叠字（合成下载属 A3） | LETTER-01…02 **`confirmed`** |
 | **A3** | 成稿导出（长图、多页 PNG/PDF）；与 EXP **双轨文案** | PUBLISH-01（CBZ 另验） |
 
 **阶段 A 验收（产品语言）**：改一句对白或重绘一格后，其余格与排版仍在；成稿导出中文可读、顺序正确；用户能区分「制作预览（EXP）」与「成稿（PUBLISH）」。
@@ -136,7 +136,7 @@ L1（已有）
 权威需求在 [prd.md](prd.md)：
 
 - PAGE-01…03 **`confirmed`**（A1 可实现）  
-- LETTER-01…02、PUBLISH-01…02 仍为 `proposed`  
+- PUBLISH-01…02 仍为 `proposed`；LETTER-01…02 已 `confirmed`（实现见计划 `0025`）
 
 基础设施与 AUTH 不挂靠扩大 PAGE 范围。
 

@@ -29,6 +29,8 @@ tags:
     description: Ordered panels and storyboard versions
   - name: Layout
     description: Episode page layout and vertical-strip slots (PAGE A1)
+  - name: Lettering
+    description: Slot-anchored speech bubbles and narration (LETTER A2)
   - name: Generations
     description: Asynchronous text and image generation tasks
   - name: Exports
@@ -1402,7 +1404,10 @@ paths:
       tags: [Layout]
       operationId: getEpisodeLayoutPreview
       summary: Manuscript-style vertical preview payload for the episode layout
-      x-requirement-ids: [PAGE-01, PAGE-02]
+      description: >
+        Ordered strip items with image URLs and lettering overlays for manuscript preview.
+        Lettering is layered in the client; pixels are not baked into image assets (LETTER-02).
+      x-requirement-ids: [PAGE-01, PAGE-02, LETTER-01, LETTER-02]
       responses:
         '200':
           description: Ordered preview strip items (may include placeholders)
@@ -1503,6 +1508,107 @@ paths:
         default:
           $ref: '#/components/responses/UnexpectedError'
 
+  /episodes/{episode_id}/layout/lettering/seed:
+    parameters:
+      - $ref: '#/components/parameters/EpisodeId'
+    post:
+      tags: [Lettering]
+      operationId: seedLetteringFromDialogue
+      summary: Create default speech bubbles from panel dialogue for empty slots
+      description: >
+        For each layout slot whose panel has non-empty dialogue and which has no
+        lettering objects yet, creates one default speech_bubble.
+        When replace_existing is true, deletes existing lettering on those slots
+        before seeding. Does not modify Studio panel.dialogue.
+      x-requirement-ids: [LETTER-01, LETTER-02]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SeedLetteringRequest'
+      responses:
+        '200':
+          description: Layout including seeded lettering
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccessEpisodeLayout'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        default:
+          $ref: '#/components/responses/UnexpectedError'
+
+  /slots/{slot_id}/lettering:
+    parameters:
+      - $ref: '#/components/parameters/SlotId'
+    post:
+      tags: [Lettering]
+      operationId: createLetteringObject
+      summary: Add a lettering object to a page slot
+      x-requirement-ids: [LETTER-01]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LetteringObjectCreate'
+      responses:
+        '201':
+          description: Created lettering object
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccessLetteringObject'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        default:
+          $ref: '#/components/responses/UnexpectedError'
+
+  /lettering/{lettering_id}:
+    parameters:
+      - $ref: '#/components/parameters/LetteringId'
+    patch:
+      tags: [Lettering]
+      operationId: updateLetteringObject
+      summary: Update lettering text, geometry, or style
+      x-requirement-ids: [LETTER-01, LETTER-02]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LetteringObjectPatch'
+      responses:
+        '200':
+          description: Updated lettering object
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccessLetteringObject'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        default:
+          $ref: '#/components/responses/UnexpectedError'
+    delete:
+      tags: [Lettering]
+      operationId: deleteLetteringObject
+      summary: Delete a lettering object
+      x-requirement-ids: [LETTER-01]
+      responses:
+        '204':
+          description: Lettering object deleted
+        '404':
+          $ref: '#/components/responses/NotFound'
+        default:
+          $ref: '#/components/responses/UnexpectedError'
+
   /exports/{asset_id}:
     parameters:
       - name: asset_id
@@ -1582,6 +1688,13 @@ components:
         format: uuid
     SlotId:
       name: slot_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    LetteringId:
+      name: lettering_id
       in: path
       required: true
       schema:
@@ -1848,6 +1961,11 @@ components:
         - $ref: '#/components/schemas/ApiSuccessEnvelope'
         - type: object
           properties: { data: { $ref: '#/components/schemas/PageSlot' } }
+    ApiSuccessLetteringObject:
+      allOf:
+        - $ref: '#/components/schemas/ApiSuccessEnvelope'
+        - type: object
+          properties: { data: { $ref: '#/components/schemas/LetteringObject' } }
     ApiSuccessLayoutPreview:
       allOf:
         - $ref: '#/components/schemas/ApiSuccessEnvelope'
@@ -2991,6 +3109,143 @@ components:
         follow_current_version:
           type: boolean
           description: When true, future panel version selections update this slot by default.
+    SeedLetteringRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        replace_existing:
+          type: boolean
+          default: false
+          description: >
+            When true, delete existing lettering on slots that will be seeded
+            before creating defaults. When false, skip slots that already have lettering.
+    LetteringObjectCreate:
+      type: object
+      additionalProperties: false
+      required: [kind, text]
+      properties:
+        kind:
+          type: string
+          enum: [speech_bubble, narration]
+        text:
+          type: string
+          minLength: 1
+          maxLength: 4000
+        x_pct:
+          type: number
+          minimum: 0
+          maximum: 100
+          default: 8
+          description: Left edge as percent of slot width.
+        y_pct:
+          type: number
+          minimum: 0
+          maximum: 100
+          default: 6
+          description: Top edge as percent of slot height.
+        width_pct:
+          type: number
+          minimum: 10
+          maximum: 100
+          default: 60
+          description: Box width as percent of slot width.
+        tail:
+          type: string
+          enum: [none, bottom_left, bottom_right, top_left, top_right]
+          default: bottom_left
+        font_size:
+          type: string
+          enum: [sm, md, lg]
+          default: md
+    LetteringObjectPatch:
+      type: object
+      additionalProperties: false
+      properties:
+        kind:
+          type: string
+          enum: [speech_bubble, narration]
+        text:
+          type: string
+          minLength: 1
+          maxLength: 4000
+        x_pct:
+          type: number
+          minimum: 0
+          maximum: 100
+        y_pct:
+          type: number
+          minimum: 0
+          maximum: 100
+        width_pct:
+          type: number
+          minimum: 10
+          maximum: 100
+        tail:
+          type: string
+          enum: [none, bottom_left, bottom_right, top_left, top_right]
+        font_size:
+          type: string
+          enum: [sm, md, lg]
+        position:
+          type: integer
+          minimum: 0
+          description: Order among lettering objects on the same slot.
+    LetteringObject:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - slot_id
+        - kind
+        - text
+        - x_pct
+        - y_pct
+        - width_pct
+        - tail
+        - font_size
+        - position
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        slot_id:
+          type: string
+          format: uuid
+        kind:
+          type: string
+          enum: [speech_bubble, narration]
+        text:
+          type: string
+          maxLength: 4000
+        x_pct:
+          type: number
+          minimum: 0
+          maximum: 100
+        y_pct:
+          type: number
+          minimum: 0
+          maximum: 100
+        width_pct:
+          type: number
+          minimum: 10
+          maximum: 100
+        tail:
+          type: string
+          enum: [none, bottom_left, bottom_right, top_left, top_right]
+        font_size:
+          type: string
+          enum: [sm, md, lg]
+        position:
+          type: integer
+          minimum: 0
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
     PageSlot:
       type: object
       additionalProperties: false
@@ -3031,6 +3286,13 @@ components:
           maximum: 512
         follow_current_version:
           type: boolean
+        lettering:
+          type: array
+          description: >
+            Slot-anchored lettering (LETTER A2). Omitted or empty until seeded/created.
+            Clients treat missing as an empty list.
+          items:
+            $ref: '#/components/schemas/LetteringObject'
         created_at:
           type: string
           format: date-time
@@ -3101,6 +3363,11 @@ components:
           type: [string, 'null']
           format: uri-reference
           description: Null when the slot has no pinned image version.
+        lettering:
+          type: array
+          description: Overlay objects for manuscript preview; missing means none.
+          items:
+            $ref: '#/components/schemas/LetteringObject'
     LayoutPreview:
       type: object
       additionalProperties: false

@@ -932,7 +932,10 @@ export interface paths {
             };
             cookie?: never;
         };
-        /** Manuscript-style vertical preview payload for the episode layout */
+        /**
+         * Manuscript-style vertical preview payload for the episode layout
+         * @description Ordered strip items with image URLs and lettering overlays for manuscript preview. Lettering is layered in the client; pixels are not baked into image assets (LETTER-02).
+         */
         get: operations["getEpisodeLayoutPreview"];
         put?: never;
         post?: never;
@@ -997,6 +1000,67 @@ export interface paths {
         head?: never;
         /** Update slot geometry or pinned image version */
         patch: operations["updatePageSlot"];
+        trace?: never;
+    };
+    "/episodes/{episode_id}/layout/lettering/seed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                episode_id: components["parameters"]["EpisodeId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create default speech bubbles from panel dialogue for empty slots
+         * @description For each layout slot whose panel has non-empty dialogue and which has no lettering objects yet, creates one default speech_bubble. When replace_existing is true, deletes existing lettering on those slots before seeding. Does not modify Studio panel.dialogue.
+         */
+        post: operations["seedLetteringFromDialogue"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/slots/{slot_id}/lettering": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slot_id: components["parameters"]["SlotId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Add a lettering object to a page slot */
+        post: operations["createLetteringObject"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/lettering/{lettering_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                lettering_id: components["parameters"]["LetteringId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete a lettering object */
+        delete: operations["deleteLetteringObject"];
+        options?: never;
+        head?: never;
+        /** Update lettering text, geometry, or style */
+        patch: operations["updateLetteringObject"];
         trace?: never;
     };
     "/exports/{asset_id}": {
@@ -1138,6 +1202,9 @@ export interface components {
         };
         ApiSuccessPageSlot: components["schemas"]["ApiSuccessEnvelope"] & {
             data?: components["schemas"]["PageSlot"];
+        };
+        ApiSuccessLetteringObject: components["schemas"]["ApiSuccessEnvelope"] & {
+            data?: components["schemas"]["LetteringObject"];
         };
         ApiSuccessLayoutPreview: components["schemas"]["ApiSuccessEnvelope"] & {
             data?: components["schemas"]["LayoutPreview"];
@@ -1788,6 +1855,78 @@ export interface components {
             /** @description When true, future panel version selections update this slot by default. */
             follow_current_version?: boolean;
         };
+        SeedLetteringRequest: {
+            /**
+             * @description When true, delete existing lettering on slots that will be seeded before creating defaults. When false, skip slots that already have lettering.
+             * @default false
+             */
+            replace_existing: boolean;
+        };
+        LetteringObjectCreate: {
+            /** @enum {string} */
+            kind: "speech_bubble" | "narration";
+            text: string;
+            /**
+             * @description Left edge as percent of slot width.
+             * @default 8
+             */
+            x_pct: number;
+            /**
+             * @description Top edge as percent of slot height.
+             * @default 6
+             */
+            y_pct: number;
+            /**
+             * @description Box width as percent of slot width.
+             * @default 60
+             */
+            width_pct: number;
+            /**
+             * @default bottom_left
+             * @enum {string}
+             */
+            tail: "none" | "bottom_left" | "bottom_right" | "top_left" | "top_right";
+            /**
+             * @default md
+             * @enum {string}
+             */
+            font_size: "sm" | "md" | "lg";
+        };
+        LetteringObjectPatch: {
+            /** @enum {string} */
+            kind?: "speech_bubble" | "narration";
+            text?: string;
+            x_pct?: number;
+            y_pct?: number;
+            width_pct?: number;
+            /** @enum {string} */
+            tail?: "none" | "bottom_left" | "bottom_right" | "top_left" | "top_right";
+            /** @enum {string} */
+            font_size?: "sm" | "md" | "lg";
+            /** @description Order among lettering objects on the same slot. */
+            position?: number;
+        };
+        LetteringObject: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            slot_id: string;
+            /** @enum {string} */
+            kind: "speech_bubble" | "narration";
+            text: string;
+            x_pct: number;
+            y_pct: number;
+            width_pct: number;
+            /** @enum {string} */
+            tail: "none" | "bottom_left" | "bottom_right" | "top_left" | "top_right";
+            /** @enum {string} */
+            font_size: "sm" | "md" | "lg";
+            position: number;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+        };
         PageSlot: {
             /** Format: uuid */
             id: string;
@@ -1801,6 +1940,8 @@ export interface components {
             height_px: number;
             gap_after_px: number;
             follow_current_version: boolean;
+            /** @description Slot-anchored lettering (LETTER A2). Omitted or empty until seeded/created. Clients treat missing as an empty list. */
+            lettering?: components["schemas"]["LetteringObject"][];
             /** Format: date-time */
             created_at: string;
             /** Format: date-time */
@@ -1841,6 +1982,8 @@ export interface components {
              * @description Null when the slot has no pinned image version.
              */
             image_url: string | null;
+            /** @description Overlay objects for manuscript preview; missing means none. */
+            lettering?: components["schemas"]["LetteringObject"][];
         };
         LayoutPreview: {
             /** Format: uuid */
@@ -1955,6 +2098,7 @@ export interface components {
         PanelId: string;
         PageId: string;
         SlotId: string;
+        LetteringId: string;
         TaskId: string;
         Cursor: string;
         Limit: number;
@@ -3602,6 +3746,115 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiSuccessPageSlot"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationError"];
+            default: components["responses"]["UnexpectedError"];
+        };
+    };
+    seedLetteringFromDialogue: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                episode_id: components["parameters"]["EpisodeId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["SeedLetteringRequest"];
+            };
+        };
+        responses: {
+            /** @description Layout including seeded lettering */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiSuccessEpisodeLayout"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationError"];
+            default: components["responses"]["UnexpectedError"];
+        };
+    };
+    createLetteringObject: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slot_id: components["parameters"]["SlotId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LetteringObjectCreate"];
+            };
+        };
+        responses: {
+            /** @description Created lettering object */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiSuccessLetteringObject"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationError"];
+            default: components["responses"]["UnexpectedError"];
+        };
+    };
+    deleteLetteringObject: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                lettering_id: components["parameters"]["LetteringId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Lettering object deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: components["responses"]["NotFound"];
+            default: components["responses"]["UnexpectedError"];
+        };
+    };
+    updateLetteringObject: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                lettering_id: components["parameters"]["LetteringId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LetteringObjectPatch"];
+            };
+        };
+        responses: {
+            /** @description Updated lettering object */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiSuccessLetteringObject"];
                 };
             };
             404: components["responses"]["NotFound"];

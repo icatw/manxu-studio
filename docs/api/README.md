@@ -4,7 +4,7 @@
 
 - `openapi.yaml` 是 HTTP API 的唯一人工维护契约源，使用 OpenAPI 3.1.0。
 - 核心工作区与连载层（季策划、伏笔、话摘要、阅读页、设定集）需求已在 PRD 标记为 `confirmed`。
-- 成稿页布局 **PAGE-01…03** 已 `confirmed`，对应 OpenAPI `Layout` tag；LETTER / PUBLISH 仍不得实现。
+- 成稿页布局 **PAGE-01…03** 已 `confirmed`（`Layout` tag，已实现）。字效 **LETTER-01…02** 已 `confirmed`（`Lettering` tag，契约已入 YAML，实现见计划 `0025`）。**PUBLISH 仍不得实现。**
 - 需求、数据结构或交互变化，先更新需求文档和 YAML，再实现前后端。
 - FastAPI 路由、Pydantic schema 和前端类型都是契约的实现/派生产物，不另行定义接口事实。
 - 不在浏览器与模型供应商之间直连；模型凭据和供应商协议属于后端内部实现，不暴露到公开 API。

@@ -14,7 +14,7 @@
 
 ## Follow-on
 
-实现切片见 `0024-page-layout-a1.md`。LETTER/PUBLISH 仍 `proposed`。
+A1 见 `completed/0024-page-layout-a1.md`。A2 见 `0025-lettering-a2.md`（LETTER confirmed）。PUBLISH 仍 `proposed`。
 
 ## Gate
 

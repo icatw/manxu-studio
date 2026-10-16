@@ -11,12 +11,12 @@ Project
         ├── StoryboardPanel
         │     ├── PanelVersion
         │     └── GenerationTask ── GeneratedAsset
-        ├── Page（A1 confirmed）
-        │     └── PageSlot → PanelImageVersion
-        └── LetteringObject（规划 proposed）
+        └── Page（A1 confirmed）
+              └── PageSlot → PanelImageVersion
+                    └── LetteringObject（A2 confirmed）
 ```
 
-已交付实体支撑 L1。`Page` / `PageSlot` 已确认（PAGE-01…03），契约见 OpenAPI `Layout` tag；**LETTER 未确认前不建字效表。**
+已交付实体支撑 L1。`Page` / `PageSlot` 已确认（PAGE-01…03），契约见 OpenAPI `Layout` tag。`LetteringObject` 已确认（LETTER-01…02），契约见 OpenAPI `Lettering` tag；**实现前不建表。**
 
 ## 实体
 
@@ -60,9 +60,9 @@ Project
 
 一话内有序「页」或条漫段落。槽位引用 `panel_image_versions.id`（而非临时 URL）。`follow_current_version` 为真时，用户选定新图版后槽位改挂并保留页序与几何。
 
-### LetteringObject（规划）
+### LetteringObject（A2 confirmed）
 
-气泡、旁白等文字对象：文案、几何、样式持久化；归属 Page 或 Slot；与底图像分层。成稿导出时再栅格合成。对白真源以此为准，不以模型绘字为唯一来源。
+气泡（`speech_bubble`）或旁白（`narration`）：文案、相对槽位的百分比几何、字号档与可选尾标；**归属 PageSlot**；与底图像分层。成稿预览叠字显示；栅格合成进下载文件属 PUBLISH（A3）。成稿层对白真源以此为准；Studio `dialogue` 为制作态，种气泡时可迁入。
 
 ## 生命周期
 
@@ -77,4 +77,4 @@ Project
 - 项目内资产 ID 不能被其他项目的分镜引用。
 - 一个生成任务只负责一个目标对象/操作，避免整页局部失败无法恢复。
 - 当前版本变化不覆盖历史版本或历史任务输入快照。
-- （规划）同一 Episode 内 Page 序号唯一；Slot 只引用本项目 PanelVersion；Lettering 不孤立于已删 Page。
+- 同一 Episode 内 Page 序号唯一；Slot 只引用本项目 PanelVersion；Lettering 只挂本项目 Slot，删槽级联删除。

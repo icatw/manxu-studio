@@ -116,16 +116,16 @@
 ## 成稿层阶段 A1：页与竖条排版（`confirmed`）
 
 > 分层见 [roadmap-complete-comic.md](roadmap-complete-comic.md)。屏幕流见 [user-flows.md](user-flows.md)。契约见 `docs/api/openapi.yaml`（Layout / Page / PageSlot）。  
-> **LETTER / PUBLISH 仍为 `proposed`，本切片不实现字效编辑与成稿导出产品化。**
+> **LETTER-01…02 已 `confirmed`（见阶段 A2）。PUBLISH 仍为 `proposed`，本切片不实现成稿导出产品化。**
 
-产品方向：个人连载静态漫画工作台。L1 已交付；A1 在其上叠加可持久化竖条页，不推翻 Studio 主路径。
+产品方向：个人连载静态漫画工作台。L1 已交付；A1 在其上叠加可持久化竖条页；A2 叠加独立字效，不推翻 Studio 主路径。
 
 ### 规划决策（钉死）
 
 - EXP = 制作预览/资料；PUBLISH = 成稿合成导出；双轨文案，不得混称。
-- 成稿对象：`Page` / `PageSlot`（引 `PanelImageVersion`）+ `LetteringObject`（A2）；重绘 Panel 默认保留页布局。
+- 成稿对象：`Page` / `PageSlot`（引 `PanelImageVersion`）+ `LetteringObject`（A2）；重绘 Panel 默认保留页布局与字效。
 - SaaS MVP：个人账户 + 多作品 + L1 + 阶段 A；团队/社区不做。
-- 计费叙事不阻塞 PAGE 实现。
+- 计费叙事不阻塞 PAGE / LETTER 实现。
 
 ### 阶段 A1 — 页与排版（已确认，可实现）
 
@@ -141,10 +141,33 @@
 4. 账户隔离：不能读写他人话的 layout。  
 5. 0 画格时不能 bootstrap；部分无图格允许占位。
 
-### 阶段 A2 — 字效（`proposed`）
+### 阶段 A2 — 字效（已确认，可实现）
 
-- **LETTER-01** (`proposed`)：用户可为格或页添加气泡、旁白等文字对象；文本与样式持久化，与底图分层存储。
-- **LETTER-02** (`proposed`)：修改对白或气泡样式不要求重绘底图；导出成稿时合成最终像素。
+> 屏幕流见 [user-flows.md · 阶段 A2](user-flows.md)。契约见 OpenAPI `Lettering` tag。  
+> **A2 不含 PUBLISH 产品入口**；成稿预览叠字即可，正式成稿导出属 A3。
+
+**MVP 决策（钉死）**
+
+- 对象类型仅两种：`speech_bubble`（对白气泡）、`narration`（旁白条）。
+- **挂在 PageSlot**（跟格走）；不做页级游离字效。
+- 几何相对槽位：`x_pct` / `y_pct` / `width_pct`（0–100）；可选 `tail`（`none` | `bottom_left` | `bottom_right` | `top_left` | `top_right`）。
+- 样式 MVP：白底圆角气泡 / 旁白条；`font_size` 为 `sm` | `md` | `lg`。不做人名框、爆炸泡、自定义字体上传。
+- **成稿层对白真源为 Lettering**；Studio 分镜 `dialogue` 仍为制作态字段。
+- 「从分镜生成气泡」：对无字效且分镜对白非空的槽，生成默认 `speech_bubble`（可再改）；不覆盖已有字效，除非请求显式 `replace_existing`。
+- 重绘并换图版：默认**保留**该槽 Lettering（与 PAGE-03 一致）。
+- 成稿预览：DOM/矢量叠字，**不**写回图像资产；不提供「导出成稿」入口（A3）。
+
+- **LETTER-01** (`confirmed`)：用户可为某一槽添加、编辑、删除气泡或旁白文字对象；文本、几何与样式持久化，与底图分层；一槽可有多个对象并有序。
+- **LETTER-02** (`confirmed`)：修改字效文案或样式不要求重绘底图；成稿预览立即反映变更。栅格合成进下载文件属 **PUBLISH（A3）**，A2 不交付成稿导出产品化。
+
+**验收**：
+
+1. 有布局的话可对槽增删改字效；刷新后字效仍在。  
+2. 「从分镜生成气泡」可为有对白的空槽生成默认气泡；已有字效默认不被覆盖。  
+3. 成稿预览可见字效叠层；改文案后无需重绘即可在预览中看到新字。  
+4. Studio 重绘并选定新图版后，该槽字效仍在。  
+5. 账户隔离：不能读写他人槽的字效。  
+6. 无布局时不能种字效；删除槽时级联删除其字效。
 
 ### 阶段 A3 — 成稿导出与私密评审（`proposed`）
 
@@ -162,7 +185,7 @@
 - 从已有分镜走到「像一本漫画」的可读成稿并导出。
 - 改对白或重绘一格，不必重做整话排版。
 - 同一作品可继续第二话并复用设定与资产。
-- 对外分清：已交付的分镜/画格 vs 尚未确认的成稿层（A2/A3 交付前不得宣传字效/成稿导出已上线）。
+- 对外分清：已交付的分镜/画格/页布局 vs 字效（A2 交付前不得宣传字效已上线）vs 成稿导出（A3 交付前不得宣传成稿导出已上线）。
 
 ## 质量要求
 
