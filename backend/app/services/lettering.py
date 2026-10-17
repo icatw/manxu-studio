@@ -1,5 +1,8 @@
 """Slot-anchored lettering (LETTER A2) application service."""
 
+from __future__ import annotations
+
+import re
 from uuid import UUID, uuid4
 
 from fastapi import HTTPException
@@ -16,9 +19,70 @@ from app.schemas.workspace import (
 )
 from app.services import layout as layout_service
 
+# Exact shell words authors sometimes leave as "content" (LETTER-05).
+_SHELL_TEXTS = frozenset({"旁白", "对白", "气泡", "narration", "dialogue", "bubble"})
+
+# Speaker turn: "林澈：…" / "零: …" — used to split jammed multi-speaker lines (LETTER-04).
+_SPEAKER_TURN = re.compile(
+    r"(?:(?<=^)|(?<=[\n；;。！？!?\s]))"
+    r"([^\s：:\n]{1,16})"
+    r"[：:]"
+)
+# Mid-sentence labels that look like "Name：" but are not dialogue speakers.
+_SPEAKER_BLOCKLIST = frozenset(
+    {"限制", "注意", "警告", "说明", "提示", "系统", "旁白", "对白", "注", "例"}
+)
+
 
 def _not_found(resource: str) -> HTTPException:
     return HTTPException(status_code=404, detail=f"{resource}不存在")
+
+
+def validate_lettering_text(text: str) -> str:
+    """Normalize and reject empty / shell-only lettering bodies (LETTER-05)."""
+    cleaned = text.strip()
+    if not cleaned:
+        raise HTTPException(status_code=422, detail="字效文案不能为空")
+    if cleaned in _SHELL_TEXTS:
+        raise HTTPException(
+            status_code=422,
+            detail="请填写实际对白或旁白，不能使用「旁白／对白／气泡」等占位词",
+        )
+    return cleaned
+
+
+def split_dialogue_for_bubbles(dialogue: str) -> list[str]:
+    """Split panel dialogue into bubble texts (LETTER-04).
+
+    Prefers newlines; otherwise splits on multiple Name： turns in one line.
+    Single undivided lines stay one bubble.
+    """
+    raw = dialogue.strip()
+    if not raw:
+        return []
+
+    if "\n" in raw:
+        parts = [part.strip() for part in raw.splitlines() if part.strip()]
+        if len(parts) > 1:
+            return parts
+
+    matches = [
+        match
+        for match in _SPEAKER_TURN.finditer(raw)
+        if match.group(1) not in _SPEAKER_BLOCKLIST
+    ]
+    if len(matches) >= 2:
+        chunks: list[str] = []
+        for index, match in enumerate(matches):
+            start = match.start()
+            end = matches[index + 1].start() if index + 1 < len(matches) else len(raw)
+            chunk = raw[start:end].strip().strip("；;")
+            if chunk:
+                chunks.append(chunk)
+        if len(chunks) >= 2:
+            return chunks
+
+    return [raw]
 
 
 def lettering_view(row: LetteringObjectRecord) -> LetteringObject:
@@ -72,11 +136,12 @@ async def create_lettering(
     slot = await session.get(PageSlotRecord, slot_id)
     if slot is None:
         raise _not_found("槽位")
+    text = validate_lettering_text(body.text)
     row = LetteringObjectRecord(
         id=uuid4(),
         slot_id=slot_id,
         kind=body.kind,
-        text=body.text,
+        text=text,
         x_pct=body.x_pct,
         y_pct=body.y_pct,
         width_pct=body.width_pct,
@@ -101,7 +166,7 @@ async def update_lettering(
     if body.kind is not None:
         row.kind = body.kind
     if body.text is not None:
-        row.text = body.text
+        row.text = validate_lettering_text(body.text)
     if body.x_pct is not None:
         row.x_pct = body.x_pct
     if body.y_pct is not None:
@@ -152,7 +217,8 @@ async def seed_lettering_from_dialogue(
 
     for index, slot in enumerate(flat_slots):
         dialogue = dialogue_by_panel.get(slot.panel_id, "")
-        if not dialogue:
+        bubbles = split_dialogue_for_bubbles(dialogue)
+        if not bubbles:
             continue
         current = existing.get(slot.id, [])
         if current and not opts.replace_existing:
@@ -167,20 +233,23 @@ async def seed_lettering_from_dialogue(
             await session.flush()
 
         even = index % 2 == 0
-        session.add(
-            LetteringObjectRecord(
-                id=uuid4(),
-                slot_id=slot.id,
-                kind="speech_bubble",
-                text=dialogue,
-                x_pct=8.0 if even else 32.0,
-                y_pct=6.0,
-                width_pct=60.0,
-                tail="bottom_left" if even else "bottom_right",
-                font_size="md",
-                position=0,
+        for bubble_index, bubble_text in enumerate(bubbles):
+            text = validate_lettering_text(bubble_text)
+            y_pct = min(70.0, 6.0 + bubble_index * 18.0)
+            session.add(
+                LetteringObjectRecord(
+                    id=uuid4(),
+                    slot_id=slot.id,
+                    kind="speech_bubble",
+                    text=text,
+                    x_pct=8.0 if even else 32.0,
+                    y_pct=y_pct,
+                    width_pct=60.0,
+                    tail="bottom_left" if even else "bottom_right",
+                    font_size="md",
+                    position=bubble_index,
+                )
             )
-        )
 
     await session.commit()
     return await layout_service.get_episode_layout(episode_id, session)

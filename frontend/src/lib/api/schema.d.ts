@@ -1040,7 +1040,7 @@ export interface paths {
         put?: never;
         /**
          * Create default speech bubbles from panel dialogue for empty slots
-         * @description For each layout slot whose panel has non-empty dialogue and which has no lettering objects yet, creates one default speech_bubble. When replace_existing is true, deletes existing lettering on those slots before seeding. Does not modify Studio panel.dialogue.
+         * @description For each layout slot whose panel has non-empty dialogue and which has no lettering objects yet, creates one or more speech_bubble objects. Multi-speaker or multi-line dialogue is split into separate bubbles (LETTER-04). When replace_existing is true, deletes existing lettering on those slots before seeding. Does not modify Studio panel.dialogue.
          */
         post: operations["seedLetteringFromDialogue"];
         delete?: never;
@@ -1060,7 +1060,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Add a lettering object to a page slot */
+        /**
+         * Add a lettering object to a page slot
+         * @description Rejects empty text and shell-only placeholders such as 旁白 / 对白 / 气泡 (LETTER-05). Draft stubs like （填写对白） are allowed.
+         */
         post: operations["createLetteringObject"];
         delete?: never;
         options?: never;
@@ -1084,7 +1087,10 @@ export interface paths {
         delete: operations["deleteLetteringObject"];
         options?: never;
         head?: never;
-        /** Update lettering text, geometry, or style */
+        /**
+         * Update lettering text, geometry, or style
+         * @description When text is patched, same LETTER-05 shell-text rejection as create.
+         */
         patch: operations["updateLetteringObject"];
         trace?: never;
     };
@@ -1897,6 +1903,7 @@ export interface components {
         LetteringObjectCreate: {
             /** @enum {string} */
             kind: "speech_bubble" | "narration";
+            /** @description Lettering body. Rejected at API if blank or shell-only (旁白 / 对白 / 气泡). Draft stubs such as （填写对白） are OK. */
             text: string;
             /**
              * @description Left edge as percent of slot width.
@@ -1927,6 +1934,7 @@ export interface components {
         LetteringObjectPatch: {
             /** @enum {string} */
             kind?: "speech_bubble" | "narration";
+            /** @description Same LETTER-05 rules as LetteringObjectCreate when provided. */
             text?: string;
             x_pct?: number;
             y_pct?: number;

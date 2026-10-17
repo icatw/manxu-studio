@@ -19,11 +19,6 @@ import { RegenerateConfirmDialog } from './regenerate-confirm-dialog'
 const STUB_SPEECH = '（填写对白）'
 const STUB_NARRATION = '（填写旁白）'
 
-function defaultSpeechText(dialogue: string) {
-  const trimmed = dialogue.trim()
-  return trimmed || STUB_SPEECH
-}
-
 export function ComicPreviewDialog() {
   const { project, previewOpen, setPreviewOpen, episodeId } = useStudio()
   const lettering = useEpisodeLayoutLettering(previewOpen ? episodeId : undefined)
@@ -123,10 +118,17 @@ export function ComicPreviewDialog() {
                       <LetteringOverlay
                         items={items}
                         interactive
+                        draggable
                         selectedId={selectedLetteringId}
                         onSelect={(id) => {
                           setSelectedPanelId(panel.id)
                           setSelectedLetteringId(id)
+                        }}
+                        onPositionCommit={(id, position) => {
+                          lettering.patch.mutate({
+                            letteringId: id,
+                            body: position,
+                          })
                         }}
                       />
                     ) : (
@@ -143,7 +145,7 @@ export function ComicPreviewDialog() {
               <h3 className="font-medium">字效</h3>
               <p className="mt-1 text-xs text-muted-foreground">
                 {selectedPanel
-                  ? `第 ${selectedPanel.panelNumber} 格`
+                  ? `第 ${selectedPanel.panelNumber} 格 · 可拖动气泡改位置`
                   : '选中一格后编辑气泡/旁白'}
               </p>
             </div>
@@ -161,7 +163,7 @@ export function ComicPreviewDialog() {
                           slotId: binding.slotId,
                           body: {
                             kind: 'speech_bubble',
-                            text: defaultSpeechText(selectedPanel.dialogue),
+                            text: STUB_SPEECH,
                             x_pct: 8,
                             y_pct: 6,
                             width_pct: 60,
@@ -206,11 +208,9 @@ export function ComicPreviewDialog() {
                     旁白
                   </Button>
                 </div>
-                {!selectedPanel.dialogue.trim() ? (
-                  <p className="text-[11px] text-muted-foreground">
-                    本格分镜对白为空；新增气泡会先写入占位文案，请再改成定稿字。
-                  </p>
-                ) : null}
+                <p className="text-[11px] text-muted-foreground">
+                  新增气泡/旁白先写入占位文案，请改成定稿；不会自动复制整段分镜对白。多人台词请用「从分镜生成气泡」拆分。
+                </p>
 
                 <ul className="flex flex-col gap-1">
                   {binding.lettering.map((item) => (

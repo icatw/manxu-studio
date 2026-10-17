@@ -14,7 +14,7 @@
 
 ## Follow-on
 
-A1 见 `completed/0024-page-layout-a1.md`。A2 见 `0025-lettering-a2.md`（LETTER confirmed）。PUBLISH 仍 `proposed`。
+A1–A3 见 `completed/0024`…`0027`。当前主线：制作打磨 `0028-craft-polish.md`（先做好一话；PUBLISH-02 仍 proposed）。
 
 ## Gate
 

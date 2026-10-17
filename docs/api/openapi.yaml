@@ -1558,10 +1558,11 @@ paths:
       summary: Create default speech bubbles from panel dialogue for empty slots
       description: >
         For each layout slot whose panel has non-empty dialogue and which has no
-        lettering objects yet, creates one default speech_bubble.
-        When replace_existing is true, deletes existing lettering on those slots
-        before seeding. Does not modify Studio panel.dialogue.
-      x-requirement-ids: [LETTER-01, LETTER-02]
+        lettering objects yet, creates one or more speech_bubble objects.
+        Multi-speaker or multi-line dialogue is split into separate bubbles
+        (LETTER-04). When replace_existing is true, deletes existing lettering
+        on those slots before seeding. Does not modify Studio panel.dialogue.
+      x-requirement-ids: [LETTER-01, LETTER-02, LETTER-04]
       requestBody:
         required: false
         content:
@@ -1589,7 +1590,10 @@ paths:
       tags: [Lettering]
       operationId: createLetteringObject
       summary: Add a lettering object to a page slot
-      x-requirement-ids: [LETTER-01]
+      description: >
+        Rejects empty text and shell-only placeholders such as 旁白 / 对白 / 气泡
+        (LETTER-05). Draft stubs like （填写对白） are allowed.
+      x-requirement-ids: [LETTER-01, LETTER-05]
       requestBody:
         required: true
         content:
@@ -1617,7 +1621,10 @@ paths:
       tags: [Lettering]
       operationId: updateLetteringObject
       summary: Update lettering text, geometry, or style
-      x-requirement-ids: [LETTER-01, LETTER-02]
+      description: >
+        When text is patched, same LETTER-05 shell-text rejection as create.
+        Geometry patches (x_pct/y_pct) support LETTER-06 desktop drag commit.
+      x-requirement-ids: [LETTER-01, LETTER-02, LETTER-05, LETTER-06]
       requestBody:
         required: true
         content:
@@ -3184,6 +3191,9 @@ components:
           type: string
           minLength: 1
           maxLength: 4000
+          description: >
+            Lettering body. Rejected at API if blank or shell-only
+            (旁白 / 对白 / 气泡). Draft stubs such as （填写对白） are OK.
         x_pct:
           type: number
           minimum: 0
@@ -3221,6 +3231,8 @@ components:
           type: string
           minLength: 1
           maxLength: 4000
+          description: >
+            Same LETTER-05 rules as LetteringObjectCreate when provided.
         x_pct:
           type: number
           minimum: 0
