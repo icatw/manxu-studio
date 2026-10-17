@@ -213,7 +213,7 @@ function PanelFields({ panel }: { panel: StoryboardPanel }) {
           maxLength={4000}
           rows={4}
           onChange={(e) => update({ dialogue: e.target.value })}
-          placeholder="写清角色说的话；阅读页与导出都会用到"
+          placeholder="制作态对白；成稿字效请在「制作预览」编辑"
         />
       </div>
 

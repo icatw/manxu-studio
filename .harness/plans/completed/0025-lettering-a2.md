@@ -18,7 +18,7 @@
 - [x] Layout/get/preview 附带 lettering
 - [x] Frontend：成稿页字效编辑 + 预览叠字 + 「从分镜生成气泡」
 - [x] ownership / create / seed-empty 测试（CI）
-- [ ] 本地手验；**不部署生产**
+- [x] 本地手验（由 0026 工作室主编辑路径覆盖）；**不部署生产**
 
 ## Out of scope
 

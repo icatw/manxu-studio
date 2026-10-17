@@ -3,8 +3,10 @@
 import Image from '@/components/ui/image'
 import { AlertTriangle, ChevronLeft, ChevronRight, ImageOff, RefreshCw, Square } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { DialogueFallbackBubble, LetteringOverlay } from '@/components/series/lettering-overlay'
 import { ASSET_SOURCE_SHORT } from '@/lib/asset-labels'
 import { cn } from '@/lib/utils'
+import type { LetteringObject } from '@/services/layout-api'
 import { SHOT_TYPE_LABELS, type StoryboardPanel as Panel } from '@/types/storyboard'
 import { StatusBadge, WithTooltip } from './shared'
 
@@ -13,6 +15,7 @@ interface Props {
   index: number
   total: number
   selected: boolean
+  lettering?: LetteringObject[]
   onSelect: () => void
   onMove: (direction: -1 | 1) => void
   onGenerate: () => void
@@ -26,9 +29,20 @@ const ASPECT_CLASS: Record<Panel['aspectRatio'], string> = {
   '3:4': 'aspect-[3/4]',
 }
 
-export function StoryboardPanelCard({ panel, index, total, selected, onSelect, onMove, onGenerate, onCancel }: Props) {
+export function StoryboardPanelCard({
+  panel,
+  index,
+  total,
+  selected,
+  lettering = [],
+  onSelect,
+  onMove,
+  onGenerate,
+  onCancel,
+}: Props) {
   const generating = panel.status === 'generating'
   const bubbleRight = index % 2 === 1
+  const hasLettering = lettering.length > 0
 
   return (
     <article
@@ -88,23 +102,12 @@ export function StoryboardPanelCard({ panel, index, total, selected, onSelect, o
           </div>
         )}
 
-        {panel.dialogue.trim() && !generating && (
-          <div
-            className={cn(
-              'absolute top-[5%] max-w-[62%] rounded-[1.25rem] border-2 border-neutral-900 bg-white px-3 py-1.5 text-center text-[13px] leading-snug font-bold text-neutral-900 shadow-md',
-              bubbleRight ? 'right-[4%]' : 'left-[4%]',
-            )}
-          >
-            <span className="line-clamp-3">{panel.dialogue}</span>
-            <span
-              aria-hidden
-              className={cn(
-                'absolute -bottom-[9px] size-4 rotate-45 border-r-2 border-b-2 border-neutral-900 bg-white',
-                bubbleRight ? 'right-[28%]' : 'left-[28%]',
-              )}
-            />
-          </div>
-        )}
+        {!generating &&
+          (hasLettering ? (
+            <LetteringOverlay items={lettering} />
+          ) : (
+            <DialogueFallbackBubble text={panel.dialogue} alignRight={bubbleRight} />
+          ))}
 
         <span className="absolute bottom-0 left-0 bg-neutral-950 px-2 py-0.5 text-xs font-bold text-white tabular-nums">
           {panel.panelNumber}

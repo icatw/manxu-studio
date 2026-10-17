@@ -833,8 +833,33 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Create an export for the current episode state */
+        /**
+         * Create an export for the current episode state
+         * @description Production preview export (EXP). PNG overlays bake Lettering when the panel slot has lettering objects; otherwise fall back to storyboard dialogue. Not a manuscript/PUBLISH export.
+         */
         post: operations["createEpisodeExport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/episodes/{episode_id}/manuscript-exports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                episode_id: components["parameters"]["EpisodeId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create a manuscript export from layout pages and lettering
+         * @description PUBLISH-01 manuscript export. Composes Page/Slot order and geometry with Lettering overlays only (no storyboard dialogue fallback). Requires an existing vertical-strip layout (409 if missing). Distinct from EXP createEpisodeExport.
+         */
+        post: operations["createEpisodeManuscriptExport"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1738,6 +1763,13 @@ export interface components {
             format: "png" | "png_zip" | "production_json";
             /** @default false */
             include_unapproved_panels: boolean;
+        };
+        ManuscriptExportRequest: {
+            /**
+             * @description Manuscript formats only. png is one vertical strip from layout slots; png_zip is one PNG per layout page; pdf is one multi-page document (one layout page per PDF page). No production_json.
+             * @enum {string}
+             */
+            format: "png" | "png_zip" | "pdf";
         };
         AnthologyExportRequest: {
             /**
@@ -3514,6 +3546,36 @@ export interface operations {
         };
         responses: {
             /** @description Export task accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiSuccessGenerationTask"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["ValidationError"];
+            default: components["responses"]["UnexpectedError"];
+        };
+    };
+    createEpisodeManuscriptExport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                episode_id: components["parameters"]["EpisodeId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ManuscriptExportRequest"];
+            };
+        };
+        responses: {
+            /** @description Manuscript export task accepted */
             202: {
                 headers: {
                     [name: string]: unknown;

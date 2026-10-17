@@ -21,8 +21,8 @@
 | 层 | 用户得到什么 | 现状 |
 | --- | --- | --- |
 | **L1 连载工作台** | 作品/话、设定、伏笔摘要、分镜、出图、版本、制作预览导出（EXP） | **已交付**（`v0.1.0-storyboard`） |
-| **L2 成稿层** | 可存的页/条漫布局 + 独立文字对象；改字不重绘 | **PAGE 已交付**；**LETTER 已确认待实现**；PUBLISH 仍 `proposed` |
-| **L3 成稿交付** | 成稿导出语义；可选私密评审链接 | EXP ≠ 成稿；PUBLISH `proposed` |
+| **L2 成稿层** | 可存的页/条漫布局 + 独立文字对象；改字不重绘 | **PAGE + LETTER 已交付**（仓库；生产冻结） |
+| **L3 成稿交付** | 成稿导出语义；可选私密评审链接 | **PUBLISH-01 已交付**；PUBLISH-02 仍 `proposed` |
 | **L4 SaaS 产品面** | 个人工作室心智：用量/套餐、带走与删除、身份恢复 | 账户骨架已有；包装与账本未立 |
 
 **SaaS 个人漫画制作平台** = L1 为底座 + **优先建成 L2**，再补 L3/L4 最小集。没有 L2，产品停留在分镜工具；有 L2，才站得住「做漫画」。
@@ -33,13 +33,13 @@
 Project（作品）
   └── Episode（话）
         ├── StoryboardPanel / PanelVersion / 图像资产     ← L1 已有
-        ├── Page（页/条段落，有序）                      ← L2 proposed
+        ├── Page（页/条段落，有序）                      ← L2 已交付
         │     └── PageSlot → 引用 PanelVersion
-        └── LetteringObject（气泡/旁白…）               ← L2 confirmed（待实现）
-              └── 挂在 Page 或 Slot；与底图分层存储
+        └── LetteringObject（气泡/旁白…）               ← L2 已交付（挂 Slot）
+              └── 与底图分层存储；主编辑在工作室制作预览
 Export
   ├── EXP_*     制作预览 / 制作资料（可烘焙气泡）       ← L1 已有
-  └── PUBLISH_* 成稿合成导出（文字层 + 布局）           ← L3 proposed
+  └── PUBLISH_* 成稿合成导出（文字层 + 布局）           ← L3 PUBLISH-01 已交付；-02 proposed
 ```
 
 原则：重绘 Panel 默认保留 Page 布局与 Lettering；模型绘字不得作为唯一对白源。
@@ -80,7 +80,7 @@ Export
 | 子阶段 | 能力 | PRD |
 | --- | --- | --- |
 | **A1** | Page 模型；竖条模板（序/距/高）；整话成稿预览；重绘默认保布局 | PAGE-01…03 **`confirmed`**；契约已入 OpenAPI |
-| **A2** | Lettering 对象（文案/位/样式）；改字不重绘；成稿预览叠字（合成下载属 A3） | LETTER-01…02 **`confirmed`** |
+| **A2** | Lettering 对象；**主编辑在工作室制作预览**；成稿排版管页结构；改字不重绘；EXP 有字效则烘焙字效（成稿导出属 A3） | LETTER-01…03 **`confirmed`** |
 | **A3** | 成稿导出（长图、多页 PNG/PDF）；与 EXP **双轨文案** | PUBLISH-01（CBZ 另验） |
 
 **阶段 A 验收（产品语言）**：改一句对白或重绘一格后，其余格与排版仍在；成稿导出中文可读、顺序正确；用户能区分「制作预览（EXP）」与「成稿（PUBLISH）」。
@@ -129,14 +129,15 @@ L1（已有）
 
 ## 市场与竞品观察（摘要）
 
-国内静态漫画工具已存在但市场证据分散。[漫页](https://manye.cc/)、[智漫工坊](https://apps.apple.com/cn/app/%E6%99%BA%E6%BC%AB%E5%B7%A5%E5%9D%8A-ai%E5%88%9B%E4%BD%9C%E6%BC%AB%E7%94%BB/id6777452527)、[GenToon](https://www.gentoon.ai/zh-CN) 等在正文→图、排版、角色复用上有重叠。漫序差异应强调**跨话设定/审阅掌控 + 文字层成稿**，而非只卷「一键出图」。
+国内静态漫画工具已存在但市场证据分散。[漫页](https://manye.cc/)、[德学漫画](https://comic.dexuebao.com/)、[鲸先生](https://mrwhale.ai/)、[DramaBuddy](https://aicomic.yuewen.com/)、[触漫](https://www.cocomix.cn/) 等与漫序有不同程度重叠；另有 [智漫工坊](https://apps.apple.com/cn/app/%E6%99%BA%E6%BC%AB%E5%B7%A5%E5%9D%8A-ai%E5%88%9B%E4%BD%9C%E6%BC%AB%E7%94%BB/id6777452527)、[GenToon](https://www.gentoon.ai/zh-CN) 等。漫序差异应强调**跨话设定/审阅掌控 + 文字层成稿**，而非只卷「一键出图」。完整矩阵、定位地图与学避建议见 [competitive-analysis.md](competitive-analysis.md)。
 
 ## PRD 对应
 
 权威需求在 [prd.md](prd.md)：
 
 - PAGE-01…03 **`confirmed`**（A1 可实现）  
-- PUBLISH-01…02 仍为 `proposed`；LETTER-01…02 已 `confirmed`（实现见计划 `0025`）
+- LETTER-01…03 已 `confirmed`（实现见计划 `0025`、`0026`）  
+- PUBLISH-01 **`confirmed`**（A3，计划 `0027`）；PUBLISH-02 仍 `proposed`
 
 基础设施与 AUTH 不挂靠扩大 PAGE 范围。
 

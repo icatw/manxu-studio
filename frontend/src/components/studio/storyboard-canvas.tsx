@@ -3,14 +3,16 @@
 import { useState } from 'react'
 import { Clapperboard, Loader2, Plus, Sparkles, Square, Trash2, Wand2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { useEpisodeLayoutLettering } from '@/hooks/use-episode-layout-lettering'
 import { useStudio } from './studio-provider'
 import { StoryboardPanelCard } from './storyboard-panel'
 import { RegenerateConfirmDialog } from './regenerate-confirm-dialog'
 
 export function StoryboardCanvas() {
-  const { project, dispatch, selectedPanelId, selectPanel, generation, storyBusy, generateFromStory, setStage } =
+  const { project, dispatch, selectedPanelId, selectPanel, generation, storyBusy, generateFromStory, setStage, episodeId } =
     useStudio()
   const { addPanel, removePanel } = useStudio()
+  const lettering = useEpisodeLayoutLettering(episodeId)
   const [confirmAll, setConfirmAll] = useState(false)
   const [trialOpen, setTrialOpen] = useState(false)
   const [pendingAction, setPendingAction] = useState<'one' | 'all' | null>(null)
@@ -136,6 +138,7 @@ export function StoryboardCanvas() {
             index={index}
             total={panels.length}
             selected={panel.id === selectedPanelId}
+            lettering={lettering.byPanelId.get(panel.id)?.lettering}
             onSelect={() => selectPanel(panel.id)}
             onMove={(direction) => dispatch({ type: 'movePanel', id: panel.id, direction })}
             onGenerate={() => requestGenerateOne(panel.id)}

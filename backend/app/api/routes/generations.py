@@ -14,6 +14,7 @@ from app.schemas.workspace import (
     ExportRequest,
     GenerationProviderResumeRequest,
     GenerationTask,
+    ManuscriptExportRequest,
 )
 from app.services import generations as generations_service
 
@@ -90,6 +91,24 @@ async def create_episode_export(
     session: SessionDep,
 ) -> GenerationTask:
     return await generations_service.create_export(
+        session, episode_id=episode_id, owner_id=request.state.account_id, body=body
+    )
+
+
+@router.post(
+    "/episodes/{episode_id}/manuscript-exports",
+    operation_id="createEpisodeManuscriptExport",
+    response_model=GenerationTask,
+    status_code=202,
+    dependencies=[Depends(require_episode_owner)],
+)
+async def create_episode_manuscript_export(
+    episode_id: UUID,
+    body: ManuscriptExportRequest,
+    request: Request,
+    session: SessionDep,
+) -> GenerationTask:
+    return await generations_service.create_manuscript_export(
         session, episode_id=episode_id, owner_id=request.state.account_id, body=body
     )
 

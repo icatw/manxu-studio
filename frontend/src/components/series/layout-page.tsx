@@ -1,41 +1,42 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router";
 import {
   ArrowDown,
   ArrowUp,
+  ChevronDown,
   ChevronLeft,
+  Download,
+  FileImage,
+  Files,
   LayoutTemplate,
   Loader2,
   MessageSquareText,
   PenLine,
-  Plus,
   RefreshCw,
   Sparkles,
-  Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { ButtonLink } from "@/components/ui/button-link";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { toApiError } from "@/lib/api/client";
+import { api, toApiError } from "@/lib/api/client";
+import { waitForGenerationTask } from "@/lib/generation-task";
+import { queryClient as sharedQueryClient } from "@/lib/query-client";
+import { cn } from "@/lib/utils";
 import { listEpisodes } from "@/services/workspace-api";
 import { LetteringOverlay } from "@/components/series/lettering-overlay";
 import {
   bootstrapEpisodeLayout,
-  createLetteringObject,
-  deleteLetteringObject,
   getEpisodeLayout,
   getEpisodeLayoutPreview,
   reorderPageSlots,
-  seedLetteringFromDialogue,
   syncEpisodeLayout,
-  updateLetteringObject,
   updatePageSlot,
-  type LetteringObject,
   type PageSlot,
 } from "@/services/layout-api";
+
+type ManuscriptFormat = "png" | "png_zip" | "pdf";
 
 function layoutQueryKey(episodeId: string) {
   return ["layout", episodeId] as const;
@@ -51,7 +52,10 @@ export function LayoutPage() {
   const queryClient = useQueryClient();
   const [mode, setMode] = useState<"edit" | "preview">("edit");
   const [selectedSlotId, setSelectedSlotId] = useState<string | null>(null);
-  const [selectedLetteringId, setSelectedLetteringId] = useState<string | null>(null);
+  const [exportOpen, setExportOpen] = useState(false);
+  const [exportingFormat, setExportingFormat] = useState<ManuscriptFormat | null>(null);
+  const exportMenuId = useId();
+  const exportWrapRef = useRef<HTMLDivElement>(null);
 
   const episodes = useQuery({
     queryKey: ["episodes", projectId],
@@ -134,61 +138,74 @@ export function LayoutPage() {
     },
   });
 
-  const seedLettering = useMutation({
-    mutationFn: (replaceExisting: boolean) =>
-      seedLetteringFromDialogue(episodeId, { replace_existing: replaceExisting }),
-    onSuccess: async () => {
-      toast.success("已从分镜对白生成气泡");
-      await invalidateLayout();
-    },
-    onError: (error) => {
-      toast.error("生成气泡失败", { description: toApiError(error).message });
-    },
-  });
+  useEffect(() => {
+    if (!exportOpen) return;
+    const onPointerDown = (event: MouseEvent) => {
+      if (!exportWrapRef.current?.contains(event.target as Node)) setExportOpen(false);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setExportOpen(false);
+    };
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [exportOpen]);
 
-  const createLettering = useMutation({
-    mutationFn: ({
-      slotId,
-      body,
-    }: {
-      slotId: string;
-      body: Parameters<typeof createLetteringObject>[1];
-    }) => createLetteringObject(slotId, body),
-    onSuccess: async (row) => {
-      setSelectedLetteringId(row.id);
-      await invalidateLayout();
-    },
-    onError: (error) => {
-      toast.error("添加字效失败", { description: toApiError(error).message });
-    },
-  });
-
-  const patchLettering = useMutation({
-    mutationFn: ({
-      letteringId,
-      body,
-    }: {
-      letteringId: string;
-      body: Parameters<typeof updateLetteringObject>[1];
-    }) => updateLetteringObject(letteringId, body),
-    onSuccess: async () => {
-      await invalidateLayout();
-    },
-    onError: (error) => {
-      toast.error("保存字效失败", { description: toApiError(error).message });
-    },
-  });
-
-  const removeLettering = useMutation({
-    mutationFn: (letteringId: string) => deleteLetteringObject(letteringId),
-    onSuccess: async () => {
-      setSelectedLetteringId(null);
-      await invalidateLayout();
-    },
-    onError: (error) => {
-      toast.error("删除字效失败", { description: toApiError(error).message });
-    },
-  });
+  const handleManuscriptExport = async (format: ManuscriptFormat) => {
+    if (!episodeId) return;
+    setExportOpen(false);
+    setExportingFormat(format);
+    try {
+      const { data, error } = await api.POST("/episodes/{episode_id}/manuscript-exports", {
+        params: { path: { episode_id: episodeId } },
+        body: { format },
+      });
+      if (error || !data) throw toApiError(error, "无法创建成稿导出任务");
+      const task = await waitForGenerationTask(sharedQueryClient, data.id);
+      const result = task.result;
+      if (!result || !("download_url" in result)) throw new Error("成稿导出未返回下载地址");
+      const response = await fetch(result.download_url, { credentials: "include" });
+      if (!response.ok) throw new Error("下载成稿失败");
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      const disposition = response.headers.get("content-disposition") ?? "";
+      const utf8Name = /filename\*=UTF-8''([^;]+)/i.exec(disposition)?.[1];
+      const asciiName = /filename="([^"]+)"/i.exec(disposition)?.[1];
+      const fromHeader = utf8Name ? decodeURIComponent(utf8Name) : asciiName;
+      const base =
+        (episode?.title || "成稿").replace(/[\\/:*?"<>|]+/g, "_").trim() || "成稿";
+      const fallback =
+        format === "png"
+          ? `${base}-成稿.png`
+          : format === "png_zip"
+            ? `${base}-成稿.zip`
+            : `${base}-成稿.pdf`;
+      const preferred = fromHeader || fallback;
+      anchor.download = preferred.match(/\.(png|zip|pdf)$/i) ? preferred : fallback;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
+      toast.success(
+        format === "png"
+          ? "成稿长图已导出"
+          : format === "png_zip"
+            ? "成稿分页 ZIP 已导出"
+            : "成稿 PDF 已导出",
+      );
+    } catch (error) {
+      toast.error("成稿导出失败", {
+        description: error instanceof Error ? error.message : toApiError(error).message,
+      });
+    } finally {
+      setExportingFormat(null);
+    }
+  };
 
   if (layout.isPending || episodes.isPending) {
     return (
@@ -217,21 +234,12 @@ export function LayoutPage() {
     page.slots.map((slot) => ({ page, slot })),
   );
   const busy =
-    bootstrap.isPending ||
-    sync.isPending ||
-    reorder.isPending ||
-    patchSlot.isPending ||
-    seedLettering.isPending ||
-    createLettering.isPending ||
-    patchLettering.isPending ||
-    removeLettering.isPending;
+    bootstrap.isPending || sync.isPending || reorder.isPending || patchSlot.isPending;
 
   const selectedSlot =
     flatSlots.find(({ slot }) => slot.id === selectedSlotId)?.slot ??
     flatSlots[0]?.slot ??
     null;
-  const selectedLettering: LetteringObject | null =
-    (selectedSlot?.lettering ?? []).find((item) => item.id === selectedLetteringId) ?? null;
 
   const moveSlot = (pageId: string, slots: PageSlot[], index: number, delta: number) => {
     const next = index + delta;
@@ -278,6 +286,86 @@ export function LayoutPage() {
             >
               成稿预览
             </Button>
+            <div className="relative" ref={exportWrapRef}>
+              <Button
+                size="sm"
+                variant="outline"
+                aria-label="导出成稿"
+                aria-haspopup="menu"
+                aria-expanded={exportOpen}
+                aria-controls={exportMenuId}
+                title="导出成稿（长图 / 分页 ZIP / PDF）· 非制作导出"
+                disabled={!hasLayout || exportingFormat !== null}
+                onClick={() => setExportOpen((open) => !open)}
+              >
+                {exportingFormat !== null ? (
+                  <Loader2 className="animate-spin" data-icon="inline-start" />
+                ) : (
+                  <Download data-icon="inline-start" />
+                )}
+                <span className="hidden sm:inline">导出成稿</span>
+                <ChevronDown
+                  className={cn("hidden size-3.5 sm:inline", exportOpen && "rotate-180")}
+                  aria-hidden
+                />
+              </Button>
+              {exportOpen ? (
+                <div
+                  id={exportMenuId}
+                  role="menu"
+                  aria-label="成稿导出格式"
+                  className="absolute right-0 z-40 mt-1 w-56 rounded-md border bg-popover p-1 text-popover-foreground shadow-md"
+                >
+                  <p className="px-2 py-1.5 text-[11px] text-muted-foreground">
+                    成稿导出 · 按竖条页 + 字效 · 非制作导出
+                  </p>
+                  {(
+                    [
+                      {
+                        format: "png" as const,
+                        label: "成稿长图 PNG",
+                        description: "全部槽位连成一条竖图",
+                        icon: Download,
+                      },
+                      {
+                        format: "png_zip" as const,
+                        label: "成稿分页 ZIP",
+                        description: "按成稿页切成多张 PNG",
+                        icon: Files,
+                      },
+                      {
+                        format: "pdf" as const,
+                        label: "成稿 PDF",
+                        description: "按成稿页合成 PDF",
+                        icon: FileImage,
+                      },
+                    ] as const
+                  ).map((item) => (
+                    <button
+                      key={item.format}
+                      type="button"
+                      role="menuitem"
+                      className="flex w-full items-start gap-2 rounded-sm px-2 py-2 text-left text-sm hover:bg-accent disabled:opacity-50"
+                      disabled={exportingFormat !== null}
+                      onClick={() => {
+                        void handleManuscriptExport(item.format);
+                      }}
+                    >
+                      <item.icon
+                        className="mt-0.5 size-4 shrink-0 text-muted-foreground"
+                        aria-hidden
+                      />
+                      <span className="min-w-0">
+                        <span className="block font-medium">{item.label}</span>
+                        <span className="block text-xs text-muted-foreground">
+                          {item.description}
+                        </span>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
             <ButtonLink
               href={`/projects/${projectId}/studio?episodeId=${episodeId}`}
               variant="outline"
@@ -372,21 +460,8 @@ export function LayoutPage() {
                   )}
                   同步分镜
                 </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={busy}
-                  onClick={() => seedLettering.mutate(false)}
-                >
-                  {seedLettering.isPending ? (
-                    <Loader2 data-icon="inline-start" className="animate-spin" />
-                  ) : (
-                    <MessageSquareText data-icon="inline-start" />
-                  )}
-                  从分镜生成气泡
-                </Button>
                 <span className="text-xs text-muted-foreground">
-                  重绘保布局与字效；生成气泡默认不覆盖已有字效
+                  本页调槽序与间距；字效请在工作室「制作预览」编辑
                 </span>
               </div>
               <ol className="flex flex-col gap-4">
@@ -404,10 +479,7 @@ export function LayoutPage() {
                         <button
                           type="button"
                           className="tabular-nums hover:text-foreground"
-                          onClick={() => {
-                            setSelectedSlotId(slot.id);
-                            setSelectedLetteringId(slot.lettering?.[0]?.id ?? null);
-                          }}
+                          onClick={() => setSelectedSlotId(slot.id)}
                         >
                           格 {index + 1}
                           {(slot.lettering?.length ?? 0) > 0
@@ -437,10 +509,7 @@ export function LayoutPage() {
                       </div>
                       <div
                         className="relative"
-                        onClick={() => {
-                          setSelectedSlotId(slot.id);
-                          setSelectedLetteringId(slot.lettering?.[0]?.id ?? null);
-                        }}
+                        onClick={() => setSelectedSlotId(slot.id)}
                       >
                         {imageUrl ? (
                           <img
@@ -465,15 +534,7 @@ export function LayoutPage() {
                             </ButtonLink>
                           </div>
                         )}
-                        <LetteringOverlay
-                          items={slot.lettering ?? []}
-                          interactive
-                          selectedId={selectedLetteringId}
-                          onSelect={(id) => {
-                            setSelectedSlotId(slot.id);
-                            setSelectedLetteringId(id);
-                          }}
-                        />
+                        <LetteringOverlay items={slot.lettering ?? []} />
                       </div>
                       <div className="grid grid-cols-2 gap-3 border-t p-3">
                         <label className="grid gap-1 text-xs">
@@ -522,165 +583,27 @@ export function LayoutPage() {
             </div>
             <aside className="h-fit space-y-4 rounded-xl border p-4 text-sm lg:sticky lg:top-20">
               <div>
-                <h2 className="font-medium">字效</h2>
+                <h2 className="font-medium">页结构</h2>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  选中格后编辑气泡/旁白。改字不重绘底图。
+                  调整槽序、格高与间距。字效真源在槽上，主编辑在工作室制作预览。
                 </p>
               </div>
               {selectedSlot ? (
-                <div className="space-y-3">
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={busy}
-                      onClick={() =>
-                        createLettering.mutate({
-                          slotId: selectedSlot.id,
-                          body: {
-                            kind: "speech_bubble",
-                            text: "对白",
-                            x_pct: 8,
-                            y_pct: 6,
-                            width_pct: 60,
-                            tail: "bottom_left",
-                            font_size: "md",
-                          },
-                        })
-                      }
-                    >
-                      <Plus data-icon="inline-start" />
-                      气泡
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={busy}
-                      onClick={() =>
-                        createLettering.mutate({
-                          slotId: selectedSlot.id,
-                          body: {
-                            kind: "narration",
-                            text: "旁白",
-                            y_pct: 78,
-                            width_pct: 84,
-                            x_pct: 8,
-                            tail: "none",
-                            font_size: "md",
-                          },
-                        })
-                      }
-                    >
-                      <Plus data-icon="inline-start" />
-                      旁白
-                    </Button>
-                  </div>
-                  <ul className="flex flex-col gap-1">
-                    {(selectedSlot.lettering ?? []).map((item) => (
-                      <li key={item.id}>
-                        <button
-                          type="button"
-                          className={`w-full truncate rounded-md px-2 py-1.5 text-left text-xs ${
-                            selectedLetteringId === item.id
-                              ? "bg-sidebar-accent"
-                              : "hover:bg-muted/60"
-                          }`}
-                          onClick={() => setSelectedLetteringId(item.id)}
-                        >
-                          {item.kind === "speech_bubble" ? "气泡" : "旁白"} · {item.text}
-                        </button>
-                      </li>
-                    ))}
-                    {(selectedSlot.lettering ?? []).length === 0 ? (
-                      <li className="text-xs text-muted-foreground">本格尚无字效</li>
-                    ) : null}
-                  </ul>
-                  {selectedLettering ? (
-                    <div className="space-y-2 border-t pt-3">
-                      <label className="grid gap-1 text-xs">
-                        <span className="text-muted-foreground">文案</span>
-                        <Textarea
-                          key={`${selectedLettering.id}-text`}
-                          defaultValue={selectedLettering.text}
-                          rows={3}
-                          disabled={busy}
-                          onBlur={(event) => {
-                            const value = event.target.value.trim();
-                            if (!value || value === selectedLettering.text) return;
-                            patchLettering.mutate({
-                              letteringId: selectedLettering.id,
-                              body: { text: value },
-                            });
-                          }}
-                        />
-                      </label>
-                      <div className="grid grid-cols-3 gap-2">
-                        {(
-                          [
-                            ["x_pct", "X%"],
-                            ["y_pct", "Y%"],
-                            ["width_pct", "宽%"],
-                          ] as const
-                        ).map(([field, label]) => (
-                          <label key={field} className="grid gap-1 text-xs">
-                            <span className="text-muted-foreground">{label}</span>
-                            <Input
-                              type="number"
-                              min={field === "width_pct" ? 10 : 0}
-                              max={100}
-                              defaultValue={selectedLettering[field]}
-                              key={`${selectedLettering.id}-${field}-${selectedLettering[field]}`}
-                              disabled={busy}
-                              onBlur={(event) => {
-                                const value = Number(event.target.value);
-                                if (!Number.isFinite(value) || value === selectedLettering[field]) {
-                                  return;
-                                }
-                                patchLettering.mutate({
-                                  letteringId: selectedLettering.id,
-                                  body: { [field]: value },
-                                });
-                              }}
-                            />
-                          </label>
-                        ))}
-                      </div>
-                      <label className="grid gap-1 text-xs">
-                        <span className="text-muted-foreground">字号</span>
-                        <select
-                          className="h-8 rounded-md border bg-background px-2"
-                          value={selectedLettering.font_size}
-                          disabled={busy}
-                          onChange={(event) =>
-                            patchLettering.mutate({
-                              letteringId: selectedLettering.id,
-                              body: {
-                                font_size: event.target.value as LetteringObject["font_size"],
-                              },
-                            })
-                          }
-                        >
-                          <option value="sm">小</option>
-                          <option value="md">中</option>
-                          <option value="lg">大</option>
-                        </select>
-                      </label>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="text-destructive"
-                        disabled={busy}
-                        onClick={() => removeLettering.mutate(selectedLettering.id)}
-                      >
-                        <Trash2 data-icon="inline-start" />
-                        删除字效
-                      </Button>
-                    </div>
-                  ) : null}
-                </div>
+                <p className="text-xs text-muted-foreground">
+                  格已选中 · {(selectedSlot.lettering ?? []).length} 个字效（只读叠层）
+                </p>
               ) : (
-                <p className="text-xs text-muted-foreground">先选中一格。</p>
+                <p className="text-xs text-muted-foreground">选中一格可调下方格高/间距。</p>
               )}
+              <ButtonLink
+                href={`/projects/${projectId}/studio?episodeId=${episodeId}`}
+                variant="outline"
+                size="sm"
+                className="w-full"
+              >
+                <MessageSquareText data-icon="inline-start" />
+                回工作室改字效
+              </ButtonLink>
               <Button
                 className="w-full"
                 variant="outline"

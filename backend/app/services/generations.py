@@ -21,6 +21,7 @@ from app.schemas.workspace import (
     ExportRequest,
     GenerationProviderResumeRequest,
     GenerationTask,
+    ManuscriptExportRequest,
 )
 from app.services.task_queue import enqueue_generation_task
 from app.tasks.checkpoints import strip_resumable_checkpoints
@@ -236,6 +237,35 @@ async def create_export(
             "episode_id": str(episode.id),
             "project_id": str(episode.project_id),
             "scope": "episode",
+        },
+    )
+
+
+async def create_manuscript_export(
+    session: AsyncSession, *, episode_id: UUID, owner_id: UUID, body: ManuscriptExportRequest
+) -> GenerationTask:
+    from app.services import layout as layout_service
+
+    episode = await session.get(EpisodeRecord, episode_id)
+    if episode is None:
+        raise not_found("故事单元")
+    pages = await layout_service.list_pages_for_episode(session, episode_id)
+    if not pages:
+        raise HTTPException(
+            status_code=409,
+            detail="尚未生成竖条成稿布局，请先在成稿排版生成默认页",
+        )
+    return await create_task(
+        session,
+        owner_id=owner_id,
+        project_id=episode.project_id,
+        episode_id=episode.id,
+        task_type="export",
+        request_data={
+            **body.model_dump(mode="json"),
+            "episode_id": str(episode.id),
+            "project_id": str(episode.project_id),
+            "scope": "manuscript",
         },
     )
 

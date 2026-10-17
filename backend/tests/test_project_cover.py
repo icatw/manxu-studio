@@ -68,13 +68,20 @@ async def test_production_json_export_includes_panel_fields() -> None:
     exports: list[ExportRecord] = []
 
     class FakeSession:
+        def __init__(self) -> None:
+            self._scalar_calls = 0
+
         async def get(self, model: type[object], record_id: object) -> object | None:
             if model is EpisodeRecord and record_id == episode_id:
                 return episode
             return None
 
         async def scalars(self, query: object) -> SimpleNamespace:
-            return SimpleNamespace(all=lambda: [panel])
+            # First call loads panels; later calls are lettering/slot lookups.
+            self._scalar_calls += 1
+            if self._scalar_calls == 1:
+                return SimpleNamespace(all=lambda: [panel])
+            return SimpleNamespace(all=lambda: [])
 
         def add(self, item: ExportRecord) -> None:
             exports.append(item)

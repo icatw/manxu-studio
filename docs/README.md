@@ -9,6 +9,7 @@
 - [产品简报](product/brief.md)：目标用户、问题、定位和产品原则。
 - [需求文档](product/prd.md)：目标、范围、功能需求、非目标和验收条件。
 - [个人连载漫画工作台路线图](product/roadmap-complete-comic.md)：产品定位、市场观察、SaaS 阶段、验证门槛与完整产品路线。
+- [竞品调研与差异分析](product/competitive-analysis.md)：漫页 / 德学 / 鲸先生 / DramaBuddy / 触漫对照与定位建议。
 - [核心用户流程](product/user-flows.md)：当前已交付流程与规划中的完整漫画创作流程。
 
 ### 设计

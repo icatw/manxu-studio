@@ -499,6 +499,12 @@ class ExportRequest(APIModel):
     include_unapproved_panels: bool = False
 
 
+class ManuscriptExportRequest(APIModel):
+    """PUBLISH-01 manuscript export (Page + Lettering; no dialogue fallback)."""
+
+    format: Literal["png", "png_zip", "pdf"]
+
+
 class AnthologyExportRequest(APIModel):
     format: Literal["png_zip", "pdf"]
     episode_ids: list[UUID] = Field(min_length=1, max_length=40)

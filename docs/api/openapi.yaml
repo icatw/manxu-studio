@@ -34,7 +34,9 @@ tags:
   - name: Generations
     description: Asynchronous text and image generation tasks
   - name: Exports
-    description: Storyboard and production material exports
+    description: Storyboard and production material exports (EXP)
+  - name: Publish
+    description: Manuscript exports from Page + Lettering (PUBLISH A3)
 security:
   - SessionCookie: []
   - BearerSession: []
@@ -1259,7 +1261,11 @@ paths:
       tags: [Exports, Generations]
       operationId: createEpisodeExport
       summary: Create an export for the current episode state
-      x-requirement-ids: [EXP-01]
+      description: >
+        Production preview export (EXP). PNG overlays bake Lettering when the panel
+        slot has lettering objects; otherwise fall back to storyboard dialogue.
+        Not a manuscript/PUBLISH export.
+      x-requirement-ids: [EXP-01, LETTER-02, LETTER-03]
       requestBody:
         required: true
         content:
@@ -1269,6 +1275,41 @@ paths:
       responses:
         '202':
           description: Export task accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccessGenerationTask'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        default:
+          $ref: '#/components/responses/UnexpectedError'
+
+  /episodes/{episode_id}/manuscript-exports:
+    parameters:
+      - $ref: '#/components/parameters/EpisodeId'
+    post:
+      tags: [Publish, Generations]
+      operationId: createEpisodeManuscriptExport
+      summary: Create a manuscript export from layout pages and lettering
+      description: >
+        PUBLISH-01 manuscript export. Composes Page/Slot order and geometry with
+        Lettering overlays only (no storyboard dialogue fallback). Requires an
+        existing vertical-strip layout (409 if missing). Distinct from EXP
+        createEpisodeExport.
+      x-requirement-ids: [PUBLISH-01, PAGE-01, LETTER-01, LETTER-02]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ManuscriptExportRequest'
+      responses:
+        '202':
+          description: Manuscript export task accepted
           content:
             application/json:
               schema:
@@ -2853,6 +2894,18 @@ components:
         include_unapproved_panels:
           type: boolean
           default: false
+    ManuscriptExportRequest:
+      type: object
+      additionalProperties: false
+      required: [format]
+      properties:
+        format:
+          type: string
+          enum: [png, png_zip, pdf]
+          description: >
+            Manuscript formats only. png is one vertical strip from layout slots;
+            png_zip is one PNG per layout page; pdf is one multi-page document
+            (one layout page per PDF page). No production_json.
     AnthologyExportRequest:
       type: object
       additionalProperties: false
