@@ -40,6 +40,8 @@ class GeneratedPanel(BaseModel):
     story_purpose: str = Field(min_length=1, max_length=1000)
     image_prompt: str = Field(min_length=1, max_length=4000)
     scene_name: str = Field(default="", max_length=120)
+    # Names from the project cast that appear in this panel (SB-01 / F04).
+    character_names: list[str] = Field(default_factory=list, max_length=8)
 
 
 class StoryboardGenerationOutput(BaseModel):

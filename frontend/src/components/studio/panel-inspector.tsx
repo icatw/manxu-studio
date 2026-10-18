@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea'
 import { useEpisodeLayoutLettering } from '@/hooks/use-episode-layout-lettering'
 import { ASSET_SOURCE_LABELS } from '@/lib/asset-labels'
+import { mentionedCastNotBound } from '@/lib/cast-mention'
 import {
   dialogueDivergesFromLettering,
   letteringSummary,
@@ -119,7 +120,7 @@ function DemoNotice({ providerName }: { providerName: string }) {
 }
 
 function PanelFields({ panel }: { panel: StoryboardPanel }) {
-  const { project, dispatch, generation, episodeId } = useStudio()
+  const { project, dispatch, generation, episodeId, setStage } = useStudio()
   const lettering = useEpisodeLayoutLettering(episodeId)
   const items = lettering.byPanelId.get(panel.id)?.lettering ?? []
   const letteringText = letteringSummary(items, 4000)
@@ -331,6 +332,32 @@ function PanelFields({ panel }: { panel: StoryboardPanel }) {
             )
           })}
         </div>
+        {(() => {
+          const missing = mentionedCastNotBound(
+            project.characters,
+            panel.characterIds,
+            [panel.dialogue, panel.action, panel.scene].filter(Boolean).join('\n'),
+          )
+          if (missing.length === 0) return null
+          return (
+            <div className="mt-1 flex items-start gap-1.5 rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-1.5 text-[11px] text-amber-900 dark:text-amber-200">
+              <AlertTriangle className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+              <p>
+                对白/动作提到了未挂接的角色：
+                {missing.map((character) => character.name).join('、')}
+                。出图一致性可能偏差，请点选上方出场角色，或
+                <button
+                  type="button"
+                  className="mx-0.5 underline underline-offset-2"
+                  onClick={() => setStage('characters')}
+                >
+                  去定妆
+                </button>
+                。
+              </p>
+            </div>
+          )
+        })()}
       </fieldset>
 
       <div className="flex flex-col gap-1.5">

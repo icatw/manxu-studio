@@ -875,6 +875,11 @@ paths:
       tags: [Storyboards, Generations]
       operationId: generateStoryboard
       summary: Generate storyboard drafts for an episode
+      description: >
+        Drafts ordered panels for the episode. When the project has a cast,
+        each panel's character_ids are bound from mentioned cast names
+        (model character_names plus dialogue/action/prompt text); unmatched
+        panels stay unbound rather than defaulting to the first cast member (SB-01).
       x-requirement-ids: [SB-01]
       requestBody:
         required: true

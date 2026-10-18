@@ -14,6 +14,7 @@ from app.db.models import (
     SceneRecord,
 )
 from app.providers import generate_structured_text
+from app.services.cast_binding import resolve_panel_character_ids
 from app.tasks.prompts import STORYBOARD_DRAFT
 from app.tasks.registry import register
 from app.tasks.schemas import StoryboardGenerationOutput
@@ -91,7 +92,9 @@ async def generate_panels(session: AsyncSession, task: GenerationTaskRecord) -> 
             '返回格式：{"panels":[{"shot":string,"scene_description":string,'
             '"composition":string,"character_actions":string,"emotion":string,'
             '"dialogue":string,"story_purpose":string,"image_prompt":string,'
-            '"scene_name":string}]}。panels 数量必须与分镜数完全一致。'
+            '"scene_name":string,"character_names":[string]}]}。'
+            "character_names 填写本格出场角色在角色资产中的准确姓名；无人出场则为 []。"
+            "panels 数量必须与分镜数完全一致。"
         ),
         response_model=StoryboardGenerationOutput,
     )
@@ -102,11 +105,23 @@ async def generate_panels(session: AsyncSession, task: GenerationTaskRecord) -> 
         await session.delete(item)
     await session.flush()
     panels: list[PanelRecord] = []
-    primary_character_ids = [str(item.id) for item in characters[:1]]
     for position, generated in enumerate(output.panels):
         scene = next((item for item in scenes if item.name == generated.scene_name), None)
         if scene is None and scenes:
             scene = scenes[0]
+        haystack = "\n".join(
+            [
+                generated.dialogue,
+                generated.character_actions,
+                generated.scene_description,
+                generated.image_prompt,
+            ]
+        )
+        character_ids = resolve_panel_character_ids(
+            characters,
+            explicit_names=list(generated.character_names),
+            haystack=haystack,
+        )
         panel = PanelRecord(
             episode_id=episode_id,
             position=position,
@@ -118,7 +133,7 @@ async def generate_panels(session: AsyncSession, task: GenerationTaskRecord) -> 
             dialogue=generated.dialogue,
             story_purpose=generated.story_purpose,
             image_prompt=generated.image_prompt,
-            character_ids=primary_character_ids,
+            character_ids=character_ids,
             scene_id=scene.id if scene else None,
             review_status="draft",
             version=1,

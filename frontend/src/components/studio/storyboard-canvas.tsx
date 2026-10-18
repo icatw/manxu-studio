@@ -121,12 +121,25 @@ export function StoryboardCanvas() {
           </Button>
         </section>
       ) : softWarn ? (
-        <section className="rounded-lg border border-border bg-muted/50 px-4 py-3 text-sm text-muted-foreground">
-          角色 {confirmedCount}/{castCount} 已确认 · 定妆锁定 {lockedCount}/{castCount}。未定妆时出图一致性较弱，建议先锁定参考图。
+        <section className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm">
+          <p className="font-medium">定妆尚未锁定</p>
+          <p className="mt-1 text-muted-foreground">
+            角色 {confirmedCount}/{castCount} 已确认 · 定妆锁定 {lockedCount}/{castCount}。未定妆时出图一致性较弱。
+          </p>
+          <Button size="sm" className="mt-2" variant="secondary" onClick={() => setStage('characters')}>
+            去锁定定妆
+          </Button>
         </section>
       ) : (
         <section className="rounded-lg border bg-muted/40 px-4 py-3 text-xs text-muted-foreground">
           角色就绪：已确认 {confirmedCount}/{castCount} · 定妆锁定 {lockedCount}/{castCount}
+          <button
+            type="button"
+            className="ml-2 underline underline-offset-2 hover:text-foreground"
+            onClick={() => setStage('characters')}
+          >
+            管理角色
+          </button>
         </section>
       )}
 
