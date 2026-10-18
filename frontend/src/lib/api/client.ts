@@ -22,6 +22,10 @@ export type ApiErrorDetails = {
   errors?: Array<{ field?: string; code?: string; message?: string }>;
 };
 
+function stripRequestIdSuffix(message: string): string {
+  return message.replace(/\s*\(request_id:\s*[^)]+\)\s*$/i, "").trimEnd();
+}
+
 export class ApiError extends Error {
   readonly code: string;
   readonly requestId: string;
@@ -29,7 +33,8 @@ export class ApiError extends Error {
   readonly errors?: ApiErrorDetails["errors"];
 
   constructor(details: ApiErrorDetails) {
-    super(details.requestId ? `${details.message} (request_id: ${details.requestId})` : details.message);
+    const base = stripRequestIdSuffix(details.message);
+    super(details.requestId ? `${base} (request_id: ${details.requestId})` : base);
     this.name = "ApiError";
     this.code = details.code;
     this.requestId = details.requestId;
@@ -91,12 +96,13 @@ export async function authenticatedFetch(input: RequestInfo | URL, init?: Reques
     window.location.assign(`/login${window.location.search}`)
   }
 
+  // Keep server message clean; ApiError appends request_id once for display.
   const body = response.ok
     ? value.data
     : {
         ...value,
         status: response.status,
-        message: value.request_id ? `${value.message} (request_id: ${value.request_id})` : value.message,
+        message: value.message,
       }
   const responseHeaders = new Headers(response.headers)
   responseHeaders.delete("content-length")

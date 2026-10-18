@@ -3,6 +3,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router";
 import { ArrowLeft, BookOpen, ChevronDown, Files, LayoutTemplate, Loader2, PenLine, Plus, ScrollText, Trash2, Users } from "lucide-react";
 import { toast } from "sonner";
+import { AccountMenu } from "@/components/account-menu";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ButtonLink } from "@/components/ui/button-link";
@@ -62,6 +63,7 @@ export function ProjectOverview() {
     queryFn: () => listCharacters(projectId),
     enabled: Boolean(projectId),
   });
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const remove = useMutation({
     mutationFn: () => deleteProject(projectId),
     onSuccess: () => navigate("/projects"),
@@ -97,7 +99,8 @@ export function ProjectOverview() {
           作品库
         </ButtonLink>
         <span className="text-sm text-muted-foreground">/</span>
-        <span className="truncate text-sm font-medium">{detail.title}</span>
+        <span className="min-w-0 flex-1 truncate text-sm font-medium">{detail.title}</span>
+        <AccountMenu />
       </header>
       <main className="mx-auto flex max-w-6xl flex-col gap-8 px-5 py-8">
         <div className="flex flex-col gap-6 md:flex-row md:items-start">
@@ -118,7 +121,7 @@ export function ProjectOverview() {
             <h1 className="text-3xl font-semibold tracking-tight">{detail.title}</h1>
             <p className="text-sm leading-relaxed text-muted-foreground">{detail.synopsis}</p>
             <dl className="flex flex-wrap gap-6 pt-1 text-sm">
-              <div><dt className="text-xs text-muted-foreground">章节</dt><dd className="text-lg font-semibold tabular-nums">{episodes.data?.length ?? 0}</dd></div>
+              <div><dt className="text-xs text-muted-foreground">话次</dt><dd className="text-lg font-semibold tabular-nums">{episodes.data?.length ?? 0}</dd></div>
               <div><dt className="text-xs text-muted-foreground">全剧角色</dt><dd className="text-lg font-semibold tabular-nums">{cast.length}</dd></div>
               <div><dt className="text-xs text-muted-foreground">未回收伏笔</dt><dd className="text-lg font-semibold tabular-nums">{openThreads}</dd></div>
             </dl>
@@ -128,7 +131,7 @@ export function ProjectOverview() {
         <div className="flex items-center justify-between gap-4 border-b">
           <div role="tablist" aria-label="作品内容" className="flex gap-1">
             {([
-              { id: "chapters" as const, label: "章节" },
+              { id: "chapters" as const, label: "话次" },
               { id: "cast" as const, label: "角色" },
               { id: "bible" as const, label: "设定集" },
               { id: "threads" as const, label: "伏笔" },
@@ -148,7 +151,7 @@ export function ProjectOverview() {
               </button>
             ))}
           </div>
-          <Button variant="ghost" size="sm" className="mb-1.5 text-muted-foreground hover:text-destructive" disabled={remove.isPending} onClick={() => remove.mutate()}>
+          <Button variant="ghost" size="sm" className="mb-1.5 text-muted-foreground hover:text-destructive" disabled={remove.isPending} onClick={() => setConfirmDelete(true)}>
             <Trash2 data-icon="inline-start" />
             删除作品
           </Button>
@@ -198,6 +201,36 @@ export function ProjectOverview() {
           />
         ) : null}
       </main>
+      {confirmDelete ? (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4">
+          <section
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="overview-delete-title"
+            aria-describedby="overview-delete-description"
+            className="w-full max-w-md border bg-background p-5 shadow-lg"
+          >
+            <h2 id="overview-delete-title" className="text-base font-semibold">删除作品</h2>
+            <p id="overview-delete-description" className="mt-2 text-sm text-muted-foreground">
+              确定删除「{detail.title}」及其全部内容吗？此操作无法撤销。
+            </p>
+            {remove.isError ? <p className="mt-3 text-sm text-destructive">{remove.error.message}</p> : null}
+            <div className="mt-5 flex justify-end gap-2">
+              <Button variant="outline" disabled={remove.isPending} onClick={() => setConfirmDelete(false)}>
+                取消
+              </Button>
+              <Button
+                variant="destructive"
+                disabled={remove.isPending}
+                onClick={() => remove.mutate()}
+              >
+                {remove.isPending ? <Loader2 className="animate-spin" data-icon="inline-start" /> : <Trash2 data-icon="inline-start" />}
+                删除作品
+              </Button>
+            </div>
+          </section>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -319,23 +352,52 @@ function ChapterList({
   const navigate = useNavigate();
   const [busyId, setBusyId] = useState<string | null>(null);
   const [exportOpen, setExportOpen] = useState(false);
-  const lastEpisode = episodes[episodes.length - 1];
-  const lastNeedsSummary = Boolean(lastEpisode && !(lastEpisode.summary ?? "").trim());
+  const rowRefs = useRef<Record<string, HTMLLIElement | null>>({});
   const continueNext = useMutation({
-    mutationFn: async () => {
-      if (lastNeedsSummary && lastEpisode) {
-        throw new Error(`请先为「${lastEpisode.title}」生成摘要，再续写下一话`);
+    mutationFn: async (): Promise<
+      | { kind: "stay"; episodeId: string; toast: string }
+      | { kind: "studio"; episodeId: string; toast: string }
+      | { kind: "created"; episodeId: string }
+    > => {
+      // First episode without summary is the continuity frontier (SERIAL-03 / F05).
+      const frontierIdx = episodes.findIndex((episode) => !(episode.summary ?? "").trim());
+      if (frontierIdx === 0) {
+        const first = episodes[0]!;
+        return {
+          kind: "stay",
+          episodeId: first.id,
+          toast: `请先为「${first.title}」生成摘要，再续写下一话`,
+        };
+      }
+      if (frontierIdx > 0) {
+        const target = episodes[frontierIdx]!;
+        return {
+          kind: "studio",
+          episodeId: target.id,
+          toast: `已打开「${target.title}」；该话尚无摘要，可先出分镜或稍后补摘要`,
+        };
       }
       const next = episodes.length + 1;
-      return createEpisode(projectId, {
+      const created = await createEpisode(projectId, {
         title: `第 ${next} 话`,
         synopsis: "待补充本话梗概",
         panel_count: 8,
       });
+      return { kind: "created", episodeId: created.id };
     },
-    onSuccess: (episode) => {
+    onSuccess: (result) => {
       onChanged();
-      navigate(`/projects/${projectId}/studio?episodeId=${episode.id}`);
+      if (result.kind === "stay") {
+        toast.message(result.toast);
+        rowRefs.current[result.episodeId]?.scrollIntoView({ behavior: "smooth", block: "center" });
+        return;
+      }
+      if (result.kind === "studio") {
+        toast.message(result.toast);
+      } else {
+        toast.success("已创建下一话");
+      }
+      navigate(`/projects/${projectId}/studio?episodeId=${result.episodeId}`);
     },
     onError: (error) => toast.error("续写失败", { description: error.message }),
   });
@@ -367,7 +429,13 @@ function ChapterList({
       ) : null}
       <ul className="flex flex-col divide-y rounded-xl border">
         {episodes.map((episode, index) => (
-          <li key={episode.id} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center">
+          <li
+            key={episode.id}
+            ref={(node) => {
+              rowRefs.current[episode.id] = node;
+            }}
+            className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center"
+          >
             <div className="min-w-0 flex-1">
               <p className="text-xs tabular-nums text-muted-foreground">第 {index + 1} 话</p>
               <h3 className="font-medium">{episode.title}</h3>
@@ -375,7 +443,11 @@ function ChapterList({
               {episode.summary ? (
                 <p className="mt-2 text-xs text-muted-foreground">摘要：{episode.summary}</p>
               ) : (
-                <p className="mt-2 text-xs text-amber-700 dark:text-amber-400">尚未生成摘要（续写下一话前需要）</p>
+                <p className="mt-2 text-xs text-amber-700 dark:text-amber-400">
+                  {index === 0
+                    ? "尚未生成摘要（续写下一话前需要）"
+                    : "规划/未开作 · 可进工作室开始本话"}
+                </p>
               )}
             </div>
             <EpisodeRowActions

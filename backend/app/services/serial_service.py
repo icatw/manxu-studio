@@ -133,11 +133,30 @@ async def plan_project(
     )
 
 
+def _planned_outline_appendix(chapters: list[PlannedEpisode]) -> str:
+    """Serialize chapters after the first into world_setting (SERIAL-01)."""
+    rest = chapters[1:]
+    if not rest:
+        return ""
+    lines = ["", "## 规划话大纲（尚未开作）", ""]
+    for offset, chapter in enumerate(rest, start=2):
+        lines.append(f"### 第{offset}话：{chapter.title}")
+        lines.append(chapter.synopsis.strip() or "（待补充梗概）")
+        lines.append("")
+    return "\n".join(lines).rstrip() + "\n"
+
+
 async def create_project_from_plan(
     session: AsyncSession,
     owner_id: UUID,
     body: ProjectFromPlanCreate,
 ) -> ProjectFromPlanResult:
+    if not body.chapters:
+        raise ValueError("季策划至少需要一话大纲")
+    world_setting = (body.world_setting or "").rstrip()
+    appendix = _planned_outline_appendix(body.chapters)
+    if appendix:
+        world_setting = f"{world_setting}\n{appendix}".strip() if world_setting else appendix.strip()
     project = ProjectRecord(
         id=uuid4(),
         owner_id=owner_id,
@@ -146,25 +165,24 @@ async def create_project_from_plan(
         genre=body.genre,
         art_style=body.art_style,
         aspect_ratio=body.aspect_ratio,
-        world_setting=body.world_setting,
+        world_setting=world_setting,
     )
     session.add(project)
     await session.flush()
-    episode_ids: list[UUID] = []
-    episodes: list[EpisodeRecord] = []
-    for index, chapter in enumerate(body.chapters):
-        episode = EpisodeRecord(
-            id=uuid4(),
-            project_id=project.id,
-            position=index,
-            title=chapter.title,
-            synopsis=chapter.synopsis,
-            panel_count=8,
-        )
-        session.add(episode)
-        episodes.append(episode)
-        episode_ids.append(episode.id)
+    # Only materialize chapter 1; later chapters stay as outline in world_setting.
+    first = body.chapters[0]
+    episode = EpisodeRecord(
+        id=uuid4(),
+        project_id=project.id,
+        position=0,
+        title=first.title,
+        synopsis=first.synopsis,
+        panel_count=8,
+    )
+    session.add(episode)
     await session.flush()
+    episodes = [episode]
+    episode_ids = [episode.id]
     for character in body.characters:
         session.add(
             CharacterRecord(
@@ -186,16 +204,11 @@ async def create_project_from_plan(
             )
         )
     for thread in body.threads:
+        # Only chapter-1 episode exists; later plant/payoff indices stay unbound.
         planted = (
-            episodes[thread.planted_in - 1].id
-            if thread.planted_in and 1 <= thread.planted_in <= len(episodes)
-            else None
+            episodes[0].id if thread.planted_in == 1 else None
         )
-        payoff = (
-            episodes[thread.payoff_in - 1].id
-            if thread.payoff_in and 1 <= thread.payoff_in <= len(episodes)
-            else None
-        )
+        payoff = episodes[0].id if thread.payoff_in == 1 else None
         session.add(
             PlotThreadRecord(
                 id=uuid4(),

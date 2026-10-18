@@ -171,7 +171,7 @@ async function composePage(
   ctx.fillStyle = INK
   ctx.textBaseline = 'alphabetic'
   ctx.font = `800 ${Math.round(headerH * 0.48)}px ${FONT_STACK}`
-  ctx.fillText(project.title || '未命名项目', margin, margin + headerH * 0.55)
+  ctx.fillText(project.title || '未命名作品', margin, margin + headerH * 0.55)
   ctx.font = `500 ${Math.round(headerH * 0.2)}px ${FONT_STACK}`
   ctx.fillStyle = '#555555'
   ctx.fillText(

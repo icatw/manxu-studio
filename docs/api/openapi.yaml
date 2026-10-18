@@ -135,6 +135,11 @@ paths:
       tags: [Serial]
       operationId: createProjectFromPlan
       summary: Create a project from a confirmed plan draft
+      description: >
+        Creates the project, cast, and plot threads. Materializes only the first
+        planned chapter as an Episode; remaining chapter outlines are appended to
+        world_setting under a planning section (SERIAL-01). episode_ids contains
+        that single first episode.
       x-requirement-ids: [SERIAL-01]
       requestBody:
         required: true

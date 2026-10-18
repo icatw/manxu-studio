@@ -4,7 +4,25 @@ from uuid import uuid4
 import pytest
 
 from app.db.models import ProjectRecord
-from app.services.serial_service import build_continuity
+from app.schemas.workspace import PlannedEpisode
+from app.services.serial_service import _planned_outline_appendix, build_continuity
+
+
+def test_planned_outline_appendix_skips_first_chapter() -> None:
+    chapters = [
+        PlannedEpisode(title="第1话", synopsis="开场"),
+        PlannedEpisode(title="雾港重逢", synopsis="旧友现身"),
+        PlannedEpisode(title="项链真相", synopsis="伏笔回收"),
+    ]
+    text = _planned_outline_appendix(chapters)
+    assert "规划话大纲" in text
+    assert "第2话：雾港重逢" in text
+    assert "第3话：项链真相" in text
+    assert "开场" not in text
+
+
+def test_planned_outline_appendix_empty_when_single_chapter() -> None:
+    assert _planned_outline_appendix([PlannedEpisode(title="仅一话", synopsis="完")]) == ""
 
 
 @pytest.mark.asyncio

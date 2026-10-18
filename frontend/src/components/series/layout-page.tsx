@@ -17,6 +17,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { toast } from "sonner";
+import { AccountMenu } from "@/components/account-menu";
 import { Button } from "@/components/ui/button";
 import { ButtonLink } from "@/components/ui/button-link";
 import { Input } from "@/components/ui/input";
@@ -261,13 +262,13 @@ export function LayoutPage() {
             onClick={() => navigate(`/projects/${projectId}`)}
           >
             <ChevronLeft className="size-4 shrink-0" aria-hidden />
-            <span className="truncate">作品</span>
+            <span className="truncate">作品总览</span>
           </button>
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-medium">
               成稿排版 · {episode?.title ?? "本话"}
             </p>
-            <p className="truncate text-xs text-muted-foreground">竖条漫 · 与工作室制作态区分</p>
+            <p className="truncate text-xs text-muted-foreground">竖条漫成稿</p>
           </div>
           <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
             <Button
@@ -374,6 +375,7 @@ export function LayoutPage() {
               <PenLine data-icon="inline-start" />
               工作室
             </ButtonLink>
+            <AccountMenu />
           </div>
         </div>
       </header>

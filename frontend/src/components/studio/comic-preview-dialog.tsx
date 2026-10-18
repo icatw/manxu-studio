@@ -46,7 +46,7 @@ export function ComicPreviewDialog() {
     <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
       <DialogContent className="max-h-[92vh] gap-3 sm:max-w-4xl">
         <DialogHeader>
-          <DialogTitle>{project.title || '未命名项目'}</DialogTitle>
+          <DialogTitle>{project.title || '未命名作品'}</DialogTitle>
           <DialogDescription>
             制作预览 · 字效主编辑 · {project.panels.length} 格
             {missing > 0 ? ` · ${missing} 格尚未出图` : ''}

@@ -8,7 +8,12 @@ import { Progress } from '@/components/ui/progress'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
+import { useEpisodeLayoutLettering } from '@/hooks/use-episode-layout-lettering'
 import { ASSET_SOURCE_LABELS } from '@/lib/asset-labels'
+import {
+  dialogueDivergesFromLettering,
+  letteringSummary,
+} from '@/lib/lettering-summary'
 import { cn } from '@/lib/utils'
 import {
   ASPECT_RATIOS,
@@ -114,7 +119,11 @@ function DemoNotice({ providerName }: { providerName: string }) {
 }
 
 function PanelFields({ panel }: { panel: StoryboardPanel }) {
-  const { project, dispatch, generation } = useStudio()
+  const { project, dispatch, generation, episodeId } = useStudio()
+  const lettering = useEpisodeLayoutLettering(episodeId)
+  const items = lettering.byPanelId.get(panel.id)?.lettering ?? []
+  const letteringText = letteringSummary(items, 4000)
+  const diverges = dialogueDivergesFromLettering(panel.dialogue, items)
   const update = (patch: Partial<StoryboardPanel>) => dispatch({ type: 'updatePanel', id: panel.id, patch })
   const id = (field: string) => `panel-${panel.id}-${field}`
   const generating = panel.status === 'generating'
@@ -205,8 +214,45 @@ function PanelFields({ panel }: { panel: StoryboardPanel }) {
 
       <div className="flex flex-col gap-1.5">
         <FieldLabel htmlFor={id('dialogue')} hint={`${panel.dialogue.length}/4000`}>
-          对白
+          制作态对白
         </FieldLabel>
+        <p className="text-[11px] leading-relaxed text-muted-foreground">
+          脚本字段，供种气泡与出图参考。成稿真源在「制作预览」字效
+          {items.length > 0 ? `（本格 ${items.length} 条）` : ''}。
+        </p>
+        {items.length > 0 ? (
+          <div
+            className={cn(
+              'rounded-md border p-2 text-[11px] leading-relaxed',
+              diverges ? 'border-warning/40 bg-warning/5' : 'border-border bg-muted/40',
+            )}
+          >
+            <p className="font-medium text-foreground">
+              {diverges ? '字效与脚本不一致' : '字效与脚本一致'}
+            </p>
+            <p className="mt-1 text-muted-foreground line-clamp-3">
+              字效：{letteringText || '（空）'}
+            </p>
+            {diverges ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="mt-2 h-7 text-xs"
+                onClick={() =>
+                  update({
+                    dialogue: items
+                      .map((item) => item.text.trim())
+                      .filter(Boolean)
+                      .join('\n'),
+                  })
+                }
+              >
+                用字效回写脚本
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
         <Textarea
           id={id('dialogue')}
           value={panel.dialogue}

@@ -53,7 +53,9 @@ async def test_plan_from_plan_and_summary_via_fake_llm(
     result = unwrap(created.json())
     project_id = result["project"]["id"]
     episode_ids = result["episode_ids"]
-    assert len(episode_ids) == 3
+    # SERIAL-01: only chapter 1 is materialized; remaining outline lives in world_setting.
+    assert len(episode_ids) == 1
+    assert "规划话大纲" in (result["project"].get("world_setting") or "")
 
     summary = await api_client.post(f"/episodes/{episode_ids[0]}/summary")
     assert summary.status_code == 200, summary.text

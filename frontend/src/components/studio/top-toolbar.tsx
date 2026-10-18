@@ -14,11 +14,11 @@ import {
   LayoutTemplate,
   Loader2,
   Redo2,
-  Settings2,
   Sparkles,
   Undo2,
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { AccountMenu } from '@/components/account-menu'
 import { Button } from '@/components/ui/button'
 import { api } from '@/lib/api/client'
 import { waitForGenerationTask } from '@/lib/generation-task'
@@ -57,7 +57,7 @@ function SaveIndicator() {
         已保存 · {formatTime(lastSavedAt)}
       </span>
     )
-  return <span className="text-xs text-muted-foreground">示例项目</span>
+  return null
 }
 
 export function TopToolbar() {
@@ -157,13 +157,13 @@ export function TopToolbar() {
       <div className="flex min-w-0 flex-1 items-center gap-3">
         <>
             <label htmlFor="project-title" className="sr-only">
-              项目标题
+              作品标题
             </label>
             <input
               id="project-title"
               value={project.title}
               onChange={(e) => dispatch({ type: 'setTitle', title: e.target.value })}
-              placeholder="未命名项目"
+              placeholder="未命名作品"
               maxLength={60}
               className="h-8 w-full min-w-0 max-w-72 truncate rounded-md border border-transparent bg-transparent px-2 text-sm font-medium outline-none transition-colors hover:border-input focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40"
             />
@@ -198,18 +198,6 @@ export function TopToolbar() {
             title="重做编辑 (⇧⌘Z)"
           >
             <Redo2 />
-          </Button>
-        </WithTooltip>
-        {/* Desktop settings live in SidebarNav account area; keep icon for narrow layouts. */}
-        <WithTooltip label="设置">
-          <Button
-            className="lg:hidden"
-            variant="ghost"
-            size="icon-sm"
-            onClick={() => navigate('/settings')}
-            aria-label="设置"
-          >
-            <Settings2 />
           </Button>
         </WithTooltip>
         <div className="mx-1 hidden h-5 w-px bg-border md:block" aria-hidden />
@@ -320,6 +308,8 @@ export function TopToolbar() {
           {storyBusy ? <Loader2 className="animate-spin" data-icon="inline-start" /> : <Sparkles data-icon="inline-start" />}
           <span className="hidden md:inline">{storyBusy ? '脚本生成中…' : '生成分镜脚本'}</span>
         </Button>
+        <div className="mx-1 h-5 w-px bg-border" aria-hidden />
+        <AccountMenu />
       </div>
 
       <RegenerateConfirmDialog

@@ -45,7 +45,7 @@ test("AI plan → create multi-episode project → generate summary → read", a
   await page.getByRole("tab", { name: "设定集" }).click();
   await expect(page.getByRole("heading", { name: "世界观" }).locator("..").getByRole("textbox")).not.toHaveValue("");
 
-  await page.getByRole("tab", { name: "章节" }).click();
+  await page.getByRole("tab", { name: "话次" }).click();
   const summaryResponse = page.waitForResponse(
     (response) =>
       response.request().method() === "POST" &&

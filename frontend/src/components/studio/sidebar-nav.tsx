@@ -1,10 +1,7 @@
-import { BookOpenText, Clapperboard, ImageIcon, LogOut, Settings, Users } from "lucide-react";
-import { useMutation } from "@tanstack/react-query";
-import { useNavigate } from "react-router";
-import { api } from "@/lib/api/client";
-import { Button } from "@/components/ui/button";
+import { BookOpenText, Clapperboard, ImageIcon, Users } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { useCurrentAccount } from "@/hooks/use-current-account";
+import { useEpisodeLayoutLettering } from "@/hooks/use-episode-layout-lettering";
+import { letteringSummary } from "@/lib/lettering-summary";
 import { cn } from "@/lib/utils";
 import { SHOT_TYPE_LABELS, type StudioStage } from "@/types/storyboard";
 import { EpisodeSwitcher } from "./episode-switcher";
@@ -19,16 +16,8 @@ const STAGES: { id: StudioStage; label: string; hint: string; icon: typeof BookO
 ];
 
 export function SidebarNav() {
-  const { project, stage, setStage, selectedPanelId, selectPanel } = useStudio();
-  const navigate = useNavigate();
-  const account = useCurrentAccount();
-  const logout = useMutation({
-    mutationFn: async () => {
-      const { error } = await api.POST("/auth/logout");
-      if (error) throw new Error("登出失败");
-    },
-    onSuccess: () => window.location.assign("/login"),
-  });
+  const { project, stage, setStage, selectedPanelId, selectPanel, episodeId } = useStudio();
+  const lettering = useEpisodeLayoutLettering(episodeId);
   const stageMeta: Record<StudioStage, string> = {
     story: project.story.genre,
     characters: `${project.characters.length}`,
@@ -99,6 +88,9 @@ export function SidebarNav() {
                 )}
                 {project.panels.map((panel) => {
                   const active = selectedPanelId === panel.id;
+                  const items = lettering.byPanelId.get(panel.id)?.lettering ?? [];
+                  const summary = letteringSummary(items) || panel.dialogue || panel.action;
+                  const fromLettering = items.length > 0 && Boolean(letteringSummary(items));
                   return (
                     <li key={panel.id}>
                       <button
@@ -117,9 +109,14 @@ export function SidebarNav() {
                           <div className="flex items-center gap-1.5">
                             <span className="text-xs font-medium tabular-nums">第 {panel.panelNumber} 格</span>
                             <StatusDot status={panel.status} />
+                            {fromLettering ? (
+                              <span className="rounded bg-muted px-1 py-px text-[10px] text-muted-foreground">
+                                字效
+                              </span>
+                            ) : null}
                           </div>
                           <p className="truncate text-[11px] text-muted-foreground">
-                            {SHOT_TYPE_LABELS[panel.shotType]} · {panel.dialogue || panel.action}
+                            {SHOT_TYPE_LABELS[panel.shotType]} · {summary}
                           </p>
                         </div>
                       </button>
@@ -130,22 +127,6 @@ export function SidebarNav() {
             </ScrollArea>
           </>
         )}
-      </div>
-
-      <div className="border-t p-2">
-        <div className="flex items-center gap-2 px-2 pb-2">
-          {account.data?.avatar_url
-            ? <img src={account.data.avatar_url} alt="" className="size-8 shrink-0 rounded-full object-cover" />
-            : <div className="grid size-8 shrink-0 place-items-center rounded-full bg-muted text-xs">{account.data?.github_login.slice(0, 1).toUpperCase() ?? "?"}</div>}
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-xs font-medium">{account.data?.display_name ?? "账户"}</p>
-            <p className="truncate text-[11px] text-muted-foreground">@{account.data?.github_login ?? ""}</p>
-          </div>
-        </div>
-        <div className="flex gap-1">
-          <Button variant="ghost" size="sm" className="flex-1 justify-start text-muted-foreground" onClick={() => navigate("/settings")}><Settings />设置</Button>
-          <Button variant="ghost" size="icon-sm" aria-label="退出登录" title="退出登录" disabled={logout.isPending} onClick={() => logout.mutate()}><LogOut /></Button>
-        </div>
       </div>
     </aside>
   );

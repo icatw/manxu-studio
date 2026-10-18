@@ -74,15 +74,15 @@ export function StudioWorkspace({ projectId }: { projectId: string }) {
   });
 
   if (workspaceQuery.isPending) {
-    return <main className="grid min-h-dvh place-items-center text-sm text-muted-foreground">正在打开项目…</main>;
+    return <main className="grid min-h-dvh place-items-center text-sm text-muted-foreground">正在打开作品…</main>;
   }
   if (workspaceQuery.isError || !workspaceQuery.data) {
     return (
       <main className="grid min-h-dvh place-items-center p-6 text-center">
         <div>
-          <h1 className="text-base font-semibold">无法打开项目</h1>
+          <h1 className="text-base font-semibold">无法打开作品</h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            {workspaceQuery.error instanceof Error ? workspaceQuery.error.message : "项目不存在或 API 服务不可用"}
+            {workspaceQuery.error instanceof Error ? workspaceQuery.error.message : "作品不存在或暂时无法打开，请稍后重试"}
           </p>
           <button className="mt-4 text-sm text-primary underline" onClick={() => void workspaceQuery.refetch()}>
             重新加载

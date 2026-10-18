@@ -101,7 +101,7 @@ export function AccountGate({ children }: { children: React.ReactNode }) {
       <section className="w-full max-w-sm border-t-2 border-primary pt-6">
         <div className="mb-6 flex size-10 items-center justify-center rounded-md bg-primary text-base font-bold text-primary-foreground" aria-hidden>漫</div>
         <h1 className="text-xl font-semibold">漫序 Studio</h1>
-        <p className="mt-2 text-sm leading-6 text-muted-foreground">使用邮箱验证码登录或注册创作工作区。</p>
+        <p className="mt-2 text-sm leading-6 text-muted-foreground">使用邮箱验证码登录，开始创作。</p>
         {error && <p role="alert" className="mt-4 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">{AUTH_ERRORS[error] ?? "登录未能完成，请重试。"}</p>}
         <div className="mt-6 space-y-3">
           <Input type="email" placeholder="邮箱地址" value={email} disabled={sent} onChange={(event) => setEmail(event.target.value)} />

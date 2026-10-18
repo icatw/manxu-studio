@@ -39,7 +39,7 @@ export async function deleteProjectByTitle(page: Page, title: string): Promise<v
       response.request().method() === "DELETE" &&
       /\/api\/v1\/projects\/[0-9a-f-]+$/.test(response.url()),
   );
-  await dialog.getByRole("button", { name: "删除项目" }).click();
+  await dialog.getByRole("button", { name: "删除作品" }).click();
   const result = await deleted;
   expect(result.ok(), `delete status ${result.status()}`).toBeTruthy();
   await expect(openButton).toHaveCount(0, { timeout: 15_000 });

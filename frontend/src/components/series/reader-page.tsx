@@ -69,7 +69,7 @@ export function ReaderPage() {
             </li>
           ))}
         </ol>
-        <nav aria-label="章节导航" className="flex flex-col items-center gap-6 px-6 py-16">
+        <nav aria-label="话次导航" className="flex flex-col items-center gap-6 px-6 py-16">
           <p className="text-sm text-neutral-400">— {episode.title} 完 —</p>
           <div className="flex w-full items-center justify-between gap-3">
             {previous_episode_id ? (

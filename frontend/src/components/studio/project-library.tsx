@@ -1,15 +1,14 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
-import { FolderPlus, Loader2, LogOut, Settings, Sparkles, Trash2 } from "lucide-react";
+import { FolderPlus, Loader2, Sparkles, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { AccountMenu } from "@/components/account-menu";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ButtonLink } from "@/components/ui/button-link";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { api } from "@/lib/api/client";
-import { useCurrentAccount } from "@/hooks/use-current-account";
 import { createEpisode, createProject, deleteProject, listProjects } from "@/services/workspace-api";
 
 export function ProjectLibrary() {
@@ -19,15 +18,6 @@ export function ProjectLibrary() {
   const [synopsis, setSynopsis] = useState("");
   const [projectToDelete, setProjectToDelete] = useState<{ id: string; title: string } | null>(null);
   const projects = useQuery({ queryKey: ["projects"], queryFn: listProjects });
-  const account = useCurrentAccount();
-  const logout = useMutation({
-    mutationFn: async () => {
-      const { error } = await api.POST("/auth/logout");
-      if (error) throw new Error("退出登录失败，请稍后重试");
-    },
-    onSuccess: () => window.location.assign("/login"),
-    onError: (error) => toast.error("退出登录失败", { description: error.message }),
-  });
   const create = useMutation({
     mutationFn: async () => {
       const project = await createProject({
@@ -41,7 +31,7 @@ export function ProjectLibrary() {
       await queryClient.invalidateQueries({ queryKey: ["projects"] });
       navigate(`/projects/${project.id}`);
     },
-    onError: (error) => toast.error("创建项目失败", { description: error.message }),
+    onError: (error) => toast.error("创建作品失败", { description: error.message }),
   });
   const remove = useMutation({
     mutationFn: deleteProject,
@@ -49,7 +39,7 @@ export function ProjectLibrary() {
       await queryClient.invalidateQueries({ queryKey: ["projects"] });
       setProjectToDelete(null);
     },
-    onError: (error) => toast.error("删除项目失败", { description: error.message }),
+    onError: (error) => toast.error("删除作品失败", { description: error.message }),
   });
 
   const openProject = (id: string) => {
@@ -64,30 +54,14 @@ export function ProjectLibrary() {
           漫序 Studio
         </a>
         <span className="ml-4 border-l pl-4 text-sm text-muted-foreground">作品库</span>
-        <div className="ml-auto flex items-center gap-2 text-xs text-muted-foreground" role="status">
-          <span className="size-1.5 rounded-full bg-success" />API 驱动的预制作工作区
-        </div>
-        <Button variant="ghost" size="sm" className="ml-2" onClick={() => navigate("/settings")}>
-          {account.data?.avatar_url ? <img src={account.data.avatar_url} alt="" className="size-5 rounded-full" /> : <Settings />}
-          <span className="hidden sm:inline">设置</span>
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="text-muted-foreground"
-          disabled={logout.isPending}
-          onClick={() => logout.mutate()}
-        >
-          <LogOut aria-hidden />
-          <span className="hidden sm:inline">退出登录</span>
-        </Button>
+        <AccountMenu className="ml-auto" showLibraryLink={false} />
       </header>
       <div className="mx-auto grid w-full max-w-6xl gap-10 px-5 py-8 lg:grid-cols-[minmax(0,1fr)_320px]">
         <section>
           <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
             <div>
               <h1 className="text-xl font-semibold">我的作品</h1>
-              <p className="mt-1 text-sm text-muted-foreground">故事、资产与分镜集中在一个工作区。</p>
+              <p className="mt-1 text-sm text-muted-foreground">故事、角色与分镜，按作品集中管理。</p>
             </div>
             <div className="flex items-center gap-2">
               <span className="text-xs tabular-nums text-muted-foreground">{projects.data?.length ?? 0} 部作品</span>
@@ -147,16 +121,16 @@ export function ProjectLibrary() {
           </ul>
         </section>
         <aside className="h-fit border-t pt-5 lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0">
-          <h2 className="text-sm font-semibold">新建项目</h2>
+          <h2 className="text-sm font-semibold">新建作品</h2>
           <form className="mt-4 flex flex-col gap-4" onSubmit={(event) => { event.preventDefault(); create.mutate(); }}>
-            <label className="flex flex-col gap-1.5 text-xs font-medium">项目名称<Input required maxLength={60} value={title} onChange={(event) => setTitle(event.target.value)} placeholder="例如：雾港来信" /></label>
+            <label className="flex flex-col gap-1.5 text-xs font-medium">作品名称<Input required maxLength={60} value={title} onChange={(event) => setTitle(event.target.value)} placeholder="例如：雾港来信" /></label>
             <label className="flex flex-col gap-1.5 text-xs font-medium">故事梗概<Textarea required maxLength={300} rows={4} value={synopsis} onChange={(event) => setSynopsis(event.target.value)} placeholder="描述主角、冲突与转折" /></label>
             <Button type="submit" disabled={!title.trim() || !synopsis.trim() || create.isPending}>
               {create.isPending ? <Loader2 className="animate-spin" data-icon="inline-start" /> : <FolderPlus data-icon="inline-start" />}
-              创建并进入工作区
+              创建并打开总览
             </Button>
           </form>
-          <p className="mt-4 text-xs leading-relaxed text-muted-foreground">完成模型配置后，可在工作区提交真实图像生成任务。</p>
+          <p className="mt-4 text-xs leading-relaxed text-muted-foreground">出图模型可在设置中配置。</p>
         </aside>
       </div>
       {projectToDelete ? (
@@ -168,7 +142,7 @@ export function ProjectLibrary() {
             aria-describedby="delete-project-description"
             className="w-full max-w-md border bg-background p-5 shadow-lg"
           >
-            <h2 id="delete-project-title" className="text-base font-semibold">删除项目</h2>
+            <h2 id="delete-project-title" className="text-base font-semibold">删除作品</h2>
             <p id="delete-project-description" className="mt-2 text-sm text-muted-foreground">
               确定删除「{projectToDelete.title}」及其全部内容吗？此操作无法撤销。
             </p>
@@ -181,7 +155,7 @@ export function ProjectLibrary() {
                 onClick={() => remove.mutate(projectToDelete.id)}
               >
                 {remove.isPending ? <Loader2 className="animate-spin" data-icon="inline-start" /> : <Trash2 data-icon="inline-start" />}
-                删除项目
+                删除作品
               </Button>
             </div>
           </section>

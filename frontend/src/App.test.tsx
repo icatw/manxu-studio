@@ -37,7 +37,7 @@ describe("application shell", () => {
 
     expect(await screen.findByRole("heading", { name: "我的作品" })).toBeInTheDocument();
     await waitFor(() => expect(screen.getByText("还没有作品，先创建一个故事。")).toBeInTheDocument());
-    expect(screen.getByRole("heading", { name: "新建项目" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "新建作品" })).toBeInTheDocument();
   });
 
   it("shows editable image service URL in account settings", async () => {

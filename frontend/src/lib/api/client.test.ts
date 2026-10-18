@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
-import { api, authenticatedFetch } from "./client"
+import { ApiError, api, authenticatedFetch, toApiError } from "./client"
 
 describe("authenticatedFetch", () => {
   beforeEach(() => {
@@ -125,5 +125,29 @@ describe("authenticatedFetch", () => {
     expect(body.code).toBe("NOT_FOUND")
     expect(body.request_id).toBe("req-2")
     expect(body.status).toBe(404)
+  })
+})
+
+describe("ApiError", () => {
+  it("appends request_id once even when the message already contains it", () => {
+    const error = new ApiError({
+      code: "CONFLICT",
+      message: "请先生成上一话摘要 (request_id: req-dup)",
+      requestId: "req-dup",
+      status: 409,
+    })
+    expect(error.message).toBe("请先生成上一话摘要 (request_id: req-dup)")
+    expect(error.message.match(/request_id:/gi)?.length).toBe(1)
+  })
+
+  it("dedupes via toApiError when wrapping envelope-shaped errors", () => {
+    const error = toApiError({
+      code: "CONFLICT",
+      message: "请先生成上一话摘要 (request_id: req-7)",
+      request_id: "req-7",
+      status: 409,
+    })
+    expect(error).toBeInstanceOf(ApiError)
+    expect(error.message).toBe("请先生成上一话摘要 (request_id: req-7)")
   })
 })
