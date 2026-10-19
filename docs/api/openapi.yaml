@@ -591,7 +591,7 @@ paths:
       tags: [Projects]
       operationId: updateProject
       summary: Update project details
-      x-requirement-ids: [PROJ-02]
+      x-requirement-ids: [PROJ-02, IMPACT-BIBLE]
       requestBody:
         required: true
         content:
@@ -600,11 +600,11 @@ paths:
               $ref: '#/components/schemas/ProjectPatch'
       responses:
         '200':
-          description: Project updated
+          description: Project updated (includes change impact when bible/style fields change)
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiSuccessProject'
+                $ref: '#/components/schemas/ApiSuccessProjectUpdateResult'
         '404':
           $ref: '#/components/responses/NotFound'
         '422':
@@ -809,7 +809,7 @@ paths:
       tags: [Characters]
       operationId: updateCharacter
       summary: Edit or approve a character profile
-      x-requirement-ids: [ASSET-01]
+      x-requirement-ids: [ASSET-01, IMPACT-CAST]
       requestBody:
         required: true
         content:
@@ -818,11 +818,11 @@ paths:
               $ref: '#/components/schemas/CharacterPatch'
       responses:
         '200':
-          description: Updated character
+          description: Updated character (includes change impact when visual fields change)
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiSuccessCharacter'
+                $ref: '#/components/schemas/ApiSuccessCharacterUpdateResult'
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
@@ -1965,6 +1965,16 @@ components:
         - $ref: '#/components/schemas/ApiSuccessEnvelope'
         - type: object
           properties: { data: { $ref: '#/components/schemas/Character' } }
+    ApiSuccessCharacterUpdateResult:
+      allOf:
+        - $ref: '#/components/schemas/ApiSuccessEnvelope'
+        - type: object
+          properties: { data: { $ref: '#/components/schemas/CharacterUpdateResult' } }
+    ApiSuccessProjectUpdateResult:
+      allOf:
+        - $ref: '#/components/schemas/ApiSuccessEnvelope'
+        - type: object
+          properties: { data: { $ref: '#/components/schemas/ProjectUpdateResult' } }
     ApiSuccessCharacterList:
       allOf:
         - $ref: '#/components/schemas/ApiSuccessEnvelope'
@@ -2098,7 +2108,7 @@ components:
     ModelConfigUpdate:
       type: object
       additionalProperties: false
-      required: [text_model, text_base_url, image_model]
+      required: [text_model, text_base_url, image_model, image_backend]
       properties:
         text_model: { type: string, minLength: 1, maxLength: 160 }
         text_base_url: { type: string, format: uri, pattern: '^https://' }
@@ -2107,17 +2117,21 @@ components:
           minLength: 1
           maxLength: 4096
           description: Omit to keep the existing key, null to clear it, or provide a replacement.
+        image_backend:
+          type: string
+          enum: [qwen_async, openai_images]
+          description: Image provider protocol; models must be allowlisted for this backend.
         image_model:
           type: string
           minLength: 1
           maxLength: 80
-          description: Must be one of the server allowlisted image model IDs returned by GET /model-config.
+          description: Must be one of the allowlisted image model IDs for the selected image_backend.
         image_base_url:
           type: [string, 'null']
           format: uri
           pattern: '^https://'
           maxLength: 2048
-          description: Omit or set null to keep the existing address, or provide a Qwen Image API base URL.
+          description: Omit or set null to keep the existing address, or provide an image API base URL.
         image_api_key:
           type: [string, 'null']
           minLength: 1
@@ -2134,14 +2148,35 @@ components:
     ModelConfig:
       type: object
       additionalProperties: false
-      required: [text_provider, text_model, text_base_url, text_api_key_configured, text_status, image_provider, image_model, image_base_url, image_api_key_configured, image_concurrency, image_negative_prompt, image_status, image_models, system_presets]
+      required:
+        - text_provider
+        - text_model
+        - text_base_url
+        - text_api_key_configured
+        - text_status
+        - image_provider
+        - image_backend
+        - image_model
+        - image_base_url
+        - image_api_key_configured
+        - image_concurrency
+        - image_negative_prompt
+        - image_status
+        - image_models
+        - image_backends
+        - system_presets
       properties:
         text_provider: { type: string }
         text_model: { type: string }
         text_base_url: { type: string }
         text_api_key_configured: { type: boolean }
         text_status: { type: string, enum: [not_configured, configured, connected, error] }
-        image_provider: { type: string }
+        image_provider:
+          type: string
+          description: Same as image_backend; retained for clients that read image_provider.
+        image_backend:
+          type: string
+          enum: [qwen_async, openai_images]
         image_model: { type: string }
         image_base_url: { type: string }
         image_api_key_configured: { type: boolean }
@@ -2158,19 +2193,42 @@ components:
         image_models:
           type: array
           items: { type: string }
+          description: Allowlisted models for the currently selected image_backend.
+        image_backends:
+          type: array
+          items: { $ref: '#/components/schemas/ImageBackendOption' }
         system_presets:
           type: array
           items: { $ref: '#/components/schemas/ModelPreset' }
+    ImageBackendOption:
+      type: object
+      additionalProperties: false
+      required: [id, label, models]
+      properties:
+        id: { type: string, enum: [qwen_async, openai_images] }
+        label: { type: string }
+        models:
+          type: array
+          items: { type: string }
     ModelPreset:
       type: object
       additionalProperties: false
-      required: [id, label, base_url, text_model, image_model]
+      required:
+        - id
+        - label
+        - text_base_url
+        - image_base_url
+        - text_model
+        - image_model
+        - image_backend
       properties:
         id: { type: string }
         label: { type: string }
-        base_url: { type: string, format: uri }
+        text_base_url: { type: string, format: uri }
+        image_base_url: { type: string, format: uri }
         text_model: { type: string }
         image_model: { type: string }
+        image_backend: { type: string, enum: [qwen_async, openai_images] }
     ProjectCreate:
       type: object
       additionalProperties: false
@@ -2224,6 +2282,56 @@ components:
         negative_prompt: { type: string, maxLength: 800 }
         style_seed: { type: [integer, 'null'], minimum: 0, maximum: 2147483647 }
         cover_asset_id: { type: [string, 'null'], format: uuid }
+    ChangeImpactEpisode:
+      type: object
+      additionalProperties: false
+      required: [episode_id, position, title, panel_count]
+      properties:
+        episode_id: { type: string, format: uuid }
+        position: { type: integer, minimum: 0 }
+        title: { type: string }
+        panel_count: { type: integer, minimum: 0 }
+    ChangeImpact:
+      type: object
+      additionalProperties: false
+      required: [reason, changed_fields, affected_panel_count, affected_episode_ids]
+      description: >
+        Soft change-impact summary after cast or bible edits (IMPACT-CAST / IMPACT-BIBLE).
+        Does not mark panels dirty in storage and never auto-regenerates images.
+      properties:
+        reason:
+          type: string
+          enum: [cast_visual, bible_visual, bible_continuity]
+        changed_fields:
+          type: array
+          items: { type: string }
+        affected_panel_count: { type: integer, minimum: 0 }
+        affected_episode_ids:
+          type: array
+          items: { type: string, format: uuid }
+        affected_episode_summaries:
+          type: array
+          items: { $ref: '#/components/schemas/ChangeImpactEpisode' }
+    CharacterUpdateResult:
+      type: object
+      additionalProperties: false
+      required: [character]
+      properties:
+        character: { $ref: '#/components/schemas/Character' }
+        impact:
+          oneOf:
+            - $ref: '#/components/schemas/ChangeImpact'
+            - type: 'null'
+    ProjectUpdateResult:
+      type: object
+      additionalProperties: false
+      required: [project]
+      properties:
+        project: { $ref: '#/components/schemas/Project' }
+        impact:
+          oneOf:
+            - $ref: '#/components/schemas/ChangeImpact'
+            - type: 'null'
     Project:
       allOf:
         - $ref: '#/components/schemas/ProjectCreate'

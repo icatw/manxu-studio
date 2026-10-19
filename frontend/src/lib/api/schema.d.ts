@@ -82,7 +82,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Create a project from a confirmed plan draft */
+        /**
+         * Create a project from a confirmed plan draft
+         * @description Creates the project, cast, and plot threads. Materializes only the first planned chapter as an Episode; remaining chapter outlines are appended to world_setting under a planning section (SERIAL-01). episode_ids contains that single first episode.
+         */
         post: operations["createProjectFromPlan"];
         delete?: never;
         options?: never;
@@ -590,7 +593,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Generate storyboard drafts for an episode */
+        /**
+         * Generate storyboard drafts for an episode
+         * @description Drafts ordered panels for the episode. When the project has a cast, each panel's character_ids are bound from mentioned cast names (model character_names plus dialogue/action/prompt text); unmatched panels stay unbound rather than defaulting to the first cast member (SB-01).
+         */
         post: operations["generateStoryboard"];
         delete?: never;
         options?: never;
@@ -1089,7 +1095,7 @@ export interface paths {
         head?: never;
         /**
          * Update lettering text, geometry, or style
-         * @description When text is patched, same LETTER-05 shell-text rejection as create.
+         * @description When text is patched, same LETTER-05 shell-text rejection as create. Geometry patches (x_pct/y_pct) support LETTER-06 desktop drag commit.
          */
         patch: operations["updateLetteringObject"];
         trace?: never;
@@ -1204,6 +1210,12 @@ export interface components {
         ApiSuccessCharacter: components["schemas"]["ApiSuccessEnvelope"] & {
             data?: components["schemas"]["Character"];
         };
+        ApiSuccessCharacterUpdateResult: components["schemas"]["ApiSuccessEnvelope"] & {
+            data?: components["schemas"]["CharacterUpdateResult"];
+        };
+        ApiSuccessProjectUpdateResult: components["schemas"]["ApiSuccessEnvelope"] & {
+            data?: components["schemas"]["ProjectUpdateResult"];
+        };
         ApiSuccessCharacterList: components["schemas"]["ApiSuccessEnvelope"] & {
             data?: components["schemas"]["Character"][];
         };
@@ -1289,11 +1301,16 @@ export interface components {
             text_base_url: string;
             /** @description Omit to keep the existing key, null to clear it, or provide a replacement. */
             text_api_key?: string | null;
-            /** @description Must be one of the server allowlisted image model IDs returned by GET /model-config. */
+            /**
+             * @description Image provider protocol; models must be allowlisted for this backend.
+             * @enum {string}
+             */
+            image_backend: "qwen_async" | "openai_images";
+            /** @description Must be one of the allowlisted image model IDs for the selected image_backend. */
             image_model: string;
             /**
              * Format: uri
-             * @description Omit or set null to keep the existing address, or provide a Qwen Image API base URL.
+             * @description Omit or set null to keep the existing address, or provide an image API base URL.
              */
             image_base_url?: string | null;
             /** @description Omit to keep the existing key, null to clear it, or provide a replacement. */
@@ -1311,7 +1328,10 @@ export interface components {
             text_api_key_configured: boolean;
             /** @enum {string} */
             text_status: "not_configured" | "configured" | "connected" | "error";
+            /** @description Same as image_backend; retained for clients that read image_provider. */
             image_provider: string;
+            /** @enum {string} */
+            image_backend: "qwen_async" | "openai_images";
             image_model: string;
             image_base_url: string;
             image_api_key_configured: boolean;
@@ -1320,16 +1340,28 @@ export interface components {
             image_negative_prompt: string;
             /** @enum {string} */
             image_status: "not_configured" | "configured" | "connected" | "error";
+            /** @description Allowlisted models for the currently selected image_backend. */
             image_models: string[];
+            image_backends: components["schemas"]["ImageBackendOption"][];
             system_presets: components["schemas"]["ModelPreset"][];
+        };
+        ImageBackendOption: {
+            /** @enum {string} */
+            id: "qwen_async" | "openai_images";
+            label: string;
+            models: string[];
         };
         ModelPreset: {
             id: string;
             label: string;
             /** Format: uri */
-            base_url: string;
+            text_base_url: string;
+            /** Format: uri */
+            image_base_url: string;
             text_model: string;
             image_model: string;
+            /** @enum {string} */
+            image_backend: "qwen_async" | "openai_images";
         };
         ProjectCreate: {
             title: string;
@@ -1352,6 +1384,30 @@ export interface components {
             style_seed?: number | null;
             /** Format: uuid */
             cover_asset_id?: string | null;
+        };
+        ChangeImpactEpisode: {
+            /** Format: uuid */
+            episode_id: string;
+            position: number;
+            title: string;
+            panel_count: number;
+        };
+        /** @description Soft change-impact summary after cast or bible edits (IMPACT-CAST / IMPACT-BIBLE). Does not mark panels dirty in storage and never auto-regenerates images. */
+        ChangeImpact: {
+            /** @enum {string} */
+            reason: "cast_visual" | "bible_visual" | "bible_continuity";
+            changed_fields: string[];
+            affected_panel_count: number;
+            affected_episode_ids: string[];
+            affected_episode_summaries?: components["schemas"]["ChangeImpactEpisode"][];
+        };
+        CharacterUpdateResult: {
+            character: components["schemas"]["Character"];
+            impact?: components["schemas"]["ChangeImpact"] | null;
+        };
+        ProjectUpdateResult: {
+            project: components["schemas"]["Project"];
+            impact?: components["schemas"]["ChangeImpact"] | null;
         };
         Project: components["schemas"]["ProjectCreate"] & {
             /** Format: uuid */
@@ -2881,13 +2937,13 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Project updated */
+            /** @description Project updated (includes change impact when bible/style fields change) */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ApiSuccessProject"];
+                    "application/json": components["schemas"]["ApiSuccessProjectUpdateResult"];
                 };
             };
             404: components["responses"]["NotFound"];
@@ -3098,13 +3154,13 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Updated character */
+            /** @description Updated character (includes change impact when visual fields change) */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ApiSuccessCharacter"];
+                    "application/json": components["schemas"]["ApiSuccessCharacterUpdateResult"];
                 };
             };
             404: components["responses"]["NotFound"];
