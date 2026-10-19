@@ -61,7 +61,7 @@ function SaveIndicator() {
 }
 
 export function TopToolbar() {
-  const { project, dispatch, canUndo, canRedo, undo, redo, setPreviewOpen, storyBusy, generateFromStory, episodeId, projectId } = useStudio()
+  const { project, dispatch, canUndo, canRedo, undo, redo, setPreviewOpen, storyBusy, generateFromStory, episodeId, projectId, stage } = useStudio()
   const navigate = useNavigate()
   const [exportingFormat, setExportingFormat] = useState<ExportFormat | null>(null)
   const [confirmOpen, setConfirmOpen] = useState(false)
@@ -70,7 +70,7 @@ export function TopToolbar() {
   const exportWrapRef = useRef<HTMLDivElement>(null)
 
   const hasPanels = project.panels.length > 0
-  const hasWork = project.panels.some((p) => p.imageUrl || p.dialogue)
+  const showRewriteScript = stage === 'storyboard' && hasPanels
   const exporting = exportingFormat !== null
 
   useEffect(() => {
@@ -133,8 +133,8 @@ export function TopToolbar() {
     }
   }
 
-  const handleGenerate = () => {
-    if (hasWork) setConfirmOpen(true)
+  const handleRewriteScript = () => {
+    if (hasPanels) setConfirmOpen(true)
     else void generateFromStory({ regenerateCharacters: false })
   }
 
@@ -297,17 +297,20 @@ export function TopToolbar() {
             </div>
           ) : null}
         </div>
-        <Button
-          size="icon-sm"
-          className="ml-1 md:h-8 md:w-auto md:px-2.5"
-          aria-label="生成分镜脚本"
-          title="根据本话故事生成或重写分镜脚本（不是出图）"
-          onClick={handleGenerate}
-          disabled={storyBusy}
-        >
-          {storyBusy ? <Loader2 className="animate-spin" data-icon="inline-start" /> : <Sparkles data-icon="inline-start" />}
-          <span className="hidden md:inline">{storyBusy ? '脚本生成中…' : '生成分镜脚本'}</span>
-        </Button>
+        {showRewriteScript ? (
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className="ml-1 md:h-8 md:w-auto md:px-2.5"
+            aria-label="重写分镜脚本"
+            title="根据本话故事重写分镜脚本（不是出图；会替换现有格）"
+            onClick={handleRewriteScript}
+            disabled={storyBusy}
+          >
+            {storyBusy ? <Loader2 className="animate-spin" data-icon="inline-start" /> : <Sparkles data-icon="inline-start" />}
+            <span className="hidden md:inline">{storyBusy ? '脚本生成中…' : '重写分镜脚本'}</span>
+          </Button>
+        ) : null}
         <div className="mx-1 h-5 w-px bg-border" aria-hidden />
         <AccountMenu />
       </div>
@@ -315,6 +318,9 @@ export function TopToolbar() {
       <RegenerateConfirmDialog
         open={confirmOpen}
         onOpenChange={setConfirmOpen}
+        title="重新生成分镜脚本？"
+        description="现有分镜及其图像版本会被删除并替换；角色和场景资产会保留。此操作不可撤销。"
+        confirmLabel="替换分镜脚本"
         onConfirm={() => {
           setConfirmOpen(false)
           void generateFromStory({ regenerateCharacters: false })

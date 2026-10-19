@@ -60,13 +60,20 @@ export function StoryEditor() {
   const [confirmKind, setConfirmKind] = useState<ConfirmKind>(null)
   const { story } = project
   const hasCast = project.characters.length > 0
+  const hasScript = project.panels.length > 0
   const update = (patch: Partial<StoryIdea>) => dispatch({ type: 'updateStory', patch })
   const synopsisEmpty = !story.synopsis.trim()
+
+  const primaryLabel = !hasCast
+    ? '生成角色与分镜'
+    : hasScript
+      ? '重新生成脚本…'
+      : '生成本话分镜脚本'
 
   const runFirstOrStoryboard = () => {
     if (synopsisEmpty) return
     if (hasCast) {
-      if (project.panels.length > 0) setConfirmKind('storyboard')
+      if (hasScript) setConfirmKind('storyboard')
       else void generateFromStory({ regenerateCharacters: false })
       return
     }
@@ -136,12 +143,18 @@ export function StoryEditor() {
         <div className="flex flex-wrap items-center justify-between gap-4">
           <p className="text-xs text-muted-foreground">
             {hasCast
-              ? `将复用作品角色库（${project.characters.length} 人），生成本话 ${story.panelCount} 格分镜。`
-              : `AI 将生成角色文字设定与参考图、场景资产和 ${story.panelCount} 格分镜脚本。`}
+              ? hasScript
+                ? `已有 ${project.panels.length} 格脚本。重新生成会替换本话分镜脚本（不是出图）；角色库保留。`
+                : `将复用作品角色库（${project.characters.length} 人），生成本话 ${story.panelCount} 格分镜脚本（不是出图）。`
+              : `AI 将生成角色文字设定与参考图、场景资产和 ${story.panelCount} 格分镜脚本。确认后可再逐格出图。`}
           </p>
-          <Button onClick={runFirstOrStoryboard} disabled={storyBusy || synopsisEmpty}>
+          <Button
+            variant={hasCast && hasScript ? 'outline' : 'default'}
+            onClick={runFirstOrStoryboard}
+            disabled={storyBusy || synopsisEmpty}
+          >
             {storyBusy ? <Loader2 className="animate-spin" data-icon="inline-start" /> : <Sparkles data-icon="inline-start" />}
-            {storyBusy ? '生成中…' : hasCast ? '生成本话分镜' : '生成角色与分镜'}
+            {storyBusy ? '生成中…' : primaryLabel}
           </Button>
         </div>
         {hasCast && (
@@ -189,7 +202,7 @@ export function StoryEditor() {
         }}
         title="重建整部作品的角色库？"
         description="将按本话梗概重新生成角色并覆盖作品库，可能删除未再出现的角色，影响所有话次。此操作不可撤销。"
-        confirmLabel="重建角色库并生成分镜"
+        confirmLabel="重建角色库并生成分镜脚本"
         onConfirm={() => {
           setConfirmKind(null)
           void generateFromStory({

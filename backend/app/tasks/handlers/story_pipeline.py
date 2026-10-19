@@ -1,15 +1,24 @@
 from typing import Any, cast
+from uuid import UUID
 
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm.attributes import flag_modified
 
-from app.db.models import GenerationTaskRecord
+from app.db.models import GenerationTaskRecord, SceneRecord
 from app.tasks.handlers.characters import generate_characters
 from app.tasks.handlers.scenes import generate_scenes
 from app.tasks.handlers.storyboard import generate_panels
 from app.tasks.registry import register
 from app.tasks.support import report_progress
 from app.tasks.types import TaskType
+
+
+async def _project_scene_count(session: AsyncSession, project_id: UUID) -> int:
+    result = await session.scalar(
+        select(func.count()).select_from(SceneRecord).where(SceneRecord.project_id == project_id)
+    )
+    return int(result or 0)
 
 
 def _warnings(result: dict[str, Any]) -> list[str]:
@@ -56,7 +65,13 @@ def _stage_done(task: GenerationTaskRecord, stage_name: str) -> dict[str, Any] |
 async def handle_story_pipeline(
     session: AsyncSession, task: GenerationTaskRecord
 ) -> dict[str, Any]:
-    """Run character → scene → storyboard with per-stage resume checkpoints."""
+    """Run character → scene → storyboard with per-stage resume checkpoints.
+
+    Character stage only runs when ``regenerate_characters`` is true.
+    Scene stage runs on that cold path, and also on the warm path when the
+    project scene library is still empty (append), so script-only generation
+    does not leave authors without environments.
+    """
     regenerate_characters = bool(task.request_data.get("regenerate_characters", True))
     warnings: list[str] = []
     character_ids: list[str] = []
@@ -79,26 +94,33 @@ async def handle_story_pipeline(
         else:
             character_ids = [str(item) for item in characters_stage.get("character_ids", [])]
             warnings.extend(_warnings(characters_stage))
-
         await report_progress(session, task, 35)
-        scenes_stage = _stage_done(task, "scenes")
-        if scenes_stage is None:
+    else:
+        await report_progress(session, task, 20)
+
+    scenes_stage = _stage_done(task, "scenes")
+    if scenes_stage is None:
+        should_run_scenes = regenerate_characters or (
+            await _project_scene_count(session, task.project_id) == 0
+        )
+        if should_run_scenes:
             scene_result = await generate_scenes(session, task, image_only=False)
             scene_ids = [str(item) for item in scene_result.get("scene_ids", [])]
             stage_warnings = _warnings(scene_result)
             warnings.extend(stage_warnings)
+            if not regenerate_characters and scene_ids:
+                warnings.append("作品场景库原为空，已按本话梗概补建场景资产。")
             await _persist_stage(
                 session,
                 task,
                 "scenes",
                 {"scene_ids": scene_ids, "warnings": stage_warnings},
             )
-        else:
-            scene_ids = [str(item) for item in scenes_stage.get("scene_ids", [])]
-            warnings.extend(_warnings(scenes_stage))
         await report_progress(session, task, 65)
     else:
-        await report_progress(session, task, 40)
+        scene_ids = [str(item) for item in scenes_stage.get("scene_ids", [])]
+        warnings.extend(_warnings(scenes_stage))
+        await report_progress(session, task, 65)
 
     storyboard_stage = _stage_done(task, "storyboard")
     if storyboard_stage is None:

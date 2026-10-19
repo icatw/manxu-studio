@@ -346,17 +346,20 @@ export async function generateCharacterAssets(
 export async function generateSceneReferences(
   projectId: string,
   options: {
+    episodeId?: string;
     sceneIds?: string[];
+    /** Default false (draft + images). Pass true to only fill missing/selected reference images. */
     imageOnly?: boolean;
     textOnly?: boolean;
     guidance?: string;
     castMode?: "append" | "replace";
   } = {},
 ) {
-  const imageOnly = options.imageOnly !== false && options.textOnly !== true;
+  const imageOnly = options.imageOnly === true;
   const { data, error } = await api.POST("/projects/{project_id}/scene-generations", {
     params: { path: { project_id: projectId } },
     body: {
+      episode_id: options.episodeId,
       guidance: options.guidance ?? "",
       scene_ids: options.sceneIds,
       image_only: imageOnly,

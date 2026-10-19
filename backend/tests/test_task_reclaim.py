@@ -195,3 +195,83 @@ async def test_story_pipeline_skips_completed_stages(monkeypatch: pytest.MonkeyP
     assert result["panel_ids"] == ["p1"]
     assert result["warnings"] == ["kept"]
     assert task.request_data["pipeline_stages"]["storyboard"]["done"] is True
+
+
+@pytest.mark.asyncio
+async def test_story_pipeline_warm_path_fills_empty_scenes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[str] = []
+    task = SimpleNamespace(
+        project_id="proj-1",
+        request_data={"regenerate_characters": False, "pipeline_stages": {}},
+    )
+
+    async def unexpected_characters(*_args: object, **_kwargs: object) -> dict[str, object]:
+        raise AssertionError("warm path must not regenerate characters")
+
+    async def generate_scenes(*_args: object, **_kwargs: object) -> dict[str, object]:
+        calls.append("scenes")
+        return {"scene_ids": ["s-new"], "warnings": []}
+
+    async def generate_panels(*_args: object, **_kwargs: object) -> dict[str, object]:
+        calls.append("storyboard")
+        return {"episode_id": "ep-1", "panel_ids": ["p1"]}
+
+    async def report_progress(*_args: object, **_kwargs: object) -> None:
+        return None
+
+    async def scene_count(*_args: object, **_kwargs: object) -> int:
+        return 0
+
+    monkeypatch.setattr(pipeline, "generate_characters", unexpected_characters)
+    monkeypatch.setattr(pipeline, "generate_scenes", generate_scenes)
+    monkeypatch.setattr(pipeline, "generate_panels", generate_panels)
+    monkeypatch.setattr(pipeline, "report_progress", report_progress)
+    monkeypatch.setattr(pipeline, "_project_scene_count", scene_count)
+
+    class FakeSession:
+        async def commit(self) -> None:
+            return None
+
+    result = await pipeline.handle_story_pipeline(FakeSession(), task)  # type: ignore[arg-type]
+    assert calls == ["scenes", "storyboard"]
+    assert result["scene_ids"] == ["s-new"]
+    assert any("场景库原为空" in item for item in result["warnings"])
+
+
+@pytest.mark.asyncio
+async def test_story_pipeline_warm_path_skips_scenes_when_library_exists(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[str] = []
+    task = SimpleNamespace(
+        project_id="proj-1",
+        request_data={"regenerate_characters": False, "pipeline_stages": {}},
+    )
+
+    async def unexpected_scenes(*_args: object, **_kwargs: object) -> dict[str, object]:
+        raise AssertionError("warm path must not rebuild scenes when library exists")
+
+    async def generate_panels(*_args: object, **_kwargs: object) -> dict[str, object]:
+        calls.append("storyboard")
+        return {"episode_id": "ep-1", "panel_ids": ["p1"]}
+
+    async def report_progress(*_args: object, **_kwargs: object) -> None:
+        return None
+
+    async def scene_count(*_args: object, **_kwargs: object) -> int:
+        return 2
+
+    monkeypatch.setattr(pipeline, "generate_scenes", unexpected_scenes)
+    monkeypatch.setattr(pipeline, "generate_panels", generate_panels)
+    monkeypatch.setattr(pipeline, "report_progress", report_progress)
+    monkeypatch.setattr(pipeline, "_project_scene_count", scene_count)
+
+    class FakeSession:
+        async def commit(self) -> None:
+            return None
+
+    result = await pipeline.handle_story_pipeline(FakeSession(), task)  # type: ignore[arg-type]
+    assert calls == ["storyboard"]
+    assert result["scene_ids"] == []
