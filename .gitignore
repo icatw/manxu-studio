@@ -4,6 +4,7 @@
 .playwright-cli/
 output/
 var/images/
+var/model-eval/runs/
 # Local ops dumps + private deploy helpers (personal host/DNS/secrets workflows).
 var/prod-sync/
 var/ops-private/

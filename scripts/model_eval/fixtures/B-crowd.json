@@ -1,0 +1,15 @@
+{
+  "id": "B-crowd",
+  "title_hint": "社团祭三方对峙",
+  "premise": "漫画社社长阿凛、美术社的沈舟、学生会纪检白柚在天台对峙。阿凛指控沈舟偷走了社团祭主视觉原稿；白柚拿出监控截图显示第三人影。三人同时开口，情绪激烈，同一格需要清楚区分三人发型与服装。",
+  "genre": "校园群像",
+  "art_style": "少年漫画，高对比阴影，动感分镜，竖条漫",
+  "audience": "校园读者",
+  "chapter_count": 2,
+  "panel_count": 8,
+  "min_characters": 3,
+  "max_characters": 4,
+  "min_scenes": 1,
+  "max_scenes": 2,
+  "pressure": "多角色同格，易串脸"
+}

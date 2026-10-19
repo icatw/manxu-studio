@@ -1,0 +1,15 @@
+{
+  "id": "C-style",
+  "title_hint": "墨色酒馆",
+  "premise": "在只有竖向卷轴灯笼照明的墨色酒馆里，女侠青萝把一封血书拍在柜台上。掌柜是半机械义肢的老人，柜台后吊着未完成的浮世绘画稿。青萝要求他在天亮前画出通往「折纸城」的地图，否则画中人会从纸上走出来。",
+  "genre": "奇幻武侠",
+  "art_style": "水墨赛博浮世绘，竖构图，大面积留白与朱红点睛，强烈风格化",
+  "audience": "奇幻向读者",
+  "chapter_count": 2,
+  "panel_count": 6,
+  "min_characters": 2,
+  "max_characters": 3,
+  "min_scenes": 1,
+  "max_scenes": 2,
+  "pressure": "强风格词 + 竖条氛围"
+}

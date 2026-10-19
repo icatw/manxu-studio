@@ -1,6 +1,6 @@
 .PHONY: dev start stop deploy deploy-remote check-prod-env dev-db stop-db check test test-e2e test-e2e-ai \
 	api-types api-lint migrate playground-up playground-down playground-logs \
-	test-api-playground test-e2e-playground test-playground
+	test-api-playground test-e2e-playground test-playground model-eval
 
 PLAYGROUND_COMPOSE := docker compose -p manxu-playground -f docker-compose.playground.yml
 PLAYGROUND_API_URL := http://127.0.0.1:8001
@@ -72,6 +72,15 @@ test-e2e-playground: playground-up
 	pnpm --dir frontend exec playwright test e2e/serial-core.spec.ts e2e/generation-resume.spec.ts
 
 test-playground: test-api-playground test-e2e-playground
+
+# Opt-in live model comparison (not CI). Requires MODEL_EVAL_LIVE=1 and provider keys.
+# Example: make model-eval ARGS='--config baseline --case A-duo --trials 1 --skip-images'
+# Clears SOCKS/HTTP proxy env so httpx does not require optional socksio.
+model-eval:
+	cd backend && env -u ALL_PROXY -u all_proxy -u HTTP_PROXY -u HTTPS_PROXY \
+		-u http_proxy -u https_proxy \
+		PYTHONPATH="$(CURDIR)/scripts$${PYTHONPATH:+:$$PYTHONPATH}" \
+		uv run python -m model_eval $(ARGS)
 
 api-types:
 	pnpm --dir frontend api:types

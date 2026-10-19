@@ -1,0 +1,2 @@
+run_id,config_id,case_id,trial,image_id,blind_label,rater,character_consistency_1to5,style_consistency_1to5,comic_composition_1to5,prompt_adherence_1to5,edit_controllability_1to5,notes
+,,,,,,,,,,,,,
