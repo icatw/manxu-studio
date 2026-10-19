@@ -289,6 +289,7 @@ async def generate_scenes(
 
         image_model = getattr(config, "image_model", None) or get_settings().default_image_model
         image_base_url = getattr(config, "image_base_url", None)
+        image_backend = getattr(config, "image_backend", None) or "qwen_async"
         if image_only and requested_ids:
             scenes_to_render = list(generated_scenes)
         else:
@@ -320,6 +321,7 @@ async def generate_scenes(
                     model=image_model,
                     prompt=prompt,
                     asset_id=image_job.asset_id,
+                    image_backend=image_backend,
                     base_url=image_base_url,
                     resume_task_id=image_job.resume_task_id,
                     prompt_extend=False,

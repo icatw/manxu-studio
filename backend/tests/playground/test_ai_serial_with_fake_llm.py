@@ -24,6 +24,7 @@ async def test_plan_from_plan_and_summary_via_fake_llm(
             "text_model": "fake-text",
             "text_base_url": fake_llm_url,
             "text_api_key": "playground-fake-key",
+            "image_backend": "qwen_async",
             "image_model": "qwen-image-3.0-pro",
             "image_base_url": fake_llm_url,
             "image_api_key": "playground-fake-image-key",

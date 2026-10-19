@@ -81,6 +81,7 @@ async def generate_panel_image(session: AsyncSession, task: GenerationTaskRecord
     api_key = decrypt_secret(config.image_api_key_encrypted)
     image_model = config.image_model
     image_base_url = config.image_base_url
+    image_backend = getattr(config, "image_backend", None) or "qwen_async"
     image_job = await bind_image_job(session, task, f"panel:{panel.id}")
     await session.commit()
     image_url = await generate_image(
@@ -88,6 +89,7 @@ async def generate_panel_image(session: AsyncSession, task: GenerationTaskRecord
         model=image_model,
         prompt=prompt,
         asset_id=image_job.asset_id,
+        image_backend=image_backend,
         base_url=image_base_url,
         resume_task_id=image_job.resume_task_id,
         on_submit_started=image_job.on_submit_started,

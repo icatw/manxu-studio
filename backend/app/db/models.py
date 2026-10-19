@@ -373,6 +373,9 @@ class AccountModelConfigRecord(Base):
     image_model: Mapped[str] = mapped_column(
         String(80), nullable=False, default=DEFAULT_IMAGE_MODEL
     )
+    image_backend: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="qwen_async"
+    )
     image_base_url: Mapped[str] = mapped_column(
         Text, nullable=False, default="https://dashscope.aliyuncs.com/api/v1"
     )

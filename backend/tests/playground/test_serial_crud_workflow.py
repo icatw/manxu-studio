@@ -42,8 +42,10 @@ async def test_project_bible_threads_episodes_continuity(
     )
     assert bible.status_code == 200, bible.text
     bible_data = unwrap(bible.json())
-    assert bible_data["world_setting"] == "雾港常年被海雾笼罩。"
-    assert bible_data["style_seed"] == 42
+    assert bible_data["project"]["world_setting"] == "雾港常年被海雾笼罩。"
+    assert bible_data["project"]["style_seed"] == 42
+    assert bible_data["impact"]["reason"] == "bible_visual"
+    assert "style_rules" in bible_data["impact"]["changed_fields"]
 
     thread = await api_client.post(
         f"/projects/{project_id}/plot-threads",

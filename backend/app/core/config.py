@@ -5,6 +5,14 @@ from typing import Literal, Self
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from app.core.model_presets import (
+    IMAGE_BACKEND_LABELS,
+    IMAGE_BACKENDS,
+    ImageBackend,
+    SystemModelPreset,
+    parse_system_presets,
+    split_csv,
+)
 from app.core.models_catalog import DEFAULT_IMAGE_MODEL, DEFAULT_TEXT_MODEL
 
 
@@ -31,13 +39,19 @@ class Settings(BaseSettings):
     s3_secret_access_key: str = ""
     s3_addressing_style: Literal["virtual", "path"] = "virtual"
     qwen_image_base_url: str = "https://dashscope.aliyuncs.com/api/v1"
+    # Legacy single-preset fields kept as fallback when MODEL_SYSTEM_PRESETS is empty.
     model_preset_base_url: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
     model_preset_text_model: str = DEFAULT_TEXT_MODEL
     model_preset_image_model: str = DEFAULT_IMAGE_MODEL
+    # JSON array of SystemModelPreset; empty uses built-in Qwen + Agnes defaults.
+    model_system_presets: str = ""
     image_model_concurrency: int = 2
     image_model_negative_prompt: str = "text, watermark, signature, extra fingers, deformed hands"
     image_model_allowlist: str = (
         "qwen-image-3.0,qwen-image-3.0-pro,qwen-image-2.1-pro,qwen-image-2.1-turbo"
+    )
+    openai_image_model_allowlist: str = (
+        "agnes-image-2.5-flash,agnes-image-2.1-flash,agnes-image-2.0-flash"
     )
     # ARQ job wall clock; must exceed provider poll budget + margin.
     generation_job_timeout_seconds: int = Field(default=960, ge=120, le=3600)
@@ -97,7 +111,31 @@ class Settings(BaseSettings):
 
     @property
     def image_model_allowlist_values(self) -> list[str]:
-        return [item.strip() for item in self.image_model_allowlist.split(",") if item.strip()]
+        """Qwen async allowlist (backward-compatible name)."""
+        return split_csv(self.image_model_allowlist)
+
+    @property
+    def openai_image_model_allowlist_values(self) -> list[str]:
+        return split_csv(self.openai_image_model_allowlist)
+
+    def image_models_for_backend(self, backend: ImageBackend) -> list[str]:
+        if backend == "qwen_async":
+            return self.image_model_allowlist_values
+        return self.openai_image_model_allowlist_values
+
+    def image_backend_options(self) -> list[dict[str, object]]:
+        return [
+            {
+                "id": backend,
+                "label": IMAGE_BACKEND_LABELS[backend],
+                "models": self.image_models_for_backend(backend),
+            }
+            for backend in IMAGE_BACKENDS
+            if self.image_models_for_backend(backend)
+        ]
+
+    def system_model_presets(self) -> list[SystemModelPreset]:
+        return parse_system_presets(self.model_system_presets)
 
     @property
     def default_image_model(self) -> str:

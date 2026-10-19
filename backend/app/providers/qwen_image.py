@@ -210,7 +210,7 @@ class QwenImageProvider:
 default_image_provider = QwenImageProvider()
 
 
-async def generate_image(
+async def generate_qwen_image(
     *,
     api_key: str,
     model: str,
@@ -237,5 +237,5 @@ async def generate_image(
     )
 
 
-# Backward-compatible alias used by older imports/tests.
-generate_qwen_image = generate_image
+# Prefer app.providers.generate_image (dispatches by image_backend).
+generate_image = generate_qwen_image

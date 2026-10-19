@@ -6,15 +6,16 @@ from app.providers.errors import (
     ProviderControlError,
     RecoverableProviderError,
 )
+from app.providers.image_dispatch import generate_image
 from app.providers.local_store import LocalObjectStore
 from app.providers.object_store import clear_object_store_cache, get_object_store
 from app.providers.openai_compatible import (
     OpenAICompatibleTextProvider,
     generate_structured_text,
 )
+from app.providers.openai_images import OpenAIImagesProvider
 from app.providers.qwen_image import (
     QwenImageProvider,
-    generate_image,
     generate_qwen_image,
     normalize_dashscope_api_base,
 )
@@ -24,6 +25,7 @@ __all__ = [
     "AmbiguousProviderSubmitError",
     "LocalObjectStore",
     "OpenAICompatibleTextProvider",
+    "OpenAIImagesProvider",
     "ProviderCheckpointError",
     "ProviderControlError",
     "QwenImageProvider",

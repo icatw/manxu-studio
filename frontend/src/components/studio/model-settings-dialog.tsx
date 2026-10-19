@@ -1,17 +1,21 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Check, ImageIcon, KeyRound, LoaderCircle, Save, ScrollText, Sparkles, Wifi } from 'lucide-react'
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { api, toApiError } from '@/lib/api/client'
 import type { components } from '@/lib/api/schema'
+
+type ImageBackend = components['schemas']['ModelConfigUpdate']['image_backend']
+type ModelPreset = components['schemas']['ModelPreset']
 
 export function ModelSettingsPanel() {
   const queryClient = useQueryClient()
   const [textModel, setTextModel] = useState('')
   const [textBaseUrl, setTextBaseUrl] = useState('')
   const [textKey, setTextKey] = useState('')
-  const [imageModel, setImageModel] = useState('qwen-image-3.0')
+  const [imageBackend, setImageBackend] = useState<ImageBackend>('qwen_async')
+  const [imageModel, setImageModel] = useState('')
   const [imageBaseUrl, setImageBaseUrl] = useState('')
   const [imageKey, setImageKey] = useState('')
   const [clearTextKey, setClearTextKey] = useState(false)
@@ -31,6 +35,7 @@ export function ModelSettingsPanel() {
     if (!query.data) return
     setTextModel(query.data.text_model)
     setTextBaseUrl(query.data.text_base_url)
+    setImageBackend(query.data.image_backend)
     setImageModel(query.data.image_model)
     setImageBaseUrl(query.data.image_base_url)
     setTextKey('')
@@ -39,11 +44,25 @@ export function ModelSettingsPanel() {
     setClearImageKey(false)
   }, [query.data])
 
+  const modelsForBackend = useMemo(() => {
+    const backends = query.data?.image_backends ?? []
+    const match = backends.find((item) => item.id === imageBackend)
+    return match?.models ?? query.data?.image_models ?? []
+  }, [query.data, imageBackend])
+
+  useEffect(() => {
+    if (!modelsForBackend.length) return
+    if (!modelsForBackend.includes(imageModel)) {
+      setImageModel(modelsForBackend[0] ?? '')
+    }
+  }, [modelsForBackend, imageModel])
+
   const saveMutation = useMutation({
     mutationFn: async () => {
       const body: components['schemas']['ModelConfigUpdate'] = {
         text_model: textModel.trim(),
         text_base_url: textBaseUrl.trim(),
+        image_backend: imageBackend,
         image_model: imageModel,
         image_base_url: imageBaseUrl.trim(),
       }
@@ -100,31 +119,55 @@ export function ModelSettingsPanel() {
     saveMutation.mutate()
   }
 
-  function applySystemPreset() {
-    const preset = query.data?.system_presets?.[0]
-    if (!preset) return
+  function applyPreset(preset: ModelPreset) {
     setTextModel(preset.text_model)
-    setTextBaseUrl(preset.base_url)
+    setTextBaseUrl(preset.text_base_url)
+    setImageBackend(preset.image_backend)
     setImageModel(preset.image_model)
-    setImageBaseUrl(preset.base_url)
-    setNotice({ success: true, message: '已填入系统推荐值，请补充密钥后保存' })
+    setImageBaseUrl(preset.image_base_url)
+    setNotice({ success: true, message: `已填入预设「${preset.label}」，请补充密钥后保存` })
   }
 
   const config = query.data
+  const backendHelp =
+    imageBackend === 'openai_images'
+      ? '当前后端使用 OpenAI 风格 `/images/generations`（同步出图）。'
+      : '当前后端使用百炼异步 Image API；若地址以 `/compatible-mode/v1` 结尾，服务端会映射到该 Host 的 `/api/v1`。'
+
   return (
     <form onSubmit={submit} className="space-y-6">
       {query.isPending && <p className="text-sm text-muted-foreground">正在读取配置…</p>}
       {query.isError && <p role="alert" className="text-sm text-destructive">{query.error.message}</p>}
       {config && (
         <>
+          {config.system_presets.length > 0 && (
+            <section className="space-y-2">
+              <h3 className="flex items-center gap-2 text-sm font-semibold">
+                <Sparkles className="size-4" aria-hidden />
+                系统预设
+              </h3>
+              <div className="flex flex-wrap gap-2">
+                {config.system_presets.map((preset) => (
+                  <Button key={preset.id} type="button" variant="outline" size="sm" onClick={() => applyPreset(preset)}>
+                    {preset.label}
+                  </Button>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground">预设由服务端配置下发；填入后仍需保存本账户 API Key。</p>
+            </section>
+          )}
+
           <section className="space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="flex items-center gap-2 text-sm font-semibold"><ScrollText className="size-4" aria-hidden />文本模型 · OpenAI 兼容</h3><Button type="button" variant="ghost" size="sm" disabled={!config.system_presets?.length} onClick={applySystemPreset}><Sparkles />填入系统推荐</Button></div>
+            <h3 className="flex items-center gap-2 text-sm font-semibold">
+              <ScrollText className="size-4" aria-hidden />
+              文本模型 · OpenAI 兼容
+            </h3>
             <div className="grid gap-3 sm:grid-cols-2">
               <Field label="Base URL">
                 <Input required type="url" placeholder="https://api.example.com/v1" value={textBaseUrl} onChange={(event) => setTextBaseUrl(event.target.value)} />
               </Field>
               <Field label="模型 ID">
-                <Input required maxLength={160} placeholder="qwen-plus" value={textModel} onChange={(event) => setTextModel(event.target.value)} />
+                <Input required maxLength={160} placeholder="模型 ID" value={textModel} onChange={(event) => setTextModel(event.target.value)} />
               </Field>
               <Field label="API Key">
                 <SecretInput configured={config.text_api_key_configured} value={textKey} onChange={setTextKey} clear={clearTextKey} onClearChange={setClearTextKey} />
@@ -135,37 +178,74 @@ export function ModelSettingsPanel() {
           </section>
 
           <section className="space-y-4 border-t pt-5">
-            <h3 className="flex items-center gap-2 text-sm font-semibold"><ImageIcon className="size-4" aria-hidden />图像模型 · Qwen Image</h3>
+            <h3 className="flex items-center gap-2 text-sm font-semibold">
+              <ImageIcon className="size-4" aria-hidden />
+              图像模型
+            </h3>
             <div className="grid gap-3 sm:grid-cols-2">
+              <Field label="图像后端">
+                <select
+                  className="h-8 w-full rounded-md border border-input bg-background px-2 text-sm"
+                  value={imageBackend}
+                  onChange={(event) => setImageBackend(event.target.value as ImageBackend)}
+                >
+                  {config.image_backends.map((backend) => (
+                    <option key={backend.id} value={backend.id}>
+                      {backend.label}
+                    </option>
+                  ))}
+                </select>
+              </Field>
               <Field label="模型版本">
-                <select className="h-8 w-full rounded-md border border-input bg-background px-2 text-sm" value={imageModel} onChange={(event) => setImageModel(event.target.value)}>
-                  {config.image_models.map((model) => <option key={model} value={model}>{model}</option>)}
+                <select
+                  className="h-8 w-full rounded-md border border-input bg-background px-2 text-sm"
+                  value={imageModel}
+                  onChange={(event) => setImageModel(event.target.value)}
+                >
+                  {modelsForBackend.map((model) => (
+                    <option key={model} value={model}>
+                      {model}
+                    </option>
+                  ))}
                 </select>
               </Field>
               <Field label="图像服务 Base URL">
-                <Input required type="url" maxLength={2048} placeholder="https://dashscope.aliyuncs.com/api/v1" value={imageBaseUrl} onChange={(event) => setImageBaseUrl(event.target.value)} />
+                <Input required type="url" maxLength={2048} placeholder="https://api.example.com/v1" value={imageBaseUrl} onChange={(event) => setImageBaseUrl(event.target.value)} />
               </Field>
-              <Field label="百炼 API Key">
+              <Field label="图像 API Key">
                 <SecretInput configured={config.image_api_key_configured} value={imageKey} onChange={setImageKey} clear={clearImageKey} onClearChange={setClearImageKey} />
               </Field>
               <Status label="配置状态" value={statusLabel(config.image_status)} configured={config.image_status === 'connected'} />
             </div>
-            <p className="text-xs leading-5 text-muted-foreground">图像请求使用百炼异步 Image API。可填写官方 API 地址，或已开通图像服务的 Workspace Host；若地址以 `/compatible-mode/v1` 结尾，服务端会映射到该 Host 的 `/api/v1`。</p>
+            <p className="text-xs leading-5 text-muted-foreground">{backendHelp}</p>
           </section>
         </>
       )}
-      {notice && <p role="status" className={`rounded-md border px-3 py-2 text-sm ${notice.success ? 'border-success/30 bg-success/5 text-success' : 'border-destructive/30 bg-destructive/5 text-destructive'}`}>{notice.message}</p>}
+      {notice && (
+        <p
+          role="status"
+          className={`rounded-md border px-3 py-2 text-sm ${notice.success ? 'border-success/30 bg-success/5 text-success' : 'border-destructive/30 bg-destructive/5 text-destructive'}`}
+        >
+          {notice.message}
+        </p>
+      )}
       <div className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
-        <span className="flex items-center gap-1.5 text-xs text-muted-foreground"><KeyRound className="size-3.5" aria-hidden />密钥仅加密保存在服务端</span>
+        <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <KeyRound className="size-3.5" aria-hidden />
+          密钥仅加密保存在服务端
+        </span>
         <div className="flex gap-2">
           <Button type="button" variant="outline" size="sm" disabled={!config || testMutation.isPending || testImageMutation.isPending || saveMutation.isPending} onClick={() => testMutation.mutate()}>
-            {testMutation.isPending ? <LoaderCircle className="animate-spin" /> : <Wifi />}测试文本连接
+            {testMutation.isPending ? <LoaderCircle className="animate-spin" /> : <Wifi />}
+            测试文本连接
           </Button>
           <Button type="button" variant="outline" size="sm" disabled={!config || testMutation.isPending || testImageMutation.isPending || saveMutation.isPending} onClick={() => testImageMutation.mutate()}>
-            {testImageMutation.isPending ? <LoaderCircle className="animate-spin" /> : <Wifi />}测试图像连接
+            {testImageMutation.isPending ? <LoaderCircle className="animate-spin" /> : <Wifi />}
+            测试图像连接
           </Button>
           <Button type="submit" size="sm" disabled={!config || saveMutation.isPending || testMutation.isPending || testImageMutation.isPending}>
-            {saveMutation.isPending ? <LoaderCircle className="animate-spin" /> : <Save />}保存模型配置
+            {saveMutation.isPending ? <LoaderCircle className="animate-spin" /> : <Save />}
+            保存模型配置
           </Button>
         </div>
       </div>
@@ -174,20 +254,66 @@ export function ModelSettingsPanel() {
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return <label className="grid min-w-0 gap-1.5 text-xs font-medium text-foreground">{label}{children}</label>
+  return (
+    <label className="grid min-w-0 gap-1.5 text-xs font-medium text-foreground">
+      {label}
+      {children}
+    </label>
+  )
 }
 
-function SecretInput({ configured, value, onChange, clear, onClearChange }: { configured: boolean; value: string; onChange: (value: string) => void; clear: boolean; onClearChange: (value: boolean) => void }) {
+function SecretInput({
+  configured,
+  value,
+  onChange,
+  clear,
+  onClearChange,
+}: {
+  configured: boolean
+  value: string
+  onChange: (value: string) => void
+  clear: boolean
+  onClearChange: (value: boolean) => void
+}) {
   return (
     <div className="space-y-1.5">
-      <Input type="password" autoComplete="new-password" value={value} placeholder={configured ? '已配置，输入新密钥以替换' : '粘贴 API Key'} onChange={(event) => { onChange(event.target.value); if (event.target.value) onClearChange(false) }} />
-      {configured && <label className="flex items-center gap-1.5 font-normal text-muted-foreground"><input type="checkbox" checked={clear} onChange={(event) => { onClearChange(event.target.checked); if (event.target.checked) onChange('') }} />清除已保存密钥</label>}
+      <Input
+        type="password"
+        autoComplete="new-password"
+        value={value}
+        placeholder={configured ? '已配置，输入新密钥以替换' : '粘贴 API Key'}
+        onChange={(event) => {
+          onChange(event.target.value)
+          if (event.target.value) onClearChange(false)
+        }}
+      />
+      {configured && (
+        <label className="flex items-center gap-1.5 font-normal text-muted-foreground">
+          <input
+            type="checkbox"
+            checked={clear}
+            onChange={(event) => {
+              onClearChange(event.target.checked)
+              if (event.target.checked) onChange('')
+            }}
+          />
+          清除已保存密钥
+        </label>
+      )}
     </div>
   )
 }
 
 function Status({ label, value, configured }: { label: string; value: string; configured: boolean }) {
-  return <div className="grid content-start gap-1.5 text-xs font-medium"><span>{label}</span><span className="flex h-8 min-w-0 items-center gap-1.5 truncate rounded-md bg-muted/60 px-2 text-muted-foreground">{configured && <Check className="size-3.5 shrink-0 text-success" aria-hidden />}{value}</span></div>
+  return (
+    <div className="grid content-start gap-1.5 text-xs font-medium">
+      <span>{label}</span>
+      <span className="flex h-8 min-w-0 items-center gap-1.5 truncate rounded-md bg-muted/60 px-2 text-muted-foreground">
+        {configured && <Check className="size-3.5 shrink-0 text-success" aria-hidden />}
+        {value}
+      </span>
+    </div>
+  )
 }
 
 function statusLabel(value: string) {

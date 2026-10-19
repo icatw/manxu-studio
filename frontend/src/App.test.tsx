@@ -13,10 +13,13 @@ vi.mock("./lib/api/client", () => ({
       : path === "/model-config"
         ? { data: {
             text_provider: "openai-compatible", text_model: "qwen-plus", text_base_url: "https://example.com/v1",
-            text_api_key_configured: false, text_status: "not_configured", image_provider: "qwen",
+            text_api_key_configured: false, text_status: "not_configured",
+            image_provider: "qwen_async", image_backend: "qwen_async",
             image_model: "qwen-image-3.0-pro", image_base_url: "https://dashscope.aliyuncs.com/api/v1",
             image_api_key_configured: false, image_concurrency: 1, image_negative_prompt: "",
             image_status: "not_configured", image_models: ["qwen-image-3.0-pro"],
+            image_backends: [{ id: "qwen_async", label: "Qwen Image（异步）", models: ["qwen-image-3.0-pro"] }],
+            system_presets: [],
           } }
         : { data: { items: [], next_cursor: null } })),
     PATCH: vi.fn(),
