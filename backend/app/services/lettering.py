@@ -29,17 +29,53 @@ from app.schemas.workspace import (
 from app.services import layout as layout_service
 
 # Exact shell words authors sometimes leave as "content" (LETTER-05).
-_SHELL_TEXTS = frozenset({"旁白", "对白", "气泡", "narration", "dialogue", "bubble"})
+_SHELL_TEXTS = frozenset(
+    {
+        "旁白",
+        "对白",
+        "气泡",
+        "narration",
+        "dialogue",
+        "bubble",
+        "无对白",
+        "无对白。",
+        "无旁白",
+        "无旁白。",
+    }
+)
+
+# Editor draft stubs: allowed to save, skipped when baking (LETTER-05).
+_DRAFT_STUBS = frozenset({"（填写对白）", "（填写旁白）"})
 
 # Speaker turn: "林澈：…" / "零: …" — used to split jammed multi-speaker lines (LETTER-04).
+# Name chars exclude CJK/ASCII sentence punctuation and quotes so "理性评估：" mid-line
+# is only reached via lookbehind after 。！？, then filtered by blocklist.
 _SPEAKER_TURN = re.compile(
     r"(?:(?<=^)|(?<=[\n；;。！？!?\s]))"
-    r"([^\s：:\n]{1,16})"
+    r"([^\s：:\n；;。！？!?\"“”‘’]{1,16})"
     r"[：:]"
 )
 # Mid-sentence labels that look like "Name：" but are not dialogue speakers.
 _SPEAKER_BLOCKLIST = frozenset(
-    {"限制", "注意", "警告", "说明", "提示", "系统", "旁白", "对白", "注", "例"}
+    {
+        "限制",
+        "注意",
+        "警告",
+        "说明",
+        "提示",
+        "系统",
+        "旁白",
+        "对白",
+        "注",
+        "例",
+        "理性评估",
+        "建议",
+        "评估",
+        "状态",
+        "结论",
+        "分析",
+        "备注",
+    }
 )
 
 SeedTail = Literal["none", "bottom_left", "bottom_right", "top_left", "top_right"]
@@ -59,6 +95,21 @@ def _normalize_speaker_key(name: str) -> str:
     return "".join(name.split()).casefold()
 
 
+def is_shell_lettering_text(text: str) -> bool:
+    """True when text is an exact LETTER-05 shell phrase (after strip)."""
+    return text.strip() in _SHELL_TEXTS
+
+
+def is_draft_stub_lettering_text(text: str) -> bool:
+    return text.strip() in _DRAFT_STUBS
+
+
+def is_non_content_lettering_text(text: str) -> bool:
+    """Shell or draft stub — skip when baking into EXP/PUBLISH pixels."""
+    cleaned = text.strip()
+    return not cleaned or cleaned in _SHELL_TEXTS or cleaned in _DRAFT_STUBS
+
+
 def leading_speaker_name(text: str) -> str | None:
     """Return the leading「姓名：」label when present and not blocklisted."""
     match = _SPEAKER_TURN.match(text.strip())
@@ -68,6 +119,18 @@ def leading_speaker_name(text: str) -> str | None:
     if not name or name in _SPEAKER_BLOCKLIST:
         return None
     return name
+
+
+def strip_speaker_label(text: str) -> str:
+    """Remove a leading non-blocklisted「姓名：」prefix for stored bubble body."""
+    cleaned = text.strip()
+    match = _SPEAKER_TURN.match(cleaned)
+    if match is None:
+        return cleaned
+    name = match.group(1).strip()
+    if not name or name in _SPEAKER_BLOCKLIST:
+        return cleaned
+    return cleaned[match.end() :].strip()
 
 
 def seed_bubble_tail(text: str, cast_names: Sequence[str]) -> SeedTail:
@@ -82,31 +145,56 @@ def seed_bubble_tail(text: str, cast_names: Sequence[str]) -> SeedTail:
     return "none"
 
 
+def width_pct_for_text(text: str) -> float:
+    """Flatter seed/template width heuristic (LETTER craft)."""
+    length = len(text.strip())
+    return max(48.0, min(84.0, 36.0 + 0.7 * length))
+
+
 def default_seed_bubble_geometry(
     *,
     bubble_index: int,
     text: str,
     cast_names: Sequence[str] = (),
+    bubble_count: int = 1,
+    speaker_source: str | None = None,
 ) -> SeedBubbleGeometry:
-    """Vertical-strip seed defaults (top band, stack down, width by length).
+    """Vertical-strip seed defaults.
 
-    Does not use panel slot parity; not vision-based avoidance.
+    Single bubble: top band. Two or more: left/right dialogue geometry
+    (LETTER-08 dialogue_lr). Width by length. Not vision-based avoidance.
     """
     length = len(text.strip())
-    width_pct = max(36.0, min(72.0, 32.0 + 0.5 * length))
-    y_pct = min(68.0, 5.0 + bubble_index * 16.0)
+    width_pct = width_pct_for_text(text)
     if length < 12:
         font_size: SeedFontSize = "lg"
     elif length > 48:
         font_size = "sm"
     else:
         font_size = "md"
+
+    source = speaker_source if speaker_source is not None else text
+
+    if bubble_count >= 2:
+        left = bubble_index % 2 == 0
+        x_pct = 8.0 if left else 48.0
+        y_pct = min(70.0, 8.0 + bubble_index * 14.0)
+        cast_tail = seed_bubble_tail(source, cast_names)
+        if cast_tail != "none":
+            tail: SeedTail = cast_tail
+        else:
+            tail = "bottom_left" if left else "bottom_right"
+    else:
+        x_pct = 20.0
+        y_pct = min(68.0, 5.0 + bubble_index * 16.0)
+        tail = seed_bubble_tail(source, cast_names)
+
     return SeedBubbleGeometry(
-        x_pct=20.0,
+        x_pct=x_pct,
         y_pct=y_pct,
         width_pct=width_pct,
         font_size=font_size,
-        tail=seed_bubble_tail(text, cast_names),
+        tail=tail,
     )
 
 
@@ -122,16 +210,42 @@ def validate_lettering_text(text: str) -> str:
     if cleaned in _SHELL_TEXTS:
         raise HTTPException(
             status_code=422,
-            detail="请填写实际对白或旁白，不能使用「旁白／对白／气泡」等占位词",
+            detail="请填写实际对白或旁白，不能使用「旁白／对白／气泡／无对白」等占位词",
         )
     return cleaned
+
+
+def _merge_speaker_only_lines(parts: list[str]) -> list[str]:
+    """Merge a line that is only「Name：」with the following line (LETTER-04)."""
+    merged: list[str] = []
+    index = 0
+    while index < len(parts):
+        part = parts[index]
+        speaker = leading_speaker_name(part)
+        body = strip_speaker_label(part) if speaker else part
+        if speaker and not body:
+            if index + 1 < len(parts):
+                label = part.rstrip()
+                nxt = parts[index + 1]
+                if label.endswith(("：", ":")):
+                    merged.append(f"{label}{nxt}")
+                else:
+                    merged.append(f"{label}：{nxt}")
+                index += 2
+                continue
+            index += 1
+            continue
+        merged.append(part)
+        index += 1
+    return merged
 
 
 def split_dialogue_for_bubbles(dialogue: str) -> list[str]:
     """Split panel dialogue into bubble texts (LETTER-04).
 
-    Prefers newlines; otherwise splits on multiple Name： turns in one line.
-    Single undivided lines stay one bubble.
+    Prefers newlines (with speaker-only line merge); otherwise splits on
+    multiple Name： turns in one line. Single undivided lines stay one bubble.
+    Returned chunks may still include speaker prefixes; seed strips them.
     """
     raw = dialogue.strip()
     if not raw:
@@ -139,7 +253,9 @@ def split_dialogue_for_bubbles(dialogue: str) -> list[str]:
 
     if "\n" in raw:
         parts = [part.strip() for part in raw.splitlines() if part.strip()]
-        if len(parts) > 1:
+        parts = _merge_speaker_only_lines(parts)
+        # Trust newline structure after merge; do not re-split on Name： inside quotes.
+        if parts:
             return parts
 
     matches = [
@@ -159,6 +275,19 @@ def split_dialogue_for_bubbles(dialogue: str) -> list[str]:
             return chunks
 
     return [raw]
+
+
+def prepare_seed_bubble_texts(dialogue: str) -> list[tuple[str, str]]:
+    """Return (speaker_source, body) pairs ready to persist; skips shells/stubs."""
+    prepared: list[tuple[str, str]] = []
+    for raw in split_dialogue_for_bubbles(dialogue):
+        if is_shell_lettering_text(raw) or is_draft_stub_lettering_text(raw):
+            continue
+        body = strip_speaker_label(raw)
+        if not body or is_shell_lettering_text(body) or is_draft_stub_lettering_text(body):
+            continue
+        prepared.append((raw, body))
+    return prepared
 
 
 def lettering_view(row: LetteringObjectRecord) -> LetteringObject:
@@ -306,12 +435,12 @@ async def seed_lettering_from_dialogue(
 
     for slot in flat_slots:
         dialogue = dialogue_by_panel.get(slot.panel_id, "")
-        bubbles = split_dialogue_for_bubbles(dialogue)
-        if not bubbles:
-            continue
+        prepared = prepare_seed_bubble_texts(dialogue)
         current = existing.get(slot.id, [])
         if current and not opts.replace_existing:
             continue
+        # Clear first when replacing, even if dialogue is empty/shell-only
+        # (otherwise「无对白。」 leftover bubbles survive a replace reseed).
         if current and opts.replace_existing:
             for item in (
                 await session.scalars(
@@ -320,6 +449,8 @@ async def seed_lettering_from_dialogue(
             ).all():
                 await session.delete(item)
             await session.flush()
+        if not prepared:
+            continue
 
         panel = panel_by_id.get(slot.panel_id)
         raw_ids = panel.character_ids if panel is not None else []
@@ -330,12 +461,15 @@ async def seed_lettering_from_dialogue(
                 if name:
                     cast_names.append(name)
 
-        for bubble_index, bubble_text in enumerate(bubbles):
-            text = validate_lettering_text(bubble_text)
+        bubble_count = len(prepared)
+        for bubble_index, (speaker_source, body) in enumerate(prepared):
+            text = validate_lettering_text(body)
             geometry = default_seed_bubble_geometry(
                 bubble_index=bubble_index,
                 text=text,
                 cast_names=cast_names,
+                bubble_count=bubble_count,
+                speaker_source=speaker_source,
             )
             session.add(
                 LetteringObjectRecord(

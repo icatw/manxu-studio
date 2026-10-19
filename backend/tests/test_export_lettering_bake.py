@@ -50,6 +50,52 @@ def test_draw_panel_prefers_lettering_over_dialogue() -> None:
     assert px == (255, 255, 255)
 
 
+def test_draw_panel_skips_shell_and_draft_stub_lettering() -> None:
+    canvas = Image.new("RGB", (400, 400), "#eeeeee")
+    draw = ImageDraw.Draw(canvas)
+    panel = SimpleNamespace(dialogue="")
+    layout = _PanelLayout(
+        panel=panel,  # type: ignore[arg-type]
+        index=0,
+        height=360,
+        source=None,
+        lettering=(
+            _LetteringBake(
+                kind="speech_bubble",
+                text="无对白。",
+                x_pct=10,
+                y_pct=8,
+                width_pct=50,
+                font_size="md",
+            ),
+            _LetteringBake(
+                kind="speech_bubble",
+                text="（填写对白）",
+                x_pct=10,
+                y_pct=40,
+                width_pct=50,
+                font_size="md",
+            ),
+        ),
+    )
+    font = _load_export_font(28)
+    _draw_panel(
+        canvas,
+        draw,
+        layout,
+        x=20,
+        y=20,
+        content_width=360,
+        bubble_font=font,
+        meta_font=font,
+    )
+    # Grey placeholder fill — no white bubble baked for shell/stub texts.
+    px_shell = canvas.getpixel((20 + int(360 * 0.10) + 8, 20 + int(360 * 0.08) + 8))
+    px_stub = canvas.getpixel((20 + int(360 * 0.10) + 8, 20 + int(360 * 0.40) + 8))
+    assert px_shell == (212, 212, 212)
+    assert px_stub == (212, 212, 212)
+
+
 def test_draw_panel_falls_back_to_dialogue_without_lettering() -> None:
     canvas = Image.new("RGB", (400, 400), "#eeeeee")
     draw = ImageDraw.Draw(canvas)

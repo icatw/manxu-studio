@@ -63,6 +63,8 @@ interface StudioContextValue {
   setPreviewOpen: (open: boolean) => void;
   projectId: string;
   episodeId: string;
+  /** 1-based episode ordinal for outline / continuity UI */
+  episodeNumber: number;
   refreshWorkspace: () => Promise<unknown>;
   versions: WorkspaceData["versions"];
   selectImageVersion: (panelId: string, versionId: string) => Promise<void>;
@@ -388,6 +390,7 @@ export function StudioProvider({
       setPreviewOpen,
       projectId: workspace.project.id,
       episodeId: workspace.episode.id,
+      episodeNumber: workspace.episode.position + 1,
       refreshWorkspace: onReload,
       versions: workspace.versions,
       selectImageVersion,

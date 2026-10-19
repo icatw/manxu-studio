@@ -34,7 +34,7 @@ async def test_storyboard_replacement_flushes_deletes_before_inserts(
     episode_id = uuid4()
     project_id = uuid4()
     existing_panel = object()
-    episode = SimpleNamespace(synopsis="A story")
+    episode = SimpleNamespace(synopsis="A story", position=0)
     project = SimpleNamespace(
         owner_id=uuid4(),
         title="Title",
@@ -94,7 +94,10 @@ async def test_storyboard_replacement_flushes_deletes_before_inserts(
             ]
         )
 
-    async def empty_continuity(session: object, project_id_arg: object) -> SimpleNamespace:
+    async def empty_continuity(
+        session: object, project_id_arg: object, *, before_position: int | None = None
+    ) -> SimpleNamespace:
+        _ = before_position
         return SimpleNamespace(world_setting="", previous_summaries=[], open_threads=[])
 
     monkeypatch.setattr(storyboard_handler, "require_text_model", configured_model)

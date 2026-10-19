@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { api, toApiError } from "@/lib/api/client";
 import { describeChangeImpact } from "@/lib/change-impact";
+import { resolveContinueNext } from "@/lib/episode-frontier";
 import { waitForGenerationTask } from "@/lib/generation-task";
 import { queryClient as appQueryClient } from "@/lib/query-client";
 import {
@@ -360,25 +361,10 @@ function ChapterList({
       | { kind: "studio"; episodeId: string; toast: string }
       | { kind: "created"; episodeId: string }
     > => {
-      // First episode without summary is the continuity frontier (SERIAL-03 / F05).
-      const frontierIdx = episodes.findIndex((episode) => !(episode.summary ?? "").trim());
-      if (frontierIdx === 0) {
-        const first = episodes[0]!;
-        return {
-          kind: "stay",
-          episodeId: first.id,
-          toast: `请先为「${first.title}」生成摘要，再续写下一话`,
-        };
-      }
-      if (frontierIdx > 0) {
-        const target = episodes[frontierIdx]!;
-        return {
-          kind: "studio",
-          episodeId: target.id,
-          toast: `已打开「${target.title}」；该话尚无摘要，可先出分镜或稍后补摘要`,
-        };
-      }
+      const decision = resolveContinueNext(episodes);
+      if (decision.kind !== "create_next") return decision;
       const next = episodes.length + 1;
+      // Server prefills from 「规划话大纲」 when present (EP2-OUTLINE-01).
       const created = await createEpisode(projectId, {
         title: `第 ${next} 话`,
         synopsis: "待补充本话梗概",
@@ -517,8 +503,12 @@ function EpisodeRowActions({
         工作室
       </Button>
       <Button size="sm" variant="outline" disabled={busy} onClick={() => void onGenerateSummary()}>
-        <ScrollText data-icon="inline-start" />
-        {hasSummary ? "更新摘要" : "生成摘要"}
+        {busy ? (
+          <Loader2 data-icon="inline-start" className="animate-spin" />
+        ) : (
+          <ScrollText data-icon="inline-start" />
+        )}
+        {busy ? "生成中…" : hasSummary ? "更新摘要" : "生成摘要"}
       </Button>
       <div className="relative" ref={moreRef}>
         <Button

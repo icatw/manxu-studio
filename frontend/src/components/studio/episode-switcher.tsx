@@ -4,6 +4,7 @@ import { Loader2, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { resolveContinueNext } from "@/lib/episode-frontier";
 import { cn } from "@/lib/utils";
 import { createEpisode, listEpisodes } from "@/services/workspace-api";
 import { useStudio } from "./studio-provider";
@@ -19,17 +20,32 @@ export function EpisodeSwitcher() {
 
   const create = useMutation({
     mutationFn: async () => {
-      const nextNumber = (episodes.data?.length ?? 0) + 1;
-      return createEpisode(projectId, {
+      const list = episodes.data ?? [];
+      const decision = resolveContinueNext(list);
+      if (decision.kind === "stay" || decision.kind === "studio") {
+        return decision;
+      }
+      const nextNumber = list.length + 1;
+      // Server fills title/synopsis from 「规划话大纲」 when present (EP2-OUTLINE-01).
+      // Never copy the current episode / project premise into the next episode.
+      const episode = await createEpisode(projectId, {
         title: `第 ${nextNumber} 话`,
-        synopsis: project.story.synopsis || "待补充本话梗概",
+        synopsis: "待补充本话梗概",
         panel_count: project.story.panelCount || 8,
       });
+      return { kind: "created" as const, episode };
     },
-    onSuccess: async (episode) => {
+    onSuccess: async (result) => {
       await queryClient.invalidateQueries({ queryKey: ["episodes", projectId] });
-      navigate(`/projects/${projectId}/studio?episodeId=${episode.id}`);
-      toast.success(`已新建${episode.title}`);
+      if (result.kind === "stay" || result.kind === "studio") {
+        toast.message(result.toast);
+        if (result.episodeId !== episodeId) {
+          navigate(`/projects/${projectId}/studio?episodeId=${result.episodeId}`);
+        }
+        return;
+      }
+      navigate(`/projects/${projectId}/studio?episodeId=${result.episode.id}`);
+      toast.success(`已新建${result.episode.title}`);
     },
     onError: (error) => {
       toast.error("新建失败", { description: error instanceof Error ? error.message : undefined });
@@ -43,8 +59,8 @@ export function EpisodeSwitcher() {
         <Button
           variant="ghost"
           size="icon-sm"
-          aria-label="新建下一话"
-          title="新建下一话"
+          aria-label="续写下一话"
+          title="续写下一话（须先完成更早话摘要）"
           disabled={create.isPending || episodes.isPending}
           onClick={() => create.mutate()}
         >

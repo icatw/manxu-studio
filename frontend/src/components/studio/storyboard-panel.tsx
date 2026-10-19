@@ -127,8 +127,17 @@ export function StoryboardPanelCard({
               {SHOT_TYPE_LABELS[panel.shotType]}
             </span>
             <span className="text-[11px] text-muted-foreground">{panel.aspectRatio}</span>
+            {hasLettering ? (
+              <span className="rounded bg-muted px-1.5 py-px text-[10px] text-muted-foreground">字效</span>
+            ) : null}
           </div>
-          <p className="mt-1.5 line-clamp-2 text-xs leading-relaxed text-muted-foreground">{panel.scene}</p>
+          {hasLettering ? (
+            <p className="mt-1.5 truncate text-[11px] text-muted-foreground">
+              已有字效 · 场景细节见右侧检查器
+            </p>
+          ) : (
+            <p className="mt-1.5 line-clamp-2 text-xs leading-relaxed text-muted-foreground">{panel.scene}</p>
+          )}
         </div>
         <StatusBadge status={panel.status} progress={panel.progress} />
       </div>

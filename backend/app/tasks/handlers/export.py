@@ -24,6 +24,7 @@ from app.db.models import (
 )
 from app.providers.object_store import get_object_store
 from app.providers.protocols import ObjectStore
+from app.services.lettering import is_non_content_lettering_text
 from app.tasks.registry import register
 from app.tasks.types import TaskType
 
@@ -274,7 +275,7 @@ def _draw_lettering_objects(
 ) -> None:
     for item in items:
         text = (item.text or "").strip()
-        if not text:
+        if not text or is_non_content_lettering_text(text):
             continue
         font_px = _FONT_SIZE_PX.get(item.font_size, 28)
         font = _load_export_font(font_px)

@@ -18,6 +18,7 @@ from app.schemas.workspace import (
     ContinuityPreviousSummary,
     EpisodeReader,
     EpisodeSummaryResult,
+    PlannedChapterOutline,
     PlannedCharacter,
     PlannedEpisode,
     PlannedThread,
@@ -29,6 +30,7 @@ from app.schemas.workspace import (
     ReaderPanel,
 )
 from app.schemas.workspace import Project as ProjectSchema
+from app.services.planned_outline import parse_planned_chapters
 from app.tasks.support import require_text_model as _configured_model
 
 
@@ -44,7 +46,17 @@ class _SummaryOutput(BaseModel):
     summary: str = Field(min_length=1, max_length=2000)
 
 
-async def build_continuity(session: AsyncSession, project_id: UUID) -> ProjectContinuity:
+async def build_continuity(
+    session: AsyncSession,
+    project_id: UUID,
+    *,
+    before_position: int | None = None,
+) -> ProjectContinuity:
+    """Build continuity context.
+
+    When ``before_position`` is set (0-based episode position), only summaries
+    from earlier episodes are included — matching EP2-CONTINUITY-01 inject scope.
+    """
     project = await session.get(ProjectRecord, project_id)
     if project is None:
         raise ValueError("项目不存在")
@@ -66,6 +78,7 @@ async def build_continuity(session: AsyncSession, project_id: UUID) -> ProjectCo
         )
         for episode in episodes
         if episode.summary.strip()
+        and (before_position is None or episode.position < before_position)
     ]
     threads = list(
         (
@@ -77,6 +90,14 @@ async def build_continuity(session: AsyncSession, project_id: UUID) -> ProjectCo
             )
         ).all()
     )
+    planned = [
+        PlannedChapterOutline(
+            episode_number=chapter.episode_number,
+            title=chapter.title,
+            synopsis=chapter.synopsis,
+        )
+        for chapter in parse_planned_chapters(project.world_setting)
+    ]
     return ProjectContinuity(
         world_setting=project.world_setting,
         previous_summaries=previous,
@@ -88,6 +109,7 @@ async def build_continuity(session: AsyncSession, project_id: UUID) -> ProjectCo
             )
             for thread in threads
         ],
+        planned_chapters=planned,
     )
 
 
@@ -156,7 +178,9 @@ async def create_project_from_plan(
     world_setting = (body.world_setting or "").rstrip()
     appendix = _planned_outline_appendix(body.chapters)
     if appendix:
-        world_setting = f"{world_setting}\n{appendix}".strip() if world_setting else appendix.strip()
+        world_setting = (
+            f"{world_setting}\n{appendix}".strip() if world_setting else appendix.strip()
+        )
     project = ProjectRecord(
         id=uuid4(),
         owner_id=owner_id,
@@ -205,9 +229,7 @@ async def create_project_from_plan(
         )
     for thread in body.threads:
         # Only chapter-1 episode exists; later plant/payoff indices stay unbound.
-        planted = (
-            episodes[0].id if thread.planted_in == 1 else None
-        )
+        planted = episodes[0].id if thread.planted_in == 1 else None
         payoff = episodes[0].id if thread.payoff_in == 1 else None
         session.add(
             PlotThreadRecord(

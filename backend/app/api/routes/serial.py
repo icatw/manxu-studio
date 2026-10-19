@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 from uuid import UUID
 
-from fastapi import Depends, HTTPException, Request, Response
+from fastapi import Depends, HTTPException, Query, Request, Response
 from sqlalchemy import select
 
 from app.api.routes.workspace_common import SessionDep, create_workspace_router
@@ -63,10 +63,16 @@ async def create_project_from_plan(
     response_model=ProjectContinuity,
     dependencies=[Depends(require_project_owner_dependency)],
 )
-async def get_project_continuity(project_id: UUID, session: SessionDep) -> ProjectContinuity:
+async def get_project_continuity(
+    project_id: UUID,
+    session: SessionDep,
+    before_position: int | None = Query(default=None, ge=0),
+) -> ProjectContinuity:
     if await session.get(ProjectRecord, project_id) is None:
         raise _not_found("项目")
-    return await serial_service.build_continuity(session, project_id)
+    return await serial_service.build_continuity(
+        session, project_id, before_position=before_position
+    )
 
 
 @router.get(

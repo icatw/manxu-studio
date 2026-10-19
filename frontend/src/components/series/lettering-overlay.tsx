@@ -36,7 +36,11 @@ export function DialogueFallbackBubble({
   text: string;
   alignRight?: boolean;
 }) {
-  if (!text.trim()) return null;
+  const trimmed = text.trim();
+  // Don't surface shell placeholders as "draft dialogue" on canvas/preview.
+  if (!trimmed || trimmed === "无对白" || trimmed === "无对白。" || trimmed === "无旁白" || trimmed === "无旁白。") {
+    return null;
+  }
   return (
     <div
       className={cn(
@@ -48,7 +52,7 @@ export function DialogueFallbackBubble({
       <span className="mb-0.5 block text-[10px] font-medium tracking-wide text-neutral-500">
         未落成字效
       </span>
-      <span className="line-clamp-3">{text}</span>
+      <span className="line-clamp-3">{trimmed}</span>
     </div>
   );
 }
@@ -243,7 +247,7 @@ export function LetteringOverlay({
                 : undefined
             }
           >
-            <p className="whitespace-pre-wrap break-words">{item.text}</p>
+            <p className="whitespace-pre-wrap break-keep [overflow-wrap:anywhere]">{item.text}</p>
             {bubble && tail ? (
               <span
                 aria-hidden

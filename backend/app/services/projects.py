@@ -19,6 +19,7 @@ from app.schemas.workspace import (
     ProjectUpdateResult,
 )
 from app.services.change_impact import bible_impact_fields, impact_for_bible
+from app.services.planned_outline import resolve_episode_seed
 
 
 def not_found(resource: str) -> HTTPException:
@@ -124,7 +125,8 @@ async def list_episodes(session: AsyncSession, project_id: UUID) -> list[Episode
 
 
 async def create_episode(session: AsyncSession, project_id: UUID, body: EpisodeCreate) -> Episode:
-    if await session.get(ProjectRecord, project_id) is None:
+    project = await session.get(ProjectRecord, project_id)
+    if project is None:
         raise not_found("项目")
     position = await session.scalar(
         select(EpisodeRecord.position)
@@ -132,10 +134,22 @@ async def create_episode(session: AsyncSession, project_id: UUID, body: EpisodeC
         .order_by(EpisodeRecord.position.desc())
         .limit(1)
     )
+    next_position = position + 1 if position is not None else 0
+    episode_number = next_position + 1
+    title, synopsis = resolve_episode_seed(
+        episode_number=episode_number,
+        title=body.title,
+        synopsis=body.synopsis,
+        project_synopsis=project.synopsis,
+        world_setting=project.world_setting,
+    )
+    payload = body.model_dump()
+    payload["title"] = title
+    payload["synopsis"] = synopsis
     record = EpisodeRecord(
         project_id=project_id,
-        position=(position + 1 if position is not None else 0),
-        **body.model_dump(),
+        position=next_position,
+        **payload,
     )
     session.add(record)
     await session.commit()

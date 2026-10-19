@@ -72,7 +72,9 @@ async def generate_panels(session: AsyncSession, task: GenerationTaskRecord) -> 
     if bool(task.request_data.get("use_continuity", True)):
         from app.services.serial_service import build_continuity
 
-        continuity = await build_continuity(session, task.project_id)
+        continuity = await build_continuity(
+            session, task.project_id, before_position=episode.position
+        )
         continuity_block = (
             f"世界观：{continuity.world_setting or world_setting}\n"
             f"前情摘要：{[item.model_dump() for item in continuity.previous_summaries]}\n"

@@ -61,3 +61,47 @@ async def test_build_continuity_includes_summaries_and_open_threads() -> None:
     assert result.previous_summaries[0].title == "第一话"
     assert len(result.open_threads) == 1
     assert result.open_threads[0].text == "项链来历"
+    assert result.planned_chapters == []
+
+
+@pytest.mark.asyncio
+async def test_build_continuity_before_position_excludes_current_and_later() -> None:
+    project_id = uuid4()
+    episode_a = SimpleNamespace(
+        id=uuid4(), project_id=project_id, position=0, title="第一话", summary="开场"
+    )
+    episode_b = SimpleNamespace(
+        id=uuid4(), project_id=project_id, position=1, title="第二话", summary="中段"
+    )
+    episode_c = SimpleNamespace(
+        id=uuid4(), project_id=project_id, position=2, title="第三话", summary="收束"
+    )
+    project = SimpleNamespace(id=project_id, world_setting="")
+
+    class FakeSession:
+        async def get(self, model: type[object], record_id: object) -> object | None:
+            if model is ProjectRecord and record_id == project_id:
+                return project
+            return None
+
+        async def scalars(self, query: object) -> SimpleNamespace:
+            query_str = str(query)
+            if "plot_threads" in query_str or "PlotThread" in query_str:
+                return SimpleNamespace(all=lambda: [])
+            return SimpleNamespace(all=lambda: [episode_a, episode_b, episode_c])
+
+    # Generating episode 2 (position 1): only episode 1 summary.
+    scoped = await build_continuity(FakeSession(), project_id, before_position=1)  # type: ignore[arg-type]
+    assert [item.title for item in scoped.previous_summaries] == ["第一话"]
+
+    # Regenerating episode 1 (position 0): no prior summaries.
+    first = await build_continuity(FakeSession(), project_id, before_position=0)  # type: ignore[arg-type]
+    assert first.previous_summaries == []
+
+    # Unscoped bank still returns all.
+    all_summaries = await build_continuity(FakeSession(), project_id)  # type: ignore[arg-type]
+    assert [item.title for item in all_summaries.previous_summaries] == [
+        "第一话",
+        "第二话",
+        "第三话",
+    ]

@@ -5,6 +5,10 @@ import { useMemo } from "react";
 import { toast } from "sonner";
 import { toApiError } from "@/lib/api/client";
 import {
+  layoutPatchesForTemplate,
+  type LetteringLayoutTemplate,
+} from "@/lib/lettering-layout-templates";
+import {
   bootstrapEpisodeLayout,
   createLetteringObject,
   deleteLetteringObject,
@@ -119,6 +123,29 @@ export function useEpisodeLayoutLettering(episodeId: string | undefined) {
     },
   });
 
+  const applyTemplate = useMutation({
+    mutationFn: async ({
+      items,
+      template,
+    }: {
+      items: LetteringObject[];
+      template: LetteringLayoutTemplate;
+    }) => {
+      const patches = layoutPatchesForTemplate(items, template);
+      for (const row of patches) {
+        await updateLetteringObject(row.id, row.patch);
+      }
+      return patches.length;
+    },
+    onSuccess: async (count) => {
+      toast.success(count > 0 ? `已套用布局（${count} 条）` : "本格无字效可排");
+      await invalidate();
+    },
+    onError: (error) => {
+      toast.error("套用布局失败", { description: toApiError(error).message });
+    },
+  });
+
   return {
     layout,
     byPanelId,
@@ -128,11 +155,13 @@ export function useEpisodeLayoutLettering(episodeId: string | undefined) {
       seed.isPending ||
       create.isPending ||
       patch.isPending ||
-      remove.isPending,
+      remove.isPending ||
+      applyTemplate.isPending,
     invalidate,
     seed,
     create,
     patch,
     remove,
+    applyTemplate,
   };
 }

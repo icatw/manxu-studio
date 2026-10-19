@@ -10,6 +10,22 @@ export type ProjectPlanDraft = components["schemas"]["ProjectPlanDraft"];
 export type ProjectPlanRequest = components["schemas"]["ProjectPlanRequest"];
 export type PlotThread = components["schemas"]["PlotThread"];
 export type EpisodeReader = components["schemas"]["EpisodeReader"];
+export type ProjectContinuity = components["schemas"]["ProjectContinuity"];
+
+export async function getProjectContinuity(
+  projectId: string,
+  options?: { beforePosition?: number },
+) {
+  const { data, error } = await api.GET("/projects/{project_id}/continuity", {
+    params: {
+      path: { project_id: projectId },
+      query: {
+        before_position: options?.beforePosition,
+      },
+    },
+  });
+  return required(data, error);
+}
 
 export async function planProject(body: ProjectPlanRequest) {
   const { data, error } = await api.POST("/projects/plan", { body });

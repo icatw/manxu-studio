@@ -1046,7 +1046,7 @@ export interface paths {
         put?: never;
         /**
          * Create default speech bubbles from panel dialogue for empty slots
-         * @description For each layout slot whose panel has non-empty dialogue and which has no lettering objects yet, creates one or more speech_bubble objects. Multi-speaker or multi-line dialogue is split into separate bubbles (LETTER-04). When replace_existing is true, deletes existing lettering on those slots before seeding. Does not modify Studio panel.dialogue.
+         * @description For each layout slot whose panel has non-empty dialogue and which has no lettering objects yet, creates one or more speech_bubble objects. Multi-speaker or multi-line dialogue is split into separate bubbles (LETTER-04): speaker-only lines merge with the next line; leading Name： labels are stripped from stored text; shell phrases such as 无对白。 are skipped; two or more bubbles use left/right dialogue geometry. When replace_existing is true, deletes existing lettering on those slots before seeding. Does not modify Studio panel.dialogue.
          */
         post: operations["seedLetteringFromDialogue"];
         delete?: never;
@@ -1068,7 +1068,7 @@ export interface paths {
         put?: never;
         /**
          * Add a lettering object to a page slot
-         * @description Rejects empty text and shell-only placeholders such as 旁白 / 对白 / 气泡 (LETTER-05). Draft stubs like （填写对白） are allowed.
+         * @description Rejects empty text and shell-only placeholders such as 旁白 / 对白 / 气泡 / 无对白 / 无对白。 (LETTER-05). Draft stubs like （填写对白） are allowed in the editor; EXP/PUBLISH bake skips shells and those stubs.
          */
         post: operations["createLetteringObject"];
         delete?: never;
@@ -1526,10 +1526,19 @@ export interface components {
             /** Format: uuid */
             payoff_in_episode_id?: string | null;
         };
+        /** @description Parsed from world_setting 「规划话大纲」 (EP2-OUTLINE-01) */
+        PlannedChapterOutline: {
+            /** @description 1-based episode number (chapter 1 is materialized, not stored here) */
+            episode_number: number;
+            title: string;
+            synopsis: string;
+        };
+        /** @description Continuity bank for a project. When requested with before_position, previous_summaries are scoped to earlier episodes only (EP2-CONTINUITY-01). */
         ProjectContinuity: {
             world_setting: string;
             previous_summaries: components["schemas"]["ContinuityPreviousSummary"][];
             open_threads: components["schemas"]["ContinuityOpenThread"][];
+            planned_chapters: components["schemas"]["PlannedChapterOutline"][];
         };
         EpisodeSummaryResult: {
             /** Format: uuid */
@@ -1959,7 +1968,7 @@ export interface components {
         LetteringObjectCreate: {
             /** @enum {string} */
             kind: "speech_bubble" | "narration";
-            /** @description Lettering body. Rejected at API if blank or shell-only (旁白 / 对白 / 气泡). Draft stubs such as （填写对白） are OK. */
+            /** @description Lettering body. Rejected at API if blank or shell-only (旁白 / 对白 / 气泡 / 无对白。). Draft stubs such as （填写对白） are OK in the editor; bake skips shells and those stubs. */
             text: string;
             /**
              * @description Left edge as percent of slot width.
@@ -2349,7 +2358,10 @@ export interface operations {
     };
     getProjectContinuity: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description When set, only include episode summaries whose 0-based position is strictly less than this value (inject scope for the current episode). Omit to return all non-empty summaries for the project. */
+                before_position?: number;
+            };
             header?: never;
             path: {
                 project_id: components["parameters"]["ProjectId"];

@@ -87,13 +87,13 @@ Export
 
 ### 阶段 A′ — 制作打磨（已收口；计划 `0028`）
 
-A1–A3 能力已齐后、**先于发布与阶段 B**，用对照压测收制作摩擦：对白→字效、出图/重绘、竖条观感、第二话接着做。只升格阻塞「做好一话」的需求；PUBLISH-02 / 解冻生产 / 社区不进本阶段。**2026-10-19 收口**：F01–F08 / F04–F07 已关闭；F09（画布挤）deferred。
+A1–A3 能力已齐后、**先于发布与阶段 B**，用对照压测收制作摩擦：对白→字效、出图/重绘、竖条观感、第二话接着做。只升格阻塞「做好一话」的需求；PUBLISH-02 / 解冻生产 / 社区不进本阶段。**2026-10-19 收口**：F01–F08 / F04–F07 已关闭；F09（画布挤）随后在 `0039` 以「有字效时弱化场景行」收口。
 
 ### 阶段 B — 连载质量加厚
 
 设定/角色变更影响提示；第二话体验收束；草稿恢复等。在 A′ 打磨证明「一话做得顺」之后加厚差异。
 
-**当前**：发现 [`0029`](../../.harness/plans/completed/0029-serial-quality-discovery.md) 已完成；**IMPACT-CAST / IMPACT-BIBLE 已 `confirmed`**，实现计划 [`0030`](../../.harness/plans/active/0030-change-impact-surface.md)。副轴 EP2 continuity / DRAFT-RESUME / F09 暂缓。
+**当前**：发现 [`0029`](../../.harness/plans/completed/0029-serial-quality-discovery.md) 已完成；**IMPACT-CAST / IMPACT-BIBLE 已收口**（[`0030`](../../.harness/plans/completed/0030-change-impact-surface.md)）；EP2 / F09 续写摩擦在 [`0039`](../../.harness/plans/completed/0039-episode-continuity-ui.md) 收口。副轴 DRAFT-RESUME 仍暂缓。
 
 ### 阶段 C — SaaS 产品面（个人工作室）
 
@@ -114,9 +114,10 @@ L1（已有）
   → A1 Page + 竖条 + 成稿预览
   → A2 Lettering
   → A3 成稿导出产品化
-  → A′ 制作打磨（已收口；F09 deferred）
+  → A′ 制作打磨（已收口；F09 于 0039 弱化场景行）
   → 阶段 B 发现（0029 completed）
-  → B 实现：变更影响面（计划 0030）   ← 当前
+  → B IMPACT 变更影响面（0030 completed）
+  → B 余量：DRAFT-RESUME（暂缓）  ← 当前
   → C SaaS 面最小集（可穿插设计）
   → D 扩展
 ```

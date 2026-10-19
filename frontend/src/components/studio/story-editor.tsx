@@ -10,6 +10,7 @@ import { AUDIENCES, GENRES, PANEL_COUNTS, VISUAL_STYLES, type StoryIdea } from '
 import { useStudio } from './studio-provider'
 import { FieldLabel } from './shared'
 import { RegenerateConfirmDialog } from './regenerate-confirm-dialog'
+import { StoryContinuityPanel } from './story-continuity-panel'
 
 function ChipGroup<T extends string | number>({
   label,
@@ -90,10 +91,12 @@ export function StoryEditor() {
         <h1 className="text-lg font-semibold tracking-tight">故事创意</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           {hasCast
-            ? '本话分镜默认复用作品角色库；需要新人时再追加，整队重建仅作危险操作。'
-            : '根据故事生成 AI 角色设定、场景和分镜脚本，确认后可继续逐格出图。'}
+            ? '本话分镜默认复用作品角色库；需要新人时再追加，整队重建仅作危险操作。生成分镜不会改写本话梗概。'
+            : '根据故事生成 AI 角色设定、场景和分镜脚本，确认后可继续逐格出图。生成分镜不会改写本话梗概。'}
         </p>
       </div>
+
+      <StoryContinuityPanel />
 
       <div className="flex flex-col gap-5 rounded-lg border bg-card p-5">
         <div className="flex flex-col gap-1.5">

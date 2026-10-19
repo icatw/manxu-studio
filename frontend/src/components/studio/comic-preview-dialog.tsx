@@ -10,6 +10,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Textarea } from '@/components/ui/textarea'
 import { DialogueFallbackBubble, LetteringOverlay } from '@/components/series/lettering-overlay'
 import { useEpisodeLayoutLettering } from '@/hooks/use-episode-layout-lettering'
+import { LETTERING_LAYOUT_TEMPLATES } from '@/lib/lettering-layout-templates'
 import { cn } from '@/lib/utils'
 import { ASPECT_RATIO_VALUES } from '@/types/storyboard'
 import type { LetteringObject } from '@/services/layout-api'
@@ -66,7 +67,7 @@ export function ComicPreviewDialog() {
             ) : (
               <MessageSquareText data-icon="inline-start" />
             )}
-            从分镜生成气泡
+            {lettering.seed.isPending ? '生成中…' : '从分镜生成气泡'}
           </Button>
           <Button
             size="sm"
@@ -211,6 +212,37 @@ export function ComicPreviewDialog() {
                 <p className="text-[11px] text-muted-foreground">
                   新增气泡/旁白先写入占位文案，请改成定稿；不会自动复制整段分镜对白。多人台词请用「从分镜生成气泡」拆分。
                 </p>
+
+                {binding.lettering.length > 0 ? (
+                  <div className="space-y-1.5 border-t pt-3">
+                    <p className="text-xs font-medium">一键布局</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {LETTERING_LAYOUT_TEMPLATES.map((tpl) => (
+                        <Button
+                          key={tpl.id}
+                          size="sm"
+                          variant="secondary"
+                          title={tpl.hint}
+                          disabled={lettering.busy}
+                          onClick={() =>
+                            lettering.applyTemplate.mutate({
+                              items: binding.lettering,
+                              template: tpl.id,
+                            })
+                          }
+                        >
+                          {lettering.applyTemplate.isPending ? (
+                            <Loader2 data-icon="inline-start" className="animate-spin" />
+                          ) : null}
+                          {tpl.label}
+                        </Button>
+                      ))}
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">
+                      只重排本格位置与尾标，不改文案；规则摆位，不承诺躲脸。
+                    </p>
+                  </div>
+                ) : null}
 
                 <ul className="flex flex-col gap-1">
                   {binding.lettering.map((item) => (

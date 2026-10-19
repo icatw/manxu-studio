@@ -108,10 +108,17 @@ class ContinuityOpenThread(APIModel):
     payoff_in_episode_id: UUID | None = None
 
 
+class PlannedChapterOutline(APIModel):
+    episode_number: int = Field(ge=2)
+    title: str
+    synopsis: str
+
+
 class ProjectContinuity(APIModel):
     world_setting: str
     previous_summaries: list[ContinuityPreviousSummary]
     open_threads: list[ContinuityOpenThread]
+    planned_chapters: list[PlannedChapterOutline] = Field(default_factory=list)
 
 
 class ProjectPlanRequest(APIModel):
