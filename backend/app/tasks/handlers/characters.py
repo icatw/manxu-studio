@@ -20,7 +20,7 @@ from app.db.models import (
 )
 from app.providers import generate_image, generate_structured_text
 from app.providers.errors import ProviderControlError
-from app.tasks.prompts import CHARACTER_DRAFT
+from app.tasks.prompts import CHARACTER_DRAFT, CHARACTER_REFERENCE_IMAGE_PROMPT_RULES
 from app.tasks.provider_jobs import (
     ImageJobCheckpoint,
     bind_image_job,
@@ -35,11 +35,120 @@ from app.tasks.types import TaskType
 
 CastMode = Literal["append", "replace"]
 
+_ABSENT_FIELD_VALUES = frozenset({"", "无", "没有", "不适用", "n/a", "na", "none", "null"})
+_NON_CORPOREAL_MARKERS = (
+    "无实体",
+    "非实体",
+    "数据流",
+    "意识体",
+    "虚拟形象",
+    "全息",
+    "UI界面",
+    "几何界面",
+)
+
+_CORPOREAL_FRAMING = (
+    "构图：正方形画幅内的单人角色设定立绘；站姿四分之三侧；从头顶到脚完整入画，"
+    "头顶与脚下留白；脸部五官清晰可见；禁止切头、切脸、半身特写或只拍躯干；"
+    "纯净浅色背景；不得出现文字、标题、边框或水印。"
+)
+
+_NON_CORPOREAL_FRAMING = (
+    "构图：正方形画幅内的抽象角色可视化符号；非真人全身立绘；"
+    "以数据流、光粒、几何 UI 或全息符号表达角色身份；"
+    "纯净深色或浅色背景；不得出现文字、标题、边框或水印。"
+)
+
 
 def _normalize_cast_name(name: str) -> str:
     """Lightweight name key: NFKC, strip whitespace, casefold."""
     compact = "".join(unicodedata.normalize("NFKC", name).split())
     return compact.casefold()
+
+
+def _profile_field(profile: dict[str, Any], key: str) -> str:
+    return str(profile.get(key) or "").strip()
+
+
+def _is_absent_visual_field(value: str) -> bool:
+    compact = value.strip().rstrip("。．.、,，")
+    return compact.casefold() in _ABSENT_FIELD_VALUES
+
+
+def _is_non_corporeal_profile(profile: dict[str, Any]) -> bool:
+    appearance = _profile_field(profile, "appearance")
+    hairstyle = _profile_field(profile, "hairstyle")
+    outfit = _profile_field(profile, "outfit")
+    if _is_absent_visual_field(hairstyle) and _is_absent_visual_field(outfit):
+        return True
+    return any(marker in appearance for marker in _NON_CORPOREAL_MARKERS)
+
+
+def _signature_traits_text(profile: dict[str, Any]) -> str:
+    raw = profile.get("signature_traits")
+    if isinstance(raw, list):
+        parts = [str(item).strip() for item in raw if str(item).strip()]
+        if parts:
+            return "、".join(parts)
+    visual = profile.get("visual_traits")
+    if isinstance(visual, list):
+        parts = [str(item).strip() for item in visual if str(item).strip()]
+        if parts:
+            return "、".join(parts)
+    return ""
+
+
+def build_character_reference_image_prompt(
+    *,
+    art_style: str,
+    name: str,
+    profile: dict[str, Any] | None,
+) -> str:
+    """Assemble a framing-safe reference prompt from live profile fields.
+
+    Structured fields win over freeform ``image_prompt`` so edited hairstyle/outfit
+    are honored on image-only regenerations.
+    """
+    data = profile if isinstance(profile, dict) else {}
+    role = _profile_field(data, "role")
+    appearance = _profile_field(data, "appearance")
+    hairstyle = _profile_field(data, "hairstyle")
+    outfit = _profile_field(data, "outfit")
+    traits = _signature_traits_text(data)
+    freeform = _profile_field(data, "image_prompt")
+    style = art_style.strip() or "漫画角色设定"
+
+    if _is_non_corporeal_profile(data):
+        parts = [
+            f"{style}。角色：{name}" + (f"（{role}）" if role else "") + "。",
+            "非实体角色抽象可视化，不要画成完整真人全身像。",
+        ]
+        if appearance:
+            parts.append(f"视觉概念：{appearance}。")
+        if traits:
+            parts.append(f"辨识符号：{traits}。")
+        if freeform:
+            parts.append(f"补充：{freeform}。")
+        parts.append(_NON_CORPOREAL_FRAMING)
+        return "".join(parts)
+
+    parts = [
+        f"{style}。角色：{name}" + (f"（{role}）" if role else "") + "。",
+        "单人全身角色设定立绘。",
+    ]
+    if appearance:
+        parts.append(f"外貌：{appearance}。")
+    if hairstyle and not _is_absent_visual_field(hairstyle):
+        parts.append(f"发型必须为：{hairstyle}。")
+    if outfit and not _is_absent_visual_field(outfit):
+        parts.append(f"服装必须为：{outfit}。")
+    if traits:
+        parts.append(f"标志性特征：{traits}。")
+    parts.append("必须严格遵循上述发型与服装的颜色和款式，不得擅自改成其他发色或服装。")
+    if freeform:
+        parts.append(f"补充氛围：{freeform}。")
+    parts.append(_CORPOREAL_FRAMING)
+    return "".join(parts)
 
 
 def _profile_from_generated(generated: GeneratedCharacter) -> dict[str, object]:
@@ -174,6 +283,7 @@ async def generate_characters(
     image_api_key: str | None
     image_model: str
     image_base_url: str | None
+    image_backend: str
     locked_preserved_flags: list[bool]
     generated_characters: list[CharacterRecord]
 
@@ -182,6 +292,7 @@ async def generate_characters(
         image_api_key = decrypt_secret(config.image_api_key_encrypted)
         image_model = config.image_model
         image_base_url = config.image_base_url
+        image_backend = getattr(config, "image_backend", None) or "qwen_async"
         if requested_ids:
             generated_characters = [by_id[item] for item in requested_ids if item in by_id]
             if not generated_characters:
@@ -208,6 +319,7 @@ async def generate_characters(
         )
         image_model = config.image_model
         image_base_url = config.image_base_url
+        image_backend = getattr(config, "image_backend", None) or "qwen_async"
         text_base_url = config.text_base_url
         text_model = config.text_model
         await session.commit()
@@ -249,8 +361,8 @@ async def generate_characters(
                     '返回对象格式：{"characters":[{"name":string,"role":string,'
                     '"appearance":string,"hairstyle":string,"outfit":string,'
                     '"signature_traits":[string],"personality":string,'
-                    '"reference_image_prompt":string}]}。参考图提示词描述单人全身立绘、'
-                    "纯净背景、清晰服装和辨识特征，不要出现文字或水印。"
+                    '"reference_image_prompt":string}]}。'
+                    f"{CHARACTER_REFERENCE_IMAGE_PROMPT_RULES}"
                 )
             elif cast_mode == "append" and existing:
                 roster_lines = "\n".join(
@@ -266,8 +378,8 @@ async def generate_characters(
                     '返回对象格式：{"characters":[{"name":string,"role":string,'
                     '"appearance":string,"hairstyle":string,"outfit":string,'
                     '"signature_traits":[string],"personality":string,'
-                    '"reference_image_prompt":string}]}。参考图提示词描述单人全身立绘、'
-                    "纯净背景、清晰服装和辨识特征，不要出现文字或水印。"
+                    '"reference_image_prompt":string}]}。'
+                    f"{CHARACTER_REFERENCE_IMAGE_PROMPT_RULES}"
                 )
             else:
                 user_prompt = (
@@ -278,8 +390,8 @@ async def generate_characters(
                     '返回对象格式：{"characters":[{"name":string,"role":string,'
                     '"appearance":string,"hairstyle":string,"outfit":string,'
                     '"signature_traits":[string],"personality":string,'
-                    '"reference_image_prompt":string}]}。参考图提示词描述单人全身立绘、'
-                    "纯净背景、清晰服装和辨识特征，不要出现文字或水印。"
+                    '"reference_image_prompt":string}]}。'
+                    f"{CHARACTER_REFERENCE_IMAGE_PROMPT_RULES}"
                 )
             output = await generate_structured_text(
                 base_url=text_base_url,
@@ -421,16 +533,15 @@ async def generate_characters(
             warnings.append(f"{character.name}文字设定已更新；定妆照已锁定，未替换参考图。")
             continue
 
-        image_prompt = str(character.profile.get("image_prompt", "")).strip()
         image_job = await bind_image_job(session, task, f"character:{character.id}")
         pending.append(
             (
                 character,
                 image_job,
-                (
-                    f"{art_style}，{image_prompt}。角色：{character.name}。"
-                    "单人全身角色设定图，纯净浅色背景，完整展示发型、服装和标志性特征，"
-                    "不得出现文字、标题、边框或水印。"
+                build_character_reference_image_prompt(
+                    art_style=art_style,
+                    name=character.name,
+                    profile=character.profile if isinstance(character.profile, dict) else {},
                 ),
             )
         )
@@ -460,6 +571,7 @@ async def generate_characters(
                         model=image_model,
                         prompt=prompt,
                         asset_id=image_job.asset_id,
+                        image_backend=image_backend,
                         base_url=image_base_url,
                         resume_task_id=image_job.resume_task_id,
                         prompt_extend=False,
