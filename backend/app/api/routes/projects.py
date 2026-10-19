@@ -12,6 +12,7 @@ from app.schemas.workspace import (
     ProjectCreate,
     ProjectPage,
     ProjectPatch,
+    ProjectUpdateResult,
 )
 from app.services import projects as projects_service
 
@@ -50,10 +51,12 @@ async def get_project(project_id: UUID, session: SessionDep) -> Project:
 @router.patch(
     "/projects/{project_id}",
     operation_id="updateProject",
-    response_model=Project,
+    response_model=ProjectUpdateResult,
     dependencies=[Depends(require_project_owner_dependency)],
 )
-async def update_project(project_id: UUID, body: ProjectPatch, session: SessionDep) -> Project:
+async def update_project(
+    project_id: UUID, body: ProjectPatch, session: SessionDep
+) -> ProjectUpdateResult:
     return await projects_service.update_project(session, project_id, body)
 
 

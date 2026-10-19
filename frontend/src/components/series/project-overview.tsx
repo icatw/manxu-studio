@@ -10,6 +10,7 @@ import { ButtonLink } from "@/components/ui/button-link";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { api, toApiError } from "@/lib/api/client";
+import { describeChangeImpact } from "@/lib/change-impact";
 import { waitForGenerationTask } from "@/lib/generation-task";
 import { queryClient as appQueryClient } from "@/lib/query-client";
 import {
@@ -742,13 +743,17 @@ function BibleForm({
         onClick={async () => {
           setSaving(true);
           try {
-            await updateProjectBible(projectId, {
+            const result = await updateProjectBible(projectId, {
               world_setting: world,
               style_rules: rules,
               negative_prompt: negative,
               style_seed: parsedSeed,
             });
             toast.success("设定集已保存");
+            if (result.impact) {
+              const copy = describeChangeImpact(result.impact);
+              toast.warning(copy.title, { description: copy.description });
+            }
             onSaved();
           } catch (error) {
             toast.error("保存失败", { description: error instanceof Error ? error.message : undefined });

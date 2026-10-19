@@ -11,11 +11,13 @@ from app.schemas.workspace import (
     Character,
     CharacterGenerationRequest,
     CharacterPatch,
+    CharacterUpdateResult,
     GenerationTask,
     Scene,
     SceneGenerationRequest,
     ScenePatch,
 )
+from app.services.change_impact import cast_visual_changed_fields, impact_for_cast
 from app.services.generations import create_task
 
 
@@ -50,10 +52,11 @@ async def list_characters(session: AsyncSession, project_id: UUID) -> list[Chara
 
 async def update_character(
     session: AsyncSession, character_id: UUID, body: CharacterPatch
-) -> Character:
+) -> CharacterUpdateResult:
     record = await session.get(CharacterRecord, character_id)
     if record is None:
         raise not_found("角色")
+    visual_fields = cast_visual_changed_fields(record.profile or {}, body)
     values = body.model_dump(exclude_unset=True)
     if "profile" in values and values["profile"] is not None:
         values["profile"] = body.profile.model_dump() if body.profile else None
@@ -62,7 +65,14 @@ async def update_character(
     record.version += 1
     await session.commit()
     await session.refresh(record)
-    return Character.model_validate(record)
+    character = Character.model_validate(record)
+    impact = await impact_for_cast(
+        session,
+        project_id=record.project_id,
+        character_id=record.id,
+        changed_fields=visual_fields,
+    )
+    return CharacterUpdateResult(character=character, impact=impact)
 
 
 async def generate_characters(

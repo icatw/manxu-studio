@@ -21,6 +21,7 @@ import {
   useStudioHydrate,
   type SaveState,
 } from "@/hooks/use-studio-persist";
+import { type ChangeImpact } from "@/lib/change-impact";
 import { historyReducer, createHistory, type ProjectAction } from "@/lib/project-store";
 import { api, toApiError } from "@/lib/api/client";
 import { waitForGenerationTask } from "@/lib/generation-task";
@@ -67,6 +68,8 @@ interface StudioContextValue {
   selectImageVersion: (panelId: string, versionId: string) => Promise<void>;
   addPanel: () => void;
   removePanel: (panelId: string) => void;
+  changeImpact: ChangeImpact | null;
+  dismissChangeImpact: () => void;
 }
 
 const StudioContext = createContext<StudioContextValue | null>(null);
@@ -104,6 +107,8 @@ export function StudioProvider({
   const [previewOpen, setPreviewOpen] = useState(false);
   const storyAbortRef = useRef<AbortController | null>(null);
 
+  const [changeImpact, setChangeImpact] = useState<ChangeImpact | null>(null);
+  const dismissChangeImpact = useCallback(() => setChangeImpact(null), []);
   const { saveState, setSaveState, lastSavedAt, setLastSavedAt } = useStudioAutosave({
     project,
     projectId: workspace.project.id,
@@ -111,6 +116,7 @@ export function StudioProvider({
     initialSavedAt: workspace.episode.updated_at,
     baselineRef,
     lastSignatureRef,
+    onChangeImpact: setChangeImpact,
   });
 
   const modelConfig = useQuery({
@@ -181,7 +187,9 @@ export function StudioProvider({
       } else if (regenerateCharacters) {
         toast.success("AI 角色、场景与分镜草稿已生成", { description: "结果已保存，可继续编辑。" });
       } else {
-        toast.success("本话分镜已生成", { description: "已复用作品角色库；结果已保存。" });
+        toast.success("本话分镜已生成", {
+          description: "已复用作品角色库；若场景库为空会同步补建。",
+        });
       }
     },
     [onReload, queryClient, workspace.project.id],
@@ -385,6 +393,8 @@ export function StudioProvider({
       selectImageVersion,
       addPanel,
       removePanel,
+      changeImpact,
+      dismissChangeImpact,
     }),
     [
       project,
@@ -407,6 +417,8 @@ export function StudioProvider({
       selectImageVersion,
       addPanel,
       removePanel,
+      changeImpact,
+      dismissChangeImpact,
     ],
   );
 

@@ -16,7 +16,9 @@ from app.schemas.workspace import (
     ProjectCreate,
     ProjectPage,
     ProjectPatch,
+    ProjectUpdateResult,
 )
+from app.services.change_impact import bible_impact_fields, impact_for_bible
 
 
 def not_found(resource: str) -> HTTPException:
@@ -78,16 +80,28 @@ async def get_project(session: AsyncSession, project_id: UUID) -> Project:
     return await project_view(session, record)
 
 
-async def update_project(session: AsyncSession, project_id: UUID, body: ProjectPatch) -> Project:
+async def update_project(
+    session: AsyncSession, project_id: UUID, body: ProjectPatch
+) -> ProjectUpdateResult:
     record = await session.get(ProjectRecord, project_id)
     if record is None:
         raise not_found("项目")
+    reason, changed_fields = bible_impact_fields(record, body)
     for key, value in body.model_dump(exclude_unset=True).items():
         setattr(record, key, value)
     record.updated_at = datetime.now(UTC)
     await session.commit()
     await session.refresh(record)
-    return await project_view(session, record)
+    project = await project_view(session, record)
+    impact = None
+    if reason is not None:
+        impact = await impact_for_bible(
+            session,
+            project_id=project_id,
+            reason=reason,
+            changed_fields=changed_fields,
+        )
+    return ProjectUpdateResult(project=project, impact=impact)
 
 
 async def delete_project(session: AsyncSession, project_id: UUID) -> None:

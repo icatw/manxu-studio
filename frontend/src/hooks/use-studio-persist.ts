@@ -11,6 +11,11 @@ import { toast } from 'sonner'
 import { api } from '@/lib/api/client'
 import { aspectRatioToApi } from '@/lib/domain-mappings'
 import { mergeHydratedProject, type ProjectAction } from '@/lib/project-store'
+import {
+  describeChangeImpact,
+  mergeChangeImpacts,
+  type ChangeImpact,
+} from '@/lib/change-impact'
 import { toCharacterPatch, toComicProject, toPanelPatch, toScenePatch, type WorkspaceData } from '@/services/workspace-api'
 import type { ComicProject } from '@/types/storyboard'
 
@@ -41,7 +46,8 @@ export async function persistProject(
   previous: ComicProject,
   projectId: string,
   episodeId: string,
-) {
+): Promise<ChangeImpact[]> {
+  const impacts: ChangeImpact[] = []
   const projectPatch: Record<string, string> = {}
   if (current.title !== previous.title) projectPatch.title = current.title
   if (current.story.synopsis !== previous.story.synopsis) projectPatch.synopsis = current.story.synopsis
@@ -58,6 +64,7 @@ export async function persistProject(
       body: projectPatch,
     })
     await expectNoError(error, data)
+    if (data?.impact) impacts.push(data.impact)
   }
 
   const episodePatch: Record<string, string | number> = {}
@@ -81,6 +88,7 @@ export async function persistProject(
       body: toCharacterPatch(character),
     })
     await expectNoError(error, data)
+    if (data?.impact) impacts.push(data.impact)
   }
 
   const previousScenes = new Map(previous.scenes.map((item) => [item.id, item]))
@@ -127,6 +135,7 @@ export async function persistProject(
     })
     await expectNoError(error, data)
   }
+  return impacts
 }
 
 export function useStudioHydrate({
@@ -197,6 +206,7 @@ export function useStudioAutosave({
   initialSavedAt,
   baselineRef,
   lastSignatureRef,
+  onChangeImpact,
 }: {
   project: ComicProject
   projectId: string
@@ -204,6 +214,7 @@ export function useStudioAutosave({
   initialSavedAt: string
   baselineRef: MutableRefObject<ComicProject>
   lastSignatureRef: MutableRefObject<string>
+  onChangeImpact?: (impact: ChangeImpact) => void
 }) {
   const [ready, setReady] = useState(false)
   const [saveState, setSaveState] = useState<SaveState>('saved')
@@ -220,18 +231,25 @@ export function useStudioAutosave({
     setSaveState('saving')
     const timer = window.setTimeout(async () => {
       try {
-        await persistProject(project, baselineRef.current, projectId, episodeId)
+        const impacts = await persistProject(project, baselineRef.current, projectId, episodeId)
         baselineRef.current = structuredClone(project)
         lastSignatureRef.current = signature
         setSaveState('saved')
         setLastSavedAt(new Date())
+        for (const impact of impacts) {
+          if (impact.reason !== 'bible_continuity' && impact.affected_panel_count <= 0) continue
+          const copy = describeChangeImpact(impact)
+          toast.warning(copy.title, { description: copy.description })
+        }
+        const merged = mergeChangeImpacts(impacts)
+        if (merged) onChangeImpact?.(merged)
       } catch (error) {
         setSaveState('error')
         toast.error('保存失败', { description: error instanceof Error ? error.message : '请检查网络后重试' })
       }
     }, 650)
     return () => window.clearTimeout(timer)
-  }, [baselineRef, episodeId, lastSignatureRef, project, projectId, ready])
+  }, [baselineRef, episodeId, lastSignatureRef, onChangeImpact, project, projectId, ready])
 
   return { saveState, setSaveState, lastSavedAt, setLastSavedAt }
 }

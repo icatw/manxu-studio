@@ -216,6 +216,31 @@ class Character(APIModel):
     version: int
 
 
+class ChangeImpactEpisode(APIModel):
+    episode_id: UUID
+    position: int
+    title: str
+    panel_count: int
+
+
+class ChangeImpact(APIModel):
+    reason: Literal["cast_visual", "bible_visual", "bible_continuity"]
+    changed_fields: list[str]
+    affected_panel_count: int
+    affected_episode_ids: list[UUID]
+    affected_episode_summaries: list[ChangeImpactEpisode] = Field(default_factory=list)
+
+
+class CharacterUpdateResult(APIModel):
+    character: Character
+    impact: ChangeImpact | None = None
+
+
+class ProjectUpdateResult(APIModel):
+    project: Project
+    impact: ChangeImpact | None = None
+
+
 class SceneGenerationRequest(APIModel):
     episode_id: UUID | None = None
     guidance: str = Field(default="", max_length=4000)

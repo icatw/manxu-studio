@@ -12,6 +12,7 @@ from app.schemas.workspace import (
     Character,
     CharacterGenerationRequest,
     CharacterPatch,
+    CharacterUpdateResult,
     GenerationTask,
     Scene,
     SceneGenerationRequest,
@@ -35,12 +36,12 @@ async def list_characters(project_id: UUID, session: SessionDep) -> list[Charact
 @router.patch(
     "/characters/{character_id}",
     operation_id="updateCharacter",
-    response_model=Character,
+    response_model=CharacterUpdateResult,
     dependencies=[Depends(require_character_owner)],
 )
 async def update_character(
     character_id: UUID, body: CharacterPatch, session: SessionDep
-) -> Character:
+) -> CharacterUpdateResult:
     return await assets_service.update_character(session, character_id, body)
 
 

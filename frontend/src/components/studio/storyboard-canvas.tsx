@@ -3,16 +3,29 @@
 import { useState } from 'react'
 import { Clapperboard, Loader2, Plus, Sparkles, Square, Trash2, Wand2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { describeChangeImpact } from '@/lib/change-impact'
 import { useEpisodeLayoutLettering } from '@/hooks/use-episode-layout-lettering'
 import { useStudio } from './studio-provider'
 import { StoryboardPanelCard } from './storyboard-panel'
 import { RegenerateConfirmDialog } from './regenerate-confirm-dialog'
 
 export function StoryboardCanvas() {
-  const { project, dispatch, selectedPanelId, selectPanel, generation, storyBusy, generateFromStory, setStage, episodeId } =
-    useStudio()
+  const {
+    project,
+    dispatch,
+    selectedPanelId,
+    selectPanel,
+    generation,
+    storyBusy,
+    generateFromStory,
+    setStage,
+    episodeId,
+    changeImpact,
+    dismissChangeImpact,
+  } = useStudio()
   const { addPanel, removePanel } = useStudio()
   const lettering = useEpisodeLayoutLettering(episodeId)
+  const impactCopy = changeImpact ? describeChangeImpact(changeImpact) : null
   const [confirmAll, setConfirmAll] = useState(false)
   const [trialOpen, setTrialOpen] = useState(false)
   const [pendingAction, setPendingAction] = useState<'one' | 'all' | null>(null)
@@ -24,6 +37,7 @@ export function StoryboardCanvas() {
   const confirmedCount = project.characters.filter((c) => c.confirmed).length
   const needsCastGate = castCount === 0
   const softWarn = castCount > 0 && lockedCount === 0
+  const needsScenesSoft = project.scenes.length === 0
 
   const requestGenerateOne = (panelId: string) => {
     selectPanel(panelId)
@@ -53,8 +67,10 @@ export function StoryboardCanvas() {
           <Clapperboard className="size-6 text-muted-foreground" aria-hidden />
         </div>
         <div>
-          <h2 className="text-base font-semibold">还没有分镜</h2>
-          <p className="mt-1 text-sm text-muted-foreground">先完善本话梗概与角色，再生成分镜脚本。</p>
+          <h2 className="text-base font-semibold">还没有分镜脚本</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            先完善本话梗概与角色，再生成分镜脚本（文本结构，不是出图）。
+          </p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => setStage('story')}>
@@ -62,7 +78,7 @@ export function StoryboardCanvas() {
           </Button>
           <Button onClick={() => void generateFromStory({ regenerateCharacters: false })} disabled={storyBusy}>
             {storyBusy ? <Loader2 className="animate-spin" data-icon="inline-start" /> : <Sparkles data-icon="inline-start" />}
-            生成分镜脚本
+            {storyBusy ? '生成中…' : '生成分镜脚本'}
           </Button>
         </div>
       </div>
@@ -110,6 +126,20 @@ export function StoryboardCanvas() {
         </section>
       )}
 
+      {impactCopy ? (
+        <section className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="font-medium">{impactCopy.title}</p>
+              <p className="mt-1 text-muted-foreground">{impactCopy.description}</p>
+            </div>
+            <Button size="sm" variant="ghost" onClick={dismissChangeImpact}>
+              知道了
+            </Button>
+          </div>
+        </section>
+      ) : null}
+
       {needsCastGate ? (
         <section className="rounded-lg border border-amber-500/50 bg-amber-500/10 px-4 py-3 text-sm">
           <p className="font-medium">尚未建立角色</p>
@@ -142,6 +172,18 @@ export function StoryboardCanvas() {
           </button>
         </section>
       )}
+
+      {needsScenesSoft ? (
+        <section className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm">
+          <p className="font-medium">尚无场景资产</p>
+          <p className="mt-1 text-muted-foreground">
+            环境一致性较弱。可按本话生成场景库；不影响继续出图。
+          </p>
+          <Button size="sm" className="mt-2" variant="secondary" onClick={() => setStage('scenes')}>
+            去生成场景
+          </Button>
+        </section>
+      ) : null}
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         {panels.map((panel, index) => (
