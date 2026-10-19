@@ -77,7 +77,7 @@ export function ComicPreviewDialog() {
             替换已有
           </Button>
           <p className="text-xs text-muted-foreground">
-            默认跳过已有字效的格；要覆盖占位气泡用「替换已有」。改字不重绘底图。
+            默认跳过已有字效的格；要覆盖用「替换已有」。按竖条阅读顺序摆在顶区，可拖到空区；不承诺躲脸。改字不重绘底图。
           </p>
         </div>
 

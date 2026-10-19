@@ -3,13 +3,22 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Sequence
+from dataclasses import dataclass
+from typing import Literal
 from uuid import UUID, uuid4
 
 from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import LetteringObjectRecord, PageSlotRecord, PanelRecord
+from app.db.models import (
+    CharacterRecord,
+    EpisodeRecord,
+    LetteringObjectRecord,
+    PageSlotRecord,
+    PanelRecord,
+)
 from app.schemas.workspace import (
     EpisodeLayout,
     LetteringObject,
@@ -32,6 +41,73 @@ _SPEAKER_TURN = re.compile(
 _SPEAKER_BLOCKLIST = frozenset(
     {"限制", "注意", "警告", "说明", "提示", "系统", "旁白", "对白", "注", "例"}
 )
+
+SeedTail = Literal["none", "bottom_left", "bottom_right", "top_left", "top_right"]
+SeedFontSize = Literal["sm", "md", "lg"]
+
+
+@dataclass(frozen=True, slots=True)
+class SeedBubbleGeometry:
+    x_pct: float
+    y_pct: float
+    width_pct: float
+    font_size: SeedFontSize
+    tail: SeedTail
+
+
+def _normalize_speaker_key(name: str) -> str:
+    return "".join(name.split()).casefold()
+
+
+def leading_speaker_name(text: str) -> str | None:
+    """Return the leading「姓名：」label when present and not blocklisted."""
+    match = _SPEAKER_TURN.match(text.strip())
+    if match is None:
+        return None
+    name = match.group(1).strip()
+    if not name or name in _SPEAKER_BLOCKLIST:
+        return None
+    return name
+
+
+def seed_bubble_tail(text: str, cast_names: Sequence[str]) -> SeedTail:
+    """Weak speaker→tail: first matched cast left, later right; else none."""
+    speaker = leading_speaker_name(text)
+    if speaker is None or not cast_names:
+        return "none"
+    speaker_key = _normalize_speaker_key(speaker)
+    for index, name in enumerate(cast_names):
+        if _normalize_speaker_key(name) == speaker_key:
+            return "bottom_left" if index == 0 else "bottom_right"
+    return "none"
+
+
+def default_seed_bubble_geometry(
+    *,
+    bubble_index: int,
+    text: str,
+    cast_names: Sequence[str] = (),
+) -> SeedBubbleGeometry:
+    """Vertical-strip seed defaults (top band, stack down, width by length).
+
+    Does not use panel slot parity; not vision-based avoidance.
+    """
+    length = len(text.strip())
+    width_pct = max(36.0, min(72.0, 32.0 + 0.5 * length))
+    y_pct = min(68.0, 5.0 + bubble_index * 16.0)
+    if length < 12:
+        font_size: SeedFontSize = "lg"
+    elif length > 48:
+        font_size = "sm"
+    else:
+        font_size = "md"
+    return SeedBubbleGeometry(
+        x_pct=20.0,
+        y_pct=y_pct,
+        width_pct=width_pct,
+        font_size=font_size,
+        tail=seed_bubble_tail(text, cast_names),
+    )
 
 
 def _not_found(resource: str) -> HTTPException:
@@ -89,13 +165,13 @@ def lettering_view(row: LetteringObjectRecord) -> LetteringObject:
     return LetteringObject(
         id=row.id,
         slot_id=row.slot_id,
-        kind=row.kind,  # type: ignore[arg-type]
+        kind=row.kind,
         text=row.text,
         x_pct=row.x_pct,
         y_pct=row.y_pct,
         width_pct=row.width_pct,
-        tail=row.tail,  # type: ignore[arg-type]
-        font_size=row.font_size,  # type: ignore[arg-type]
+        tail=row.tail,
+        font_size=row.font_size,
         position=row.position,
         created_at=row.created_at,
         updated_at=row.updated_at,
@@ -211,11 +287,24 @@ async def seed_lettering_from_dialogue(
     panels = list(
         (await session.scalars(select(PanelRecord).where(PanelRecord.id.in_(panel_ids)))).all()
     )
+    panel_by_id = {panel.id: panel for panel in panels}
     dialogue_by_panel = {panel.id: (panel.dialogue or "").strip() for panel in panels}
+
+    episode = await session.get(EpisodeRecord, episode_id)
+    name_by_character_id: dict[str, str] = {}
+    if episode is not None:
+        cast_rows = list(
+            (
+                await session.scalars(
+                    select(CharacterRecord).where(CharacterRecord.project_id == episode.project_id)
+                )
+            ).all()
+        )
+        name_by_character_id = {str(row.id): row.name for row in cast_rows}
 
     existing = await lettering_for_slots(session, [slot.id for slot in flat_slots])
 
-    for index, slot in enumerate(flat_slots):
+    for slot in flat_slots:
         dialogue = dialogue_by_panel.get(slot.panel_id, "")
         bubbles = split_dialogue_for_bubbles(dialogue)
         if not bubbles:
@@ -232,21 +321,33 @@ async def seed_lettering_from_dialogue(
                 await session.delete(item)
             await session.flush()
 
-        even = index % 2 == 0
+        panel = panel_by_id.get(slot.panel_id)
+        raw_ids = panel.character_ids if panel is not None else []
+        cast_names: list[str] = []
+        if isinstance(raw_ids, list):
+            for character_id in raw_ids:
+                name = name_by_character_id.get(str(character_id))
+                if name:
+                    cast_names.append(name)
+
         for bubble_index, bubble_text in enumerate(bubbles):
             text = validate_lettering_text(bubble_text)
-            y_pct = min(70.0, 6.0 + bubble_index * 18.0)
+            geometry = default_seed_bubble_geometry(
+                bubble_index=bubble_index,
+                text=text,
+                cast_names=cast_names,
+            )
             session.add(
                 LetteringObjectRecord(
                     id=uuid4(),
                     slot_id=slot.id,
                     kind="speech_bubble",
                     text=text,
-                    x_pct=8.0 if even else 32.0,
-                    y_pct=y_pct,
-                    width_pct=60.0,
-                    tail="bottom_left" if even else "bottom_right",
-                    font_size="md",
+                    x_pct=geometry.x_pct,
+                    y_pct=geometry.y_pct,
+                    width_pct=geometry.width_pct,
+                    tail=geometry.tail,
+                    font_size=geometry.font_size,
                     position=bubble_index,
                 )
             )
