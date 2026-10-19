@@ -69,7 +69,9 @@ test("email login → create project → bible/threads → studio → reader →
   await page.goBack();
   await expect(page.locator("p", { hasText: "第 2 话" })).toBeVisible();
 
-  await page.getByRole("button", { name: "阅读" }).first().click();
+  // 阅读 / 成稿排版 live under「更多」(screens: primary CTA is 工作室).
+  await page.getByRole("button", { name: "更多" }).first().click();
+  await page.getByRole("menuitem", { name: "阅读" }).click();
   await expect(page).toHaveURL(/\/read\//);
   await page.goBack();
 

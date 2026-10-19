@@ -58,7 +58,8 @@ test("AI plan → create multi-episode project → generate summary → read", a
   expect(summaryResult.ok(), `summary status ${summaryResult.status()}`).toBeTruthy();
   await expect(page.getByText(/摘要：/).first()).toBeVisible({ timeout: 30_000 });
 
-  await page.getByRole("button", { name: "阅读" }).first().click();
+  await page.getByRole("button", { name: "更多" }).first().click();
+  await page.getByRole("menuitem", { name: "阅读" }).click();
   await expect(page).toHaveURL(/\/read\//);
 
   await deleteProjectByTitle(page, disposableTitle);
