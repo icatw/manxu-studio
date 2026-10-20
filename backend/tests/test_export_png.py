@@ -1,5 +1,6 @@
 from io import BytesIO
 from types import SimpleNamespace
+from uuid import uuid4
 from zipfile import ZipFile
 
 from PIL import Image, ImageDraw, ImageFont
@@ -14,6 +15,15 @@ from app.tasks.handlers.export import (
     render_png_zip,
     sanitize_export_filename,
 )
+
+
+def _panel(*, dialogue: str = "") -> SimpleNamespace:
+    return SimpleNamespace(
+        id=uuid4(),
+        dialogue=dialogue,
+        current_image_asset_id=None,
+        current_image_url=None,
+    )
 
 
 def test_sanitize_export_filename_always_keeps_extension() -> None:
@@ -44,7 +54,7 @@ def test_wrap_text_breaks_cjk_with_default_bitmap_font() -> None:
 
 
 def test_pack_pages_splits_when_taller_than_budget() -> None:
-    panel = SimpleNamespace(dialogue="", current_image_asset_id=None, current_image_url=None)
+    panel = _panel()
     tall = [
         _PanelLayout(panel=panel, index=i, height=700, source=None)  # type: ignore[arg-type]
         for i in range(4)
@@ -57,16 +67,8 @@ def test_pack_pages_splits_when_taller_than_budget() -> None:
 
 def test_render_png_vertical_comic_includes_title_pixels() -> None:
     panels = [
-        SimpleNamespace(
-            dialogue="来了吗？",
-            current_image_asset_id=None,
-            current_image_url=None,
-        ),
-        SimpleNamespace(
-            dialogue="门口有人。",
-            current_image_asset_id=None,
-            current_image_url=None,
-        ),
+        _panel(dialogue="来了吗？"),
+        _panel(dialogue="门口有人。"),
     ]
     raw = render_png("雾港来信", panels)  # type: ignore[arg-type]
     assert raw.startswith(b"\x89PNG")
@@ -74,14 +76,7 @@ def test_render_png_vertical_comic_includes_title_pixels() -> None:
 
 
 def test_render_png_zip_contains_numbered_pages() -> None:
-    panels = [
-        SimpleNamespace(
-            dialogue=f"对白{index}",
-            current_image_asset_id=None,
-            current_image_url=None,
-        )
-        for index in range(6)
-    ]
+    panels = [_panel(dialogue=f"对白{index}") for index in range(6)]
     raw = render_png_zip("雾港来信", panels)  # type: ignore[arg-type]
     with ZipFile(BytesIO(raw)) as archive:
         names = sorted(archive.namelist())
@@ -103,14 +98,9 @@ def test_ascii_download_fallback_keeps_suffixes() -> None:
 def test_anthology_zip_and_pdf_contain_multiple_episodes() -> None:
     from app.tasks.handlers.export import render_anthology_pdf, render_anthology_zip
 
-    ep1 = [
-        SimpleNamespace(dialogue="一", current_image_asset_id=None, current_image_url=None),
-        SimpleNamespace(dialogue="二", current_image_asset_id=None, current_image_url=None),
-    ]
-    ep2 = [
-        SimpleNamespace(dialogue="三", current_image_asset_id=None, current_image_url=None),
-    ]
-    payload = [("第一话", ep1), ("第二话", ep2)]
+    ep1 = [_panel(dialogue="一"), _panel(dialogue="二")]
+    ep2 = [_panel(dialogue="三")]
+    payload = [("第一话", ep1, None), ("第二话", ep2, None)]
     zipped = render_anthology_zip(payload)  # type: ignore[arg-type]
     with ZipFile(BytesIO(zipped)) as archive:
         names = archive.namelist()
