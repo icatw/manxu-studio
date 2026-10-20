@@ -15,6 +15,7 @@ import {
   PenLine,
   RefreshCw,
   Sparkles,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { AccountMenu } from "@/components/account-menu";
@@ -47,6 +48,14 @@ function previewQueryKey(episodeId: string) {
   return ["layout-preview", episodeId] as const;
 }
 
+function previewSeenKey(episodeId: string) {
+  return `manxu:layout-preview-seen:${episodeId}`;
+}
+
+function cleanHintKey(episodeId: string) {
+  return `manxu:layout-clean-hint:${episodeId}`;
+}
+
 export function LayoutPage() {
   const { projectId = "", episodeId = "" } = useParams();
   const navigate = useNavigate();
@@ -55,6 +64,8 @@ export function LayoutPage() {
   const [selectedSlotId, setSelectedSlotId] = useState<string | null>(null);
   const [exportOpen, setExportOpen] = useState(false);
   const [exportingFormat, setExportingFormat] = useState<ManuscriptFormat | null>(null);
+  const [previewSeen, setPreviewSeen] = useState(false);
+  const [cleanHintDismissed, setCleanHintDismissed] = useState(false);
   const exportMenuId = useId();
   const exportWrapRef = useRef<HTMLDivElement>(null);
 
@@ -155,6 +166,27 @@ export function LayoutPage() {
     };
   }, [exportOpen]);
 
+  useEffect(() => {
+    if (!episodeId) return;
+    try {
+      setPreviewSeen(sessionStorage.getItem(previewSeenKey(episodeId)) === "1");
+      setCleanHintDismissed(sessionStorage.getItem(cleanHintKey(episodeId)) === "1");
+    } catch {
+      setPreviewSeen(false);
+      setCleanHintDismissed(false);
+    }
+  }, [episodeId]);
+
+  useEffect(() => {
+    if (mode !== "preview" || !episodeId) return;
+    setPreviewSeen(true);
+    try {
+      sessionStorage.setItem(previewSeenKey(episodeId), "1");
+    } catch {
+      /* ignore */
+    }
+  }, [mode, episodeId]);
+
   const handleManuscriptExport = async (format: ManuscriptFormat) => {
     if (!episodeId) return;
     setExportOpen(false);
@@ -242,6 +274,31 @@ export function LayoutPage() {
     flatSlots[0]?.slot ??
     null;
 
+  const stripItems =
+    preview.data?.items ??
+    flatSlots.map(({ slot }) => ({
+      slot_id: slot.id,
+      image_url: imageBySlot.get(slot.id) ?? null,
+      lettering: slot.lettering ?? [],
+    }));
+  const missingImageCount = stripItems.filter((item) => !item.image_url).length;
+  const missingLetteringCount = stripItems.filter(
+    (item) => (item.lettering?.length ?? 0) === 0,
+  ).length;
+  const showCleanHints =
+    hasLayout && !cleanHintDismissed && (missingImageCount > 0 || missingLetteringCount > 0);
+  const showPreviewBeforeExport = hasLayout && !previewSeen && mode === "edit";
+
+  const dismissCleanHints = () => {
+    setCleanHintDismissed(true);
+    if (!episodeId) return;
+    try {
+      sessionStorage.setItem(cleanHintKey(episodeId), "1");
+    } catch {
+      /* ignore */
+    }
+  };
+
   const moveSlot = (pageId: string, slots: PageSlot[], index: number, delta: number) => {
     const next = index + delta;
     if (next < 0 || next >= slots.length) return;
@@ -268,7 +325,7 @@ export function LayoutPage() {
             <p className="truncate text-sm font-medium">
               成稿排版 · {episode?.title ?? "本话"}
             </p>
-            <p className="truncate text-xs text-muted-foreground">竖条漫成稿</p>
+            <p className="truncate text-xs text-muted-foreground">竖条漫成稿 · 非制作预览</p>
           </div>
           <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
             <Button
@@ -283,6 +340,7 @@ export function LayoutPage() {
               size="sm"
               variant={mode === "preview" ? "default" : "outline"}
               disabled={!hasLayout}
+              title="成稿预览：只读竖条（含字效）· 非制作预览"
               onClick={() => setMode("preview")}
             >
               成稿预览
@@ -381,6 +439,67 @@ export function LayoutPage() {
       </header>
 
       <main className="mx-auto max-w-5xl px-4 py-6">
+        {showCleanHints || showPreviewBeforeExport ? (
+          <div className="mb-4 space-y-2">
+            {showCleanHints ? (
+              <div
+                role="status"
+                className="flex flex-wrap items-start gap-2 rounded-lg border bg-muted/30 px-3 py-2 text-xs text-muted-foreground"
+              >
+                <div className="min-w-0 flex-1 space-y-1 text-pretty">
+                  {missingImageCount > 0 ? (
+                    <p>
+                      {missingImageCount} 格画面未就绪 ·{" "}
+                      <ButtonLink
+                        href={`/projects/${projectId}/studio?episodeId=${episodeId}`}
+                        variant="link"
+                        size="sm"
+                        className="h-auto px-0 text-xs"
+                      >
+                        回工作室出图
+                      </ButtonLink>
+                    </p>
+                  ) : null}
+                  {missingLetteringCount > 0 ? (
+                    <p>
+                      {missingLetteringCount} 格尚无字效 · 成稿导出不会印分镜对白 ·{" "}
+                      <ButtonLink
+                        href={`/projects/${projectId}/studio?episodeId=${episodeId}`}
+                        variant="link"
+                        size="sm"
+                        className="h-auto px-0 text-xs"
+                      >
+                        回工作室制作预览种泡
+                      </ButtonLink>
+                    </p>
+                  ) : null}
+                </div>
+                <Button
+                  size="icon-xs"
+                  variant="ghost"
+                  aria-label="关闭清洁提示"
+                  onClick={dismissCleanHints}
+                >
+                  <X />
+                </Button>
+              </div>
+            ) : null}
+            {showPreviewBeforeExport ? (
+              <div
+                role="status"
+                className="flex flex-wrap items-center gap-2 rounded-lg border border-dashed px-3 py-2 text-xs text-muted-foreground"
+              >
+                <p className="min-w-0 flex-1 text-pretty">
+                  建议先打开<strong className="font-medium text-foreground">成稿预览</strong>
+                  确认竖条与字效，再「导出成稿」。
+                </p>
+                <Button size="xs" variant="secondary" onClick={() => setMode("preview")}>
+                  成稿预览
+                </Button>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
         {!hasLayout ? (
           <section className="mx-auto flex max-w-lg flex-col items-center gap-4 rounded-xl border px-6 py-16 text-center">
             <LayoutTemplate className="size-10 text-muted-foreground" aria-hidden />
@@ -407,7 +526,7 @@ export function LayoutPage() {
         ) : mode === "preview" ? (
           <section className="mx-auto max-w-xl">
             <p className="mb-4 text-center text-xs text-muted-foreground">
-              成稿预览 · 含字效叠层 · 非制作预览导出
+              成稿预览 · 含字效叠层 · 非制作预览 · 非制作导出
             </p>
             <ol className="flex flex-col">
               {(preview.data?.items ??
@@ -522,15 +641,14 @@ export function LayoutPage() {
                           />
                         ) : (
                           <div
-                            className="flex w-full items-center justify-center bg-muted px-4 text-center text-sm text-muted-foreground"
+                            className="flex w-full flex-wrap items-center justify-center gap-2 bg-muted px-4 text-center text-sm text-muted-foreground"
                             style={{ height: slot.height_px }}
                           >
-                            缺图占位
+                            <span>画面未就绪 · 回工作室出图</span>
                             <ButtonLink
                               href={`/projects/${projectId}/studio?episodeId=${episodeId}`}
                               variant="link"
                               size="sm"
-                              className="ml-2"
                             >
                               去出图
                             </ButtonLink>

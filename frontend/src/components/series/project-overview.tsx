@@ -394,7 +394,7 @@ function ChapterList({
     <section className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs text-muted-foreground">
-          下一话生成分镜前须完成上一话摘要；跨话连读用合集预览，成册文件用合集下载。
+          下一话生成分镜前须完成上一话摘要；跨话连读用合集预览，跨话文件用合集下载（制作向分页，非成稿导出）。
         </p>
         <div className="flex flex-wrap gap-2">
           <Button
@@ -739,7 +739,9 @@ function AnthologyExportPanel({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-sm font-semibold">合集下载</h2>
-          <p className="mt-1 text-xs text-muted-foreground">勾选要收录的话，下载跨话分页 ZIP 或一本 PDF（制作预览，非成稿导出）。</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            勾选要收录的话，下载跨话分页 ZIP 或一本 PDF（制作向合集，非成稿导出；成稿请用语内「导出成稿」）。
+          </p>
         </div>
         <Button size="sm" variant="ghost" onClick={onClose} disabled={busy}>
           取消

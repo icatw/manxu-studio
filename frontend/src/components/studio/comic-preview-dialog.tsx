@@ -49,7 +49,7 @@ export function ComicPreviewDialog() {
         <DialogHeader>
           <DialogTitle>{project.title || '未命名作品'}</DialogTitle>
           <DialogDescription>
-            制作预览 · 字效主编辑 · {project.panels.length} 格
+            制作预览 · 字效主编辑 · 非成稿预览 · {project.panels.length} 格
             {missing > 0 ? ` · ${missing} 格尚未出图` : ''}
             {letteredCount > 0 ? ` · ${letteredCount} 格已有字效` : ''}
           </DialogDescription>

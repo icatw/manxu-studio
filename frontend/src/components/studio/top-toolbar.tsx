@@ -124,7 +124,11 @@ export function TopToolbar() {
       anchor.remove()
       URL.revokeObjectURL(url)
       toast.success(
-        format === 'png' ? '长图 PNG 已导出' : format === 'png_zip' ? '分页 ZIP 已导出' : '制作资料已导出',
+        format === 'png'
+          ? '制作长图 PNG 已导出'
+          : format === 'png_zip'
+            ? '制作分页 ZIP 已导出'
+            : '制作资料已导出',
       )
     } catch (error) {
       toast.error('导出失败', { description: error instanceof Error ? error.message : undefined })
@@ -206,7 +210,7 @@ export function TopToolbar() {
           size="icon-sm"
           className="md:w-auto md:px-2.5"
           aria-label="制作预览"
-          title="按分镜序预览本话（制作态，非成稿布局）"
+          title="制作预览：分镜序条漫 + 字效编辑（非成稿预览）"
           onClick={() => setPreviewOpen(true)}
           disabled={!hasPanels}
         >
@@ -218,7 +222,7 @@ export function TopToolbar() {
           size="icon-sm"
           className="md:w-auto md:px-2.5"
           aria-label="成稿排版"
-          title="成稿排版"
+          title="成稿排版：竖条页结构与导出成稿（非制作预览）"
           disabled={!hasPanels || !episodeId}
           onClick={() => navigate(`/projects/${projectId}/layout/${episodeId}`)}
         >
@@ -253,7 +257,7 @@ export function TopToolbar() {
               aria-label="制作导出格式"
               className="absolute right-0 z-40 mt-1 w-56 rounded-md border bg-popover p-1 text-popover-foreground shadow-md"
             >
-              <p className="px-2 py-1.5 text-[11px] text-muted-foreground">制作预览导出 · 非成稿导出</p>
+              <p className="px-2 py-1.5 text-[11px] text-muted-foreground">制作导出 · 非成稿导出</p>
               {(
                 [
                   {

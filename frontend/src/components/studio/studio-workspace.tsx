@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { loadWorkspace } from "@/services/workspace-api";
 import { CharacterBoard } from "./character-board";
 import { ComicPreviewDialog } from "./comic-preview-dialog";
+import { EpisodeDoneHint } from "./episode-done-hint";
 import { PanelInspector } from "./panel-inspector";
 import { SceneBoard } from "./scene-board";
 import { EpisodeSwitcher } from "./episode-switcher";
@@ -28,6 +29,7 @@ function WorkspaceShell() {
     <TooltipProvider>
       <div className="flex h-dvh max-h-dvh min-h-0 min-w-0 flex-col overflow-hidden">
         <TopToolbar />
+        <EpisodeDoneHint />
         <div className="border-b bg-sidebar lg:hidden">
           <EpisodeSwitcher />
         </div>
