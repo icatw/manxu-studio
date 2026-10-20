@@ -5,10 +5,10 @@ from types import SimpleNamespace
 from PIL import Image, ImageDraw
 
 from app.tasks.handlers.export import (
-    _LetteringBake,
-    _PanelLayout,
     _draw_panel,
+    _LetteringBake,
     _load_export_font,
+    _PanelLayout,
 )
 
 

@@ -5,7 +5,7 @@ from uuid import uuid4
 import pytest
 from fastapi import HTTPException
 
-from app.db.models import LetteringObjectRecord, LayoutPageRecord, PageSlotRecord, PanelRecord
+from app.db.models import LayoutPageRecord, LetteringObjectRecord, PageSlotRecord, PanelRecord
 from app.schemas.workspace import BootstrapLayoutRequest, SlotOrder, SyncLayoutRequest
 from app.services import layout as layout_service
 

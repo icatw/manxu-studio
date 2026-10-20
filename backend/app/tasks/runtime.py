@@ -6,6 +6,11 @@ from uuid import UUID, uuid4
 from sqlalchemy import func, select
 from sqlalchemy.orm.attributes import flag_modified
 
+from app.core.correlation import (
+    bind_correlation,
+    clear_correlation,
+    correlation_from_request_data,
+)
 from app.core.logging import api_logger
 from app.db.models import GenerationTaskRecord, ProjectRecord
 from app.db.session import SessionFactory, engine
@@ -156,6 +161,12 @@ async def run_generation_task(task_id: UUID) -> None:
                     task.updated_at = datetime.now(UTC)
                     await session.commit()
                     return
+                bind_correlation(
+                    request_id=correlation_from_request_data(task.request_data),
+                    account_id=task.owner_id,
+                    project_id=task.project_id,
+                    generation_task_id=task.id,
+                )
                 task.status = "running"
                 # Preserve progress across worker timeouts / requeues.
                 if task.progress is None or task.progress < 5:
@@ -253,4 +264,5 @@ async def run_generation_task(task_id: UUID) -> None:
                         task.updated_at = datetime.now(UTC)
                         await session.commit()
         finally:
+            clear_correlation()
             await lock_connection.execute(select(func.pg_advisory_unlock(lock_id)))

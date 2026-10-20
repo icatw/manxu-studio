@@ -509,9 +509,7 @@ def render_anthology_zip(
     wrote = 0
     with zipfile.ZipFile(archive, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
         for episode_index, (title, panels, lettering_by_panel) in enumerate(episodes, start=1):
-            pages = render_episode_pages(
-                title, panels, lettering_by_panel=lettering_by_panel
-            )
+            pages = render_episode_pages(title, panels, lettering_by_panel=lettering_by_panel)
             if not pages:
                 continue
             safe = re.sub(r'[\\/:*?"<>|\r\n]+', "_", (title or "").strip()) or "episode"
@@ -531,9 +529,7 @@ def render_anthology_pdf(
     images: list[Image.Image] = []
     try:
         for title, panels, lettering_by_panel in episodes:
-            for png in render_episode_pages(
-                title, panels, lettering_by_panel=lettering_by_panel
-            ):
+            for png in render_episode_pages(title, panels, lettering_by_panel=lettering_by_panel):
                 images.append(Image.open(io.BytesIO(png)).convert("RGB"))
         if not images:
             raise ValueError("所选故事单元没有可导出的分镜画面")
@@ -630,19 +626,19 @@ async def _load_manuscript_slots(
     version_ids = [slot.image_version_id for slot in slots if slot.image_version_id]
     versions: dict[UUID, ImageVersionRecord] = {}
     if version_ids:
-        for row in (
+        for version in (
             await session.scalars(
                 select(ImageVersionRecord).where(ImageVersionRecord.id.in_(version_ids))
             )
         ).all():
-            versions[row.id] = row
+            versions[version.id] = version
     panels: dict[UUID, PanelRecord] = {}
     panel_ids = list({slot.panel_id for slot in slots})
     if panel_ids:
-        for row in (
+        for panel in (
             await session.scalars(select(PanelRecord).where(PanelRecord.id.in_(panel_ids)))
         ).all():
-            panels[row.id] = row
+            panels[panel.id] = panel
 
     store = get_object_store()
     grouped: list[list[_ManuscriptSlot]] = []
@@ -830,6 +826,7 @@ async def handle_export(session: AsyncSession, task: GenerationTaskRecord) -> di
     export_id = uuid4()
     scope = str(request_data.get("scope") or "episode")
     project_id = UUID(str(request_data.get("project_id") or task.project_id))
+    episode_id: UUID | None = None
 
     if scope == "manuscript":
         episode_id = UUID(str(request_data["episode_id"]))
@@ -881,7 +878,6 @@ async def handle_export(session: AsyncSession, task: GenerationTaskRecord) -> di
             mime = "application/zip"
             extension = "zip"
         filename = sanitize_export_filename(f"{project.title}-合集", extension)
-        episode_id: UUID | None = None
     else:
         episode_id = UUID(str(request_data["episode_id"]))
         episode = await session.get(EpisodeRecord, episode_id)

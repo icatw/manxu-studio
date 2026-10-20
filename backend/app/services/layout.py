@@ -30,9 +30,7 @@ def _conflict(message: str) -> HTTPException:
     return HTTPException(status_code=409, detail=message)
 
 
-def _slot_view(
-    slot: PageSlotRecord, lettering: list[LetteringObject] | None = None
-) -> PageSlot:
+def _slot_view(slot: PageSlotRecord, lettering: list[LetteringObject] | None = None) -> PageSlot:
     return PageSlot(
         id=slot.id,
         page_id=slot.page_id,
@@ -48,9 +46,7 @@ def _slot_view(
     )
 
 
-async def list_pages_for_episode(
-    session: AsyncSession, episode_id: UUID
-) -> list[LayoutPageRecord]:
+async def list_pages_for_episode(session: AsyncSession, episode_id: UUID) -> list[LayoutPageRecord]:
     result = await session.scalars(
         select(LayoutPageRecord)
         .where(LayoutPageRecord.episode_id == episode_id)
@@ -235,10 +231,10 @@ async def sync_episode_layout(
             for slot in slots:
                 if not slot.follow_current_version:
                     continue
-                panel = panel_by_id.get(slot.panel_id)
-                if panel is None:
+                follow_panel = panel_by_id.get(slot.panel_id)
+                if follow_panel is None:
                     continue
-                slot.image_version_id = await _current_version_id_for_panel(session, panel)
+                slot.image_version_id = await _current_version_id_for_panel(session, follow_panel)
 
     # Compact positions per page.
     await session.flush()

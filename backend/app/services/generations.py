@@ -14,6 +14,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm.attributes import flag_modified
 
+from app.core.correlation import set_account_id, set_project_id, stamp_request_correlation
 from app.db.models import EpisodeRecord, ExportRecord, GenerationTaskRecord, ProjectRecord
 from app.providers.object_store import get_object_store
 from app.schemas.workspace import (
@@ -76,6 +77,8 @@ async def create_task(
                 await session.flush()
             else:
                 return task_view(existing)
+    set_account_id(owner_id)
+    set_project_id(project_id)
     task = GenerationTaskRecord(
         owner_id=owner_id,
         project_id=project_id,
@@ -84,7 +87,7 @@ async def create_task(
         task_type=task_type,
         status="queued",
         progress=0,
-        request_data=request_data,
+        request_data=stamp_request_correlation(request_data),
         retry_of_task_id=retry_of_task_id,
         idempotency_key=idempotency_key,
     )

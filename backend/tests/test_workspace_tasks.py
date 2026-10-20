@@ -84,11 +84,11 @@ async def test_storyboard_replacement_flushes_deletes_before_inserts(
             panels=[
                 GeneratedPanel(
                     shot="中景",
-                    scene_description="A scene",
-                    composition="Centered",
-                    character_actions="Walks in",
-                    emotion="Calm",
-                    story_purpose="Introduce character",
+                    scene_description="码头雨夜，街灯昏黄。",
+                    composition="人物居中入画",
+                    character_actions="缓步走进画面",
+                    emotion="平静",
+                    story_purpose="介绍主角登场",
                     image_prompt="Comic panel",
                 )
             ]

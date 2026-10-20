@@ -214,12 +214,8 @@ async def test_preserves_request_order() -> None:
             if entity is EpisodeRecord:
                 return SimpleNamespace(
                     all=lambda: [
-                        SimpleNamespace(
-                            id=second, position=1, title="后", project_id=project_id
-                        ),
-                        SimpleNamespace(
-                            id=first, position=0, title="前", project_id=project_id
-                        ),
+                        SimpleNamespace(id=second, position=1, title="后", project_id=project_id),
+                        SimpleNamespace(id=first, position=0, title="前", project_id=project_id),
                     ]
                 )
             return SimpleNamespace(all=lambda: [])

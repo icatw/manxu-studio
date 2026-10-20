@@ -73,9 +73,7 @@ async def get_project_anthology_preview(
             continue
 
         slot_count = await session.scalar(
-            select(PageSlotRecord.id)
-            .where(PageSlotRecord.page_id.in_(page_ids))
-            .limit(1)
+            select(PageSlotRecord.id).where(PageSlotRecord.page_id.in_(page_ids)).limit(1)
         )
         if slot_count is None:
             chapters.append(

@@ -79,9 +79,7 @@ class OpenAIImagesProvider:
                 if response.status_code in {401, 403}:
                     raise ValueError("图像模型认证失败，请检查 API Key")
                 if response.status_code == 429:
-                    raise RecoverableProviderError(
-                        f"图像模型限流（HTTP {response.status_code}）"
-                    )
+                    raise RecoverableProviderError(f"图像模型限流（HTTP {response.status_code}）")
                 if response.status_code >= 500:
                     raise AmbiguousProviderSubmitError(
                         f"图像提交结果不确定（HTTP {response.status_code}）"

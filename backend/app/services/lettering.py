@@ -259,9 +259,7 @@ def split_dialogue_for_bubbles(dialogue: str) -> list[str]:
             return parts
 
     matches = [
-        match
-        for match in _SPEAKER_TURN.finditer(raw)
-        if match.group(1) not in _SPEAKER_BLOCKLIST
+        match for match in _SPEAKER_TURN.finditer(raw) if match.group(1) not in _SPEAKER_BLOCKLIST
     ]
     if len(matches) >= 2:
         chunks: list[str] = []
@@ -462,8 +460,8 @@ async def seed_lettering_from_dialogue(
                     cast_names.append(name)
 
         bubble_count = len(prepared)
-        for bubble_index, (speaker_source, body) in enumerate(prepared):
-            text = validate_lettering_text(body)
+        for bubble_index, (speaker_source, bubble_text) in enumerate(prepared):
+            text = validate_lettering_text(bubble_text)
             geometry = default_seed_bubble_geometry(
                 bubble_index=bubble_index,
                 text=text,

@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import time
 from collections.abc import Awaitable, Callable
 from uuid import UUID
 
 from app.core.model_presets import ImageBackend
 from app.providers.openai_images import default_openai_images_provider
 from app.providers.qwen_image import default_image_provider as default_qwen_image_provider
+from app.services.usage import record_usage_event
 
 OnSubmitted = Callable[[str], Awaitable[None]]
 
@@ -34,28 +36,53 @@ async def generate_image(
     on_submitted: OnSubmitted | None = None,
 ) -> str:
     backend = _normalize_backend(image_backend)
-    if backend == "openai_images":
-        return await default_openai_images_provider.generate(
-            api_key=api_key,
+    provider = "openai_images" if backend == "openai_images" else "qwen_async"
+    started = time.perf_counter()
+    try:
+        if backend == "openai_images":
+            result = await default_openai_images_provider.generate(
+                api_key=api_key,
+                model=model,
+                prompt=prompt,
+                asset_id=asset_id,
+                base_url=base_url,
+                resume_task_id=resume_task_id,
+                prompt_extend=prompt_extend,
+                on_submit_started=on_submit_started,
+                on_submit_rejected=on_submit_rejected,
+                on_submitted=on_submitted,
+            )
+        else:
+            result = await default_qwen_image_provider.generate(
+                api_key=api_key,
+                model=model,
+                prompt=prompt,
+                asset_id=asset_id,
+                base_url=base_url,
+                resume_task_id=resume_task_id,
+                prompt_extend=prompt_extend,
+                on_submit_started=on_submit_started,
+                on_submit_rejected=on_submit_rejected,
+                on_submitted=on_submitted,
+            )
+    except Exception as error:
+        latency_ms = int((time.perf_counter() - started) * 1000)
+        await record_usage_event(
+            call_kind="image",
+            provider=provider,
             model=model,
-            prompt=prompt,
-            asset_id=asset_id,
-            base_url=base_url,
-            resume_task_id=resume_task_id,
-            prompt_extend=prompt_extend,
-            on_submit_started=on_submit_started,
-            on_submit_rejected=on_submit_rejected,
-            on_submitted=on_submitted,
+            outcome="failed",
+            latency_ms=latency_ms,
+            error_code=type(error).__name__,
         )
-    return await default_qwen_image_provider.generate(
-        api_key=api_key,
+        raise
+    latency_ms = int((time.perf_counter() - started) * 1000)
+    await record_usage_event(
+        call_kind="image",
+        provider=provider,
         model=model,
-        prompt=prompt,
-        asset_id=asset_id,
-        base_url=base_url,
-        resume_task_id=resume_task_id,
-        prompt_extend=prompt_extend,
-        on_submit_started=on_submit_started,
-        on_submit_rejected=on_submit_rejected,
-        on_submitted=on_submitted,
+        outcome="success",
+        image_units=1,
+        latency_ms=latency_ms,
     )
+    return result

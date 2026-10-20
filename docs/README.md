@@ -21,6 +21,7 @@
 - [API 契约与变更流程](api/README.md)：YAML 先行、需求门禁、评审和契约验证规则。
 - [OpenAPI 契约](api/openapi.yaml)：前后端共同遵守的初版 HTTP API 契约。
 - [API 响应与日志规范](technical/api-errors-and-logging.md)：错误响应、request ID、结构化日志和本地轮转策略。
+- [用量账本与请求关联](technical/usage-ledger.md)：HTTP↔worker 关联、`usage_events` 字段与计费语义（无公开 API）。
 - [架构与技术选型](technical/architecture.md)：前后端边界、推荐技术栈和待决事项。
 - [领域模型](technical/domain-model.md)：核心实体、关系和生命周期。
 - [SaaS 多账户化准备](technical/saas-readiness.md)：开放注册前的租户隔离、安全和运行能力清单。
