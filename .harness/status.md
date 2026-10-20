@@ -47,8 +47,6 @@
 
 ## 下一步（tag 之后；默认不上线）
 
-1. **收口未提交改动**：工作区仍有未 commit 的 COLLECT-PREVIEW（0041）+ 分镜中文/定妆锁定相关改动；建议拆开提交，勿混成一大包。本地 Docker **前端镜像仍无合集预览**（API 曾热补丁）；要用 compose 栈需重建 api/frontend。
-2. **阶段 B 余量**：DRAFT-RESUME 仍后置。勿开 PUBLISH-02；勿默认解冻生产。
-3. **SaaS**：COS 正式镜像与密钥轮换可并行运维，不抢产品主线。
-4. **模型测评（0031）**：脚手架已落；live 对照在 `var/model-eval/runs/`；再决定默认后端是否动。
-5. **Harness**：`active/` 仅保留未完成项（`0021` SaaS、`0031` 模型测评）；已完成旧计划已归 `completed/`。
+1. **阶段 B 余量**：DRAFT-RESUME 仍后置。勿开 PUBLISH-02；勿默认解冻生产。
+2. **SaaS（0021）**：COS 正式镜像与密钥轮换可并行运维，不抢产品主线。
+3. **模型测评（0031）**：脚手架已落；live 对照在 `var/model-eval/runs/`；再决定默认后端是否动。
