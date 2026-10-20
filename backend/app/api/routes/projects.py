@@ -1,3 +1,4 @@
+from typing import Annotated
 from uuid import UUID
 
 from fastapi import Depends, Query, Request, Response
@@ -25,7 +26,7 @@ router = create_workspace_router(tags=["Projects", "Episodes"])
 async def list_projects(
     request: Request,
     session: SessionDep,
-    limit: int = Query(default=20, ge=1, le=100),
+    limit: Annotated[int, Query(ge=1, le=100)] = 20,
     cursor: UUID | None = None,
 ) -> ProjectPage:
     return await projects_service.list_projects(
@@ -92,7 +93,7 @@ async def list_episodes(project_id: UUID, session: SessionDep) -> list[Episode]:
 async def get_project_anthology_preview(
     project_id: UUID,
     session: SessionDep,
-    episode_ids: list[UUID] = Query(..., min_length=1, max_length=40),
+    episode_ids: Annotated[list[UUID], Query(min_length=1, max_length=40)],
 ) -> AnthologyPreview:
     return await anthology_service.get_project_anthology_preview(
         session, project_id=project_id, episode_ids=episode_ids

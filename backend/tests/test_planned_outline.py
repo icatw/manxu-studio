@@ -1,10 +1,10 @@
+from app.schemas.workspace import PlannedEpisode
 from app.services.planned_outline import (
     PLACEHOLDER_SYNOPSIS,
     parse_planned_chapters,
     resolve_episode_seed,
 )
 from app.services.serial_service import _planned_outline_appendix
-from app.schemas.workspace import PlannedEpisode
 
 
 def test_parse_planned_chapters_roundtrip() -> None:

@@ -90,6 +90,7 @@ async def test_create_lettering_appends_position() -> None:
 async def test_replace_seed_clears_shell_only_slot() -> None:
     """replace_existing must delete leftover lettering when dialogue yields no bubbles."""
     from unittest.mock import AsyncMock, MagicMock, patch
+
     from app.schemas.workspace import EpisodeLayout, LayoutPage, PageSlot
 
     episode_id = uuid4()

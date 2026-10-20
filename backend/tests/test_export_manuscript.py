@@ -9,13 +9,13 @@ from PIL import Image, ImageDraw
 from app.schemas.workspace import ManuscriptExportRequest
 from app.services import generations as generations_service
 from app.tasks.handlers.export import (
-    _LetteringBake,
-    _ManuscriptSlot,
     _draw_manuscript_slot,
+    _LetteringBake,
     _load_export_font,
+    _ManuscriptSlot,
+    render_manuscript_pdf,
     render_manuscript_png,
     render_manuscript_png_zip,
-    render_manuscript_pdf,
 )
 
 

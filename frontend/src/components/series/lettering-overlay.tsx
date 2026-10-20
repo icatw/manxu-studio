@@ -210,7 +210,8 @@ export function LetteringOverlay({
                     if (!drag || drag.id !== item.id || !drag.moved) {
                       setLivePositions((prev) => {
                         if (!(item.id in prev)) return prev;
-                        const { [item.id]: _, ...rest } = prev;
+                        const rest = { ...prev };
+                        delete rest[item.id];
                         return rest;
                       });
                       return;
@@ -225,7 +226,8 @@ export function LetteringOverlay({
                       Math.abs(next.y_pct - item.y_pct) < 0.15
                     ) {
                       setLivePositions((prev) => {
-                        const { [item.id]: _, ...rest } = prev;
+                        const rest = { ...prev };
+                        delete rest[item.id];
                         return rest;
                       });
                       return;
@@ -240,7 +242,8 @@ export function LetteringOverlay({
                 ? () => {
                     dragRef.current = null;
                     setLivePositions((prev) => {
-                      const { [item.id]: _, ...rest } = prev;
+                      const rest = { ...prev };
+                      delete rest[item.id];
                       return rest;
                     });
                   }
