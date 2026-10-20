@@ -15,9 +15,14 @@ from app.db.models import (
 )
 from app.providers import generate_structured_text
 from app.services.cast_binding import resolve_panel_character_ids
-from app.tasks.prompts import STORYBOARD_DRAFT
+from app.tasks.prompts import (
+    STORYBOARD_DRAFT,
+    STORYBOARD_IMAGE_PROMPT_CAST_RULE,
+    STORYBOARD_READER_LANGUAGE_RULE,
+)
 from app.tasks.registry import register
 from app.tasks.schemas import StoryboardGenerationOutput
+from app.tasks.storyboard_language import assert_storyboard_reader_language
 from app.tasks.support import report_progress, require_text_model
 from app.tasks.types import TaskType
 
@@ -95,6 +100,8 @@ async def generate_panels(session: AsyncSession, task: GenerationTaskRecord) -> 
             '"composition":string,"character_actions":string,"emotion":string,'
             '"dialogue":string,"story_purpose":string,"image_prompt":string,'
             '"scene_name":string,"character_names":[string]}]}。'
+            f"{STORYBOARD_READER_LANGUAGE_RULE}"
+            f"{STORYBOARD_IMAGE_PROMPT_CAST_RULE}"
             "character_names 填写本格出场角色在角色资产中的准确姓名；无人出场则为 []。"
             "panels 数量必须与分镜数完全一致。"
         ),
@@ -103,6 +110,7 @@ async def generate_panels(session: AsyncSession, task: GenerationTaskRecord) -> 
     await report_progress(session, task, 85)
     if len(output.panels) != count:
         raise ValueError("文本模型返回的分镜数量不符合请求，请重试")
+    assert_storyboard_reader_language(output)
     for item in existing:
         await session.delete(item)
     await session.flush()

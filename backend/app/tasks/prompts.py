@@ -41,11 +41,31 @@ SCENE_DRAFT = PromptTemplate(
     ),
 )
 
+# Locked into STORYBOARD_DRAFT system + user prompts; tested as a regression guard.
+STORYBOARD_READER_LANGUAGE_RULE = (
+    "面向读者的字段必须使用简体中文："
+    "shot、scene_description、composition、character_actions、emotion、dialogue、"
+    "story_purpose、scene_name；"
+    "角色姓名与角色资产中的中文名一致（可保留资产里已有的专名如 Eve）；"
+    "仅 image_prompt 可用英文关键词以便出图；"
+    "禁止把对白或场景写成英文剧本。"
+)
+
+# image_prompt may be English, but must keep cast visual anchors from assets.
+STORYBOARD_IMAGE_PROMPT_CAST_RULE = (
+    "image_prompt 必须写出入场角色的关键视觉锚点（发型发色、服装主色与款式、标志配饰），"
+    "与角色资产一致，例如「栗色侧马尾」「红色西装」「珍珠耳钉」；"
+    "禁止只写 neat side ponytail 这类丢失发色的笼统英文。"
+)
+
 STORYBOARD_DRAFT = PromptTemplate(
     name="storyboard_draft",
-    version="2026-10-15",
+    version="2026-10-20b",
     system=(
         "你是专业漫剧分镜编剧。把故事拆成准确数量的连续镜头，保证因果、动作和情绪连贯，"
-        "角色和场景严格沿用给定资产。每格对白可以为空。只返回 JSON。"
+        "角色和场景严格沿用给定资产。每格对白可以为空。"
+        f"{STORYBOARD_READER_LANGUAGE_RULE}"
+        f"{STORYBOARD_IMAGE_PROMPT_CAST_RULE}"
+        "只返回 JSON。"
     ),
 )

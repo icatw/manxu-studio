@@ -13,10 +13,41 @@ from app.db.models import (
     ProjectRecord,
 )
 from app.providers import generate_image
+from app.tasks.handlers.characters import build_locked_character_consistency_constraint
 from app.tasks.provider_jobs import bind_image_job
 from app.tasks.registry import register
 from app.tasks.support import require_image_model
 from app.tasks.types import TaskType
+
+
+def build_panel_image_prompt(
+    *,
+    art_style: str,
+    style_rules: str,
+    negative_prompt: str,
+    panel: PanelRecord,
+    locked_character_constraints: list[str],
+    instruction: str = "",
+) -> str:
+    """Assemble the final panel image prompt (unit-tested for cast anchors)."""
+    return "\n".join(
+        item
+        for item in [
+            art_style,
+            style_rules,
+            panel.scene_description,
+            panel.shot,
+            panel.composition,
+            panel.character_actions,
+            panel.emotion,
+            (panel.image_prompt or "").strip(),
+            *locked_character_constraints,
+            instruction.strip(),
+            negative_prompt,
+            "无文字、无水印，保持漫画分镜构图",
+        ]
+        if item
+    )
 
 
 async def generate_panel_image(session: AsyncSession, task: GenerationTaskRecord) -> dict[str, Any]:
@@ -51,32 +82,20 @@ async def generate_panel_image(session: AsyncSession, task: GenerationTaskRecord
         )
         for character in characters:
             profile = character.profile if isinstance(character.profile, dict) else {}
-            appearance = str(profile.get("appearance") or "").strip()
-            image_prompt = str(profile.get("image_prompt") or "").strip()
-            parts = [f"角色「{character.name}」保持定妆一致"]
-            if appearance:
-                parts.append(appearance)
-            if image_prompt:
-                parts.append(image_prompt)
-            if character.reference_asset_id is not None:
-                parts.append(f"（已锁定定妆参考图 asset:{character.reference_asset_id}）")
-            locked_character_constraints.append("；".join(parts))
-    prompt = "\n".join(
-        item
-        for item in [
-            project.art_style,
-            project.style_rules,
-            panel.scene_description,
-            panel.shot,
-            panel.composition,
-            panel.character_actions,
-            panel.emotion,
-            *locked_character_constraints,
-            instruction,
-            project.negative_prompt,
-            "无文字、无水印，保持漫画分镜构图",
-        ]
-        if item
+            locked_character_constraints.append(
+                build_locked_character_consistency_constraint(
+                    name=character.name,
+                    profile=profile,
+                    has_reference_asset=character.reference_asset_id is not None,
+                )
+            )
+    prompt = build_panel_image_prompt(
+        art_style=project.art_style,
+        style_rules=project.style_rules,
+        negative_prompt=project.negative_prompt,
+        panel=panel,
+        locked_character_constraints=locked_character_constraints,
+        instruction=instruction,
     )
     api_key = decrypt_secret(config.image_api_key_encrypted)
     image_model = config.image_model

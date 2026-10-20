@@ -98,6 +98,44 @@ def _signature_traits_text(profile: dict[str, Any]) -> str:
     return ""
 
 
+def build_locked_character_consistency_constraint(
+    *,
+    name: str,
+    profile: dict[str, Any] | None,
+    has_reference_asset: bool = False,
+) -> str:
+    """Text constraints injected into panel image prompts for locked cast (ASSET-01).
+
+    Providers that cannot attach reference pixels still receive structured
+    hairstyle/outfit anchors so hair/outfit drift is harder.
+    """
+    data = profile if isinstance(profile, dict) else {}
+    appearance = _profile_field(data, "appearance")
+    hairstyle = _profile_field(data, "hairstyle")
+    outfit = _profile_field(data, "outfit")
+    traits = _signature_traits_text(data)
+    freeform = _profile_field(data, "image_prompt")
+    parts = [f"角色「{name}」保持定妆一致"]
+    if appearance:
+        parts.append(f"外貌：{appearance}")
+    if hairstyle and not _is_absent_visual_field(hairstyle):
+        parts.append(f"发型必须为：{hairstyle}")
+    if outfit and not _is_absent_visual_field(outfit):
+        parts.append(f"服装必须为：{outfit}")
+    if traits:
+        parts.append(f"标志性特征：{traits}")
+    if not _is_non_corporeal_profile(data):
+        parts.append(
+            "发色与发型、服装颜色款式必须与上述描述完全一致，"
+            "禁止擅自改为金发、浅金、漂发或黑色长直发等其他造型"
+        )
+    if freeform:
+        parts.append(f"定妆补充：{freeform}")
+    if has_reference_asset:
+        parts.append("须与已锁定定妆参考图同一人物外观（供应商支持时附带参考图）")
+    return "；".join(parts)
+
+
 def build_character_reference_image_prompt(
     *,
     art_style: str,
