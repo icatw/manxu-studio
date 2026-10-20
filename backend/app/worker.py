@@ -6,10 +6,14 @@ from arq.connections import RedisSettings
 from sqlalchemy import or_, select
 
 from app.core.config import get_settings
+from app.core.logging import configure_api_logging
 from app.db.models import GenerationTaskRecord
 from app.db.session import SessionFactory
 from app.services.task_queue import enqueue_generation_task, redis_settings
 from app.tasks import run_generation_task
+
+_settings = get_settings()
+configure_api_logging(app_env=_settings.app_env, log_dir=_settings.log_dir)
 
 
 async def run_queued_generation_task(ctx: dict[str, object], task_id: str) -> None:

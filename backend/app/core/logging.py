@@ -35,6 +35,22 @@ class JsonLogFormatter(logging.Formatter):
             "status_code",
             "duration_ms",
             "error_code",
+            "task_id",
+            "account_id",
+            "project_id",
+            "job_id",
+            "failure_id",
+            "task_type",
+            "call_kind",
+            "model",
+            "provider",
+            "prompt_tokens",
+            "completion_tokens",
+            "total_tokens",
+            "image_units",
+            "billable",
+            "latency_ms",
+            "outcome",
         ):
             value = getattr(record, key, None)
             if value is not None:

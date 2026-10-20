@@ -8,6 +8,7 @@ from uuid import uuid4
 from starlette.responses import JSONResponse
 
 from app.core.api_responses import is_success_envelope, success_envelope
+from app.core.correlation import clear_correlation, set_request_id
 from app.core.logging import api_logger
 
 ASGISend = Callable[[dict[str, Any]], Awaitable[None]]
@@ -24,6 +25,7 @@ class ApiResponseLoggingMiddleware:
 
         request_id = str(uuid4())
         scope.setdefault("state", {})["request_id"] = request_id
+        set_request_id(request_id)
         started_at = time.perf_counter()
         response_status = 500
         response_code: str | None = None
@@ -140,6 +142,8 @@ class ApiResponseLoggingMiddleware:
                 headers={"X-Request-ID": request_id},
             )
             await error_response(scope, receive, cast(Any, send_response))
+        finally:
+            clear_correlation()
 
     @staticmethod
     async def _log_request(

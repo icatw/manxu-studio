@@ -267,6 +267,38 @@ class GenerationTaskRecord(Base):
     )
 
 
+class UsageEventRecord(Base):
+    __tablename__ = "usage_events"
+    __table_args__ = (
+        Index("usage_events_account_created_idx", "account_id", "created_at"),
+        Index("usage_events_generation_task_idx", "generation_task_id"),
+    )
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    account_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("accounts.id", ondelete="CASCADE"), nullable=False
+    )
+    project_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("projects.id", ondelete="SET NULL")
+    )
+    generation_task_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("generation_tasks.id", ondelete="SET NULL")
+    )
+    request_id: Mapped[str | None] = mapped_column(String(64))
+    call_kind: Mapped[str] = mapped_column(String(16), nullable=False)
+    provider: Mapped[str] = mapped_column(String(64), nullable=False)
+    model: Mapped[str] = mapped_column(String(128), nullable=False)
+    prompt_tokens: Mapped[int | None] = mapped_column(Integer)
+    completion_tokens: Mapped[int | None] = mapped_column(Integer)
+    total_tokens: Mapped[int | None] = mapped_column(Integer)
+    image_units: Mapped[int | None] = mapped_column(Integer)
+    outcome: Mapped[str] = mapped_column(String(16), nullable=False)
+    billable: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    latency_ms: Mapped[int | None] = mapped_column(Integer)
+    error_code: Mapped[str | None] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class ExportRecord(Base):
     __tablename__ = "exports"
     __table_args__ = (Index("exports_project_idx", "project_id"),)
@@ -373,9 +405,7 @@ class AccountModelConfigRecord(Base):
     image_model: Mapped[str] = mapped_column(
         String(80), nullable=False, default=DEFAULT_IMAGE_MODEL
     )
-    image_backend: Mapped[str] = mapped_column(
-        String(32), nullable=False, default="qwen_async"
-    )
+    image_backend: Mapped[str] = mapped_column(String(32), nullable=False, default="qwen_async")
     image_base_url: Mapped[str] = mapped_column(
         Text, nullable=False, default="https://dashscope.aliyuncs.com/api/v1"
     )

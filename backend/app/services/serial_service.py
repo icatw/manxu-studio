@@ -4,6 +4,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.correlation import set_account_id, set_project_id
 from app.core.security import decrypt_secret
 from app.db.models import (
     CharacterRecord,
@@ -118,6 +119,7 @@ async def plan_project(
 ) -> ProjectPlanDraft:
     config = await _configured_model(session, owner_id)
     api_key = decrypt_secret(config.text_api_key_encrypted)
+    set_account_id(owner_id)
     output = await generate_structured_text(
         base_url=config.text_base_url,
         model=config.text_model,
@@ -267,6 +269,8 @@ async def generate_episode_summary(session: AsyncSession, episode_id: UUID) -> E
     )
     config = await _configured_model(session, project.owner_id)
     api_key = decrypt_secret(config.text_api_key_encrypted)
+    set_account_id(project.owner_id)
+    set_project_id(project.id)
     beats = [
         {
             "position": panel.position + 1,

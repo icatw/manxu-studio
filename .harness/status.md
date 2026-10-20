@@ -14,7 +14,8 @@
 - Phase 1 工作区对齐：PNG + 制作资料 JSON 导出；检查器可编辑构图/剧情作用；侧栏多话切换与新建；角色 `reference_locked` 定妆锁定；作品库卡片与派生 `cover_image_url`。
 - Phase 2 连载层：PRD 解冻 SERIAL-01..04 与 PROJ-04；作品设定集；伏笔 CRUD；AI 季策划与 from-plan 创建；话摘要与 continuity 注入分镜；作品总览 Tabs；独立阅读页。
 - 路由：`/projects` 作品库；`/projects/new` 策划；`/projects/:id` 总览；`/projects/:id/studio` 工作区；`/projects/:id/read/:episodeId` 阅读；`/projects/:id/anthology-preview` 合集预览。
-- API 资源名仍为 Project/Episode；产品文案为作品/话。迁移 head：`20261024_lettering_objects`。
+- API 资源名仍为 Project/Episode；产品文案为作品/话。迁移 head：`20261026_usage_events`。
+- 用量账本 Phase 0/1：`request_id`↔task 关联 + `usage_events` 落库（无查询 API / 无 UI）；见 `docs/technical/usage-ledger.md`、计划 `0043`。
 - Playwright：`frontend/e2e` + Mailpit 登录；`make test-e2e` / `make test-e2e-ai`；E2E 用 `docker-compose.e2e.yml` + `--profile local`。
 - Playground：`docker-compose.playground.yml`（独立卷/端口、fake-llm、Mailpit）；`make test-api-playground` / `test-e2e-playground` / `test-playground`。
 - 部署：`docker-compose.prod.yml` + 共用机 `docker-compose.prod.nginx.yml`（禁 Caddy）；公网 `manxu.icatw.site`；私有运维脚本在 gitignored 的 `var/ops-private/`。生产图像已切 COS 并迁移校验 89 张；api/worker 正式镜像重建与密钥轮换仍待收口。
@@ -51,3 +52,4 @@
 2. **SaaS（0021）**：COS 正式镜像与密钥轮换可并行运维，不抢产品主线。
 3. **模型测评（0031）**：脚手架已落；live 对照在 `var/model-eval/runs/`；再决定默认后端是否动。
 4. **UIUX 余量**（未开 plan）：预览/导出命名收束；Studio「做完一话」轻引导；成稿清洁提示；可选 layout 就绪徽标。
+5. **用量账本后续**：估算/额度/公开查询 API 仍后置（Phase 0/1 见 `0043`）。
