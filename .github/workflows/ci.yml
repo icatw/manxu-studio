@@ -9,7 +9,8 @@ permissions:
 
 jobs:
   frontend:
-    runs-on: ubuntu-latest
+    # Pin until Playwright in-repo supports ubuntu-latest (26.04).
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -29,7 +30,7 @@ jobs:
         working-directory: frontend
 
   backend:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - name: Install CJK fonts for export PNG tests
@@ -47,7 +48,7 @@ jobs:
         working-directory: backend
 
   playground:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
