@@ -501,6 +501,24 @@ class LayoutPreview(APIModel):
     items: list[LayoutPreviewItem]
 
 
+AnthologySkipReason = Literal["no_layout", "empty_slots"]
+
+
+class AnthologyPreviewChapter(APIModel):
+    episode_id: UUID
+    position: int
+    title: str
+    ready: bool
+    skip_reason: AnthologySkipReason | None = None
+    preview: LayoutPreview | None = None
+
+
+class AnthologyPreview(APIModel):
+    project_id: UUID
+    kind: Literal["anthology_preview"] = "anthology_preview"
+    chapters: list[AnthologyPreviewChapter]
+
+
 class GenerationTask(APIModel):
     id: UUID
     project_id: UUID | None = None

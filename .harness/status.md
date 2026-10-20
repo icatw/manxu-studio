@@ -1,6 +1,6 @@
 # 项目状态
 
-- 更新时间：2026-10-19
+- 更新时间：2026-10-20
 - 里程碑 tag：`v0.1.0-storyboard`（commit `310d85e`）— 分镜/画格工作台 + 生产 COS 切流快照
 - **生产部署冻结**：tag 之后默认**不**向 `manxu.icatw.site` 推送应用更新，直至产品规划与对外表述对齐、并明确解除冻结。线上继续跑该里程碑对应能力；仅紧急热修（安全/数据损坏）可破例，且须单独记录。
 - 当前阶段：公网演示保持 tag 态；**A1–A3 已交付**；**A′ 已收口**（`0028`）；阶段 B：**IMPACT-CAST/BIBLE 已收口**（`0030` completed；发现 `0029`）；PUBLISH-02 仍 `proposed`；生产仍冻结
@@ -13,7 +13,7 @@
 - 前端：TanStack Query 共享 `queryClient` 轮询生成任务；`lib/catalogs`；`useCurrentAccount`；Studio hydrate/autosave 抽出。
 - Phase 1 工作区对齐：PNG + 制作资料 JSON 导出；检查器可编辑构图/剧情作用；侧栏多话切换与新建；角色 `reference_locked` 定妆锁定；作品库卡片与派生 `cover_image_url`。
 - Phase 2 连载层：PRD 解冻 SERIAL-01..04 与 PROJ-04；作品设定集；伏笔 CRUD；AI 季策划与 from-plan 创建；话摘要与 continuity 注入分镜；作品总览 Tabs；独立阅读页。
-- 路由：`/projects` 作品库；`/projects/new` 策划；`/projects/:id` 总览；`/projects/:id/studio` 工作区；`/projects/:id/read/:episodeId` 阅读。
+- 路由：`/projects` 作品库；`/projects/new` 策划；`/projects/:id` 总览；`/projects/:id/studio` 工作区；`/projects/:id/read/:episodeId` 阅读；`/projects/:id/anthology-preview` 合集预览。
 - API 资源名仍为 Project/Episode；产品文案为作品/话。迁移 head：`20261024_lettering_objects`。
 - Playwright：`frontend/e2e` + Mailpit 登录；`make test-e2e` / `make test-e2e-ai`；E2E 用 `docker-compose.e2e.yml` + `--profile local`。
 - Playground：`docker-compose.playground.yml`（独立卷/端口、fake-llm、Mailpit）；`make test-api-playground` / `test-e2e-playground` / `test-playground`。
@@ -23,7 +23,7 @@
 - 导出：本话「制作导出」长图/分页 ZIP/制作资料；成稿排版「导出成稿」PNG/ZIP/PDF（PUBLISH-01）；作品总览「导出合集」（ZIP/PDF，EXP-02）。
 - 连载：第 N 话生成分镜前须有第 N-1 话非空摘要（409）。
 - **产品方向**：面向个人连载漫画作者的静态图片创作工作台，竖条漫优先；路线、市场观察与阶段门槛见 `docs/product/roadmap-complete-comic.md`。
-- **需求门禁**：`PAGE-01…03` / `LETTER-01…03` / `PUBLISH-01` 已确认、实现并手验（仓库内）；`PUBLISH-02` 仍 `proposed`；`INFRA-02` 已切流。
+- **需求门禁**：`PAGE-01…03` / `LETTER-01…03` / `PUBLISH-01` 已确认、实现并手验（仓库内）；`COLLECT-PREVIEW-01` 已实现并手验（`0041`）；`PUBLISH-02` 仍 `proposed`；`INFRA-02` 已切流。
 
 ## 阶段与进度
 
@@ -47,9 +47,8 @@
 
 ## 下一步（tag 之后；默认不上线）
 
-1. **阶段 B 余量**：DRAFT-RESUME 仍后置。勿开 PUBLISH-02。
-2. **PUBLISH-02 / 解冻生产**：明确往后；勿实现、勿默认上线。
+1. **收口未提交改动**：工作区仍有未 commit 的 COLLECT-PREVIEW（0041）+ 分镜中文/定妆锁定相关改动；建议拆开提交，勿混成一大包。本地 Docker **前端镜像仍无合集预览**（API 曾热补丁）；要用 compose 栈需重建 api/frontend。
+2. **阶段 B 余量**：DRAFT-RESUME 仍后置。勿开 PUBLISH-02；勿默认解冻生产。
 3. **SaaS**：COS 正式镜像与密钥轮换可并行运维，不抢产品主线。
-4. **模型测评（0031）**：脚手架已落；live 对照在 `var/model-eval/runs/`（gitignored）；再决定默认后端是否动。
-5. **已合入可回看**：`0032`–`0039`；**`0040` 成稿字效可读性**（种泡剥 Name:、双泡左右、禁无对白进烘焙；completed）。
-6. **第二话故事真源（0038）**：续写预填规划大纲；故事页可见前情/伏笔与规划原文。
+4. **模型测评（0031）**：脚手架已落；live 对照在 `var/model-eval/runs/`；再决定默认后端是否动。
+5. **Harness 卫生**：`active/` 里仍堆着已完成旧计划（如 `0023`、`0004`–`0006`、`0011`），宜归档到 `completed/`，避免和下一项混淆。

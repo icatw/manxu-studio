@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useId, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router";
-import { ArrowLeft, BookOpen, ChevronDown, Files, LayoutTemplate, Loader2, PenLine, Plus, ScrollText, Trash2, Users } from "lucide-react";
+import { ArrowLeft, BookOpen, ChevronDown, Eye, Files, LayoutTemplate, Loader2, PenLine, Plus, ScrollText, Trash2, Users } from "lucide-react";
 import { toast } from "sonner";
 import { AccountMenu } from "@/components/account-menu";
 import { Badge } from "@/components/ui/badge";
@@ -354,6 +354,7 @@ function ChapterList({
   const navigate = useNavigate();
   const [busyId, setBusyId] = useState<string | null>(null);
   const [exportOpen, setExportOpen] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
   const rowRefs = useRef<Record<string, HTMLLIElement | null>>({});
   const continueNext = useMutation({
     mutationFn: async (): Promise<
@@ -393,10 +394,30 @@ function ChapterList({
     <section className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs text-muted-foreground">
-          下一话生成分镜前须完成上一话摘要；跨话成册请用合集下载。
+          下一话生成分镜前须完成上一话摘要；跨话连读用合集预览，成册文件用合集下载。
         </p>
         <div className="flex flex-wrap gap-2">
-          <Button size="sm" variant="outline" disabled={episodes.length === 0} onClick={() => setExportOpen(true)}>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={episodes.length === 0}
+            onClick={() => {
+              setExportOpen(false);
+              setPreviewOpen(true);
+            }}
+          >
+            <Eye data-icon="inline-start" />
+            合集预览
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={episodes.length === 0}
+            onClick={() => {
+              setPreviewOpen(false);
+              setExportOpen(true);
+            }}
+          >
             <Files data-icon="inline-start" />
             合集下载
           </Button>
@@ -406,6 +427,13 @@ function ChapterList({
           </Button>
         </div>
       </div>
+      {previewOpen ? (
+        <AnthologyPreviewPanel
+          projectId={projectId}
+          episodes={episodes}
+          onClose={() => setPreviewOpen(false)}
+        />
+      ) : null}
       {exportOpen ? (
         <AnthologyExportPanel
           projectId={projectId}
@@ -560,6 +588,88 @@ function EpisodeRowActions({
   );
 }
 
+function AnthologyEpisodePicker({
+  episodes,
+  selected,
+  onToggle,
+  disabled,
+}: {
+  episodes: { id: string; title: string }[];
+  selected: Set<string>;
+  onToggle: (id: string) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <ul className="mt-3 flex max-h-56 flex-col gap-1 overflow-y-auto">
+      {episodes.map((episode, index) => (
+        <li key={episode.id}>
+          <label className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted/60">
+            <input
+              type="checkbox"
+              checked={selected.has(episode.id)}
+              onChange={() => onToggle(episode.id)}
+              disabled={disabled}
+            />
+            <span className="tabular-nums text-muted-foreground">#{index + 1}</span>
+            <span className="truncate">{episode.title}</span>
+          </label>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function AnthologyPreviewPanel({
+  projectId,
+  episodes,
+  onClose,
+}: {
+  projectId: string;
+  episodes: { id: string; title: string; synopsis: string; summary?: string; position: number }[];
+  onClose: () => void;
+}) {
+  const navigate = useNavigate();
+  const [selected, setSelected] = useState<Set<string>>(() => new Set(episodes.map((item) => item.id)));
+
+  const toggle = (id: string) => {
+    setSelected((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const openPreview = () => {
+    const episodeIds = episodes.filter((item) => selected.has(item.id)).map((item) => item.id);
+    if (episodeIds.length === 0) return;
+    navigate(`/projects/${projectId}/anthology-preview?episodes=${episodeIds.join(",")}`);
+  };
+
+  return (
+    <div className="rounded-xl border bg-card p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-semibold">合集预览</h2>
+          <p className="mt-1 text-xs text-muted-foreground">
+            勾选要连读的话，在应用内连续竖读成稿条（含字效）。未排版话会显示占位，不中断其余话。
+          </p>
+        </div>
+        <Button size="sm" variant="ghost" onClick={onClose}>
+          取消
+        </Button>
+      </div>
+      <AnthologyEpisodePicker episodes={episodes} selected={selected} onToggle={toggle} />
+      <div className="mt-3 flex justify-end">
+        <Button size="sm" disabled={selected.size === 0} onClick={openPreview}>
+          <Eye data-icon="inline-start" />
+          开始预览
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 function AnthologyExportPanel({
   projectId,
   projectTitle,
@@ -638,22 +748,7 @@ function AnthologyExportPanel({
           取消
         </Button>
       </div>
-      <ul className="mt-3 flex max-h-56 flex-col gap-1 overflow-y-auto">
-        {episodes.map((episode, index) => (
-          <li key={episode.id}>
-            <label className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted/60">
-              <input
-                type="checkbox"
-                checked={selected.has(episode.id)}
-                onChange={() => toggle(episode.id)}
-                disabled={busy}
-              />
-              <span className="tabular-nums text-muted-foreground">#{index + 1}</span>
-              <span className="truncate">{episode.title}</span>
-            </label>
-          </li>
-        ))}
-      </ul>
+      <AnthologyEpisodePicker episodes={episodes} selected={selected} onToggle={toggle} disabled={busy} />
       <div className="mt-3 flex flex-wrap items-center gap-3">
         <label className="flex items-center gap-1.5 text-xs">
           <input

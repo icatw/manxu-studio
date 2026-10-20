@@ -10,6 +10,8 @@ export type EpisodeLayout = components["schemas"]["EpisodeLayout"];
 export type LayoutPage = components["schemas"]["LayoutPage"];
 export type PageSlot = components["schemas"]["PageSlot"];
 export type LayoutPreview = components["schemas"]["LayoutPreview"];
+export type AnthologyPreview = components["schemas"]["AnthologyPreview"];
+export type AnthologyPreviewChapter = components["schemas"]["AnthologyPreviewChapter"];
 export type BootstrapLayoutRequest = components["schemas"]["BootstrapLayoutRequest"];
 export type PageSlotPatch = components["schemas"]["PageSlotPatch"];
 export type LetteringObject = components["schemas"]["LetteringObject"];
@@ -48,6 +50,16 @@ export async function syncEpisodeLayout(
 export async function getEpisodeLayoutPreview(episodeId: string) {
   const { data, error } = await api.GET("/episodes/{episode_id}/layout/preview", {
     params: { path: { episode_id: episodeId } },
+  });
+  return required(data, error);
+}
+
+export async function getProjectAnthologyPreview(projectId: string, episodeIds: string[]) {
+  const { data, error } = await api.GET("/projects/{project_id}/anthology/preview", {
+    params: {
+      path: { project_id: projectId },
+      query: { episode_ids: episodeIds },
+    },
   });
   return required(data, error);
 }

@@ -5,6 +5,7 @@ from fastapi import Depends, Query, Request, Response
 from app.api.routes.workspace_common import SessionDep, create_workspace_router
 from app.core.security import require_episode_owner, require_project_owner_dependency
 from app.schemas.workspace import (
+    AnthologyPreview,
     Episode,
     EpisodeCreate,
     EpisodePatch,
@@ -14,6 +15,7 @@ from app.schemas.workspace import (
     ProjectPatch,
     ProjectUpdateResult,
 )
+from app.services import anthology as anthology_service
 from app.services import projects as projects_service
 
 router = create_workspace_router(tags=["Projects", "Episodes"])
@@ -79,6 +81,22 @@ async def delete_project(project_id: UUID, session: SessionDep) -> Response:
 )
 async def list_episodes(project_id: UUID, session: SessionDep) -> list[Episode]:
     return await projects_service.list_episodes(session, project_id)
+
+
+@router.get(
+    "/projects/{project_id}/anthology/preview",
+    operation_id="getProjectAnthologyPreview",
+    response_model=AnthologyPreview,
+    dependencies=[Depends(require_project_owner_dependency)],
+)
+async def get_project_anthology_preview(
+    project_id: UUID,
+    session: SessionDep,
+    episode_ids: list[UUID] = Query(..., min_length=1, max_length=40),
+) -> AnthologyPreview:
+    return await anthology_service.get_project_anthology_preview(
+        session, project_id=project_id, episode_ids=episode_ids
+    )
 
 
 @router.post(

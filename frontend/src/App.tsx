@@ -5,6 +5,7 @@ import { AccountGate } from "./components/auth/account-gate";
 import { SettingsPage } from "./components/settings-page";
 import { NewProjectPlanForm } from "./components/series/new-project-plan-form";
 import { ProjectOverview } from "./components/series/project-overview";
+import { AnthologyPreviewPage } from "./components/series/anthology-preview-page";
 import { ReaderPage } from "./components/series/reader-page";
 import { LayoutPage } from "./components/series/layout-page";
 
@@ -20,6 +21,7 @@ export default function App() {
         <Route path="/projects/:projectId/studio" element={<StudioRoute />} />
         <Route path="/projects/:projectId/read/:episodeId" element={<ReaderPage />} />
         <Route path="/projects/:projectId/layout/:episodeId" element={<LayoutPage />} />
+        <Route path="/projects/:projectId/anthology-preview" element={<AnthologyPreviewPage />} />
         <Route path="/projects/:projectId" element={<ProjectOverview />} />
         <Route path="*" element={<ProjectLibrary />} />
       </Routes>

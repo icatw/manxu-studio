@@ -872,6 +872,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/projects/{project_id}/anthology/preview": {
+        parameters: {
+            query: {
+                /** @description Ordered episode UUIDs to preview (1–40). Foreign or unknown IDs yield 422. */
+                episode_ids: string[];
+            };
+            header?: never;
+            path: {
+                project_id: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Online multi-episode manuscript strip preview (DOM overlays)
+         * @description Aggregates per-episode layout preview for continuous reading. Ready chapters include layout slots with lettering overlays (COLLECT-PREVIEW-01). Episodes without layout return ready=false and a skip_reason; they do not abort the response. Does not bake pixels or fall back to storyboard dialogue.
+         */
+        get: operations["getProjectAnthologyPreview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/projects/{project_id}/exports": {
         parameters: {
             query?: never;
@@ -1251,6 +1276,9 @@ export interface components {
         };
         ApiSuccessLayoutPreview: components["schemas"]["ApiSuccessEnvelope"] & {
             data?: components["schemas"]["LayoutPreview"];
+        };
+        ApiSuccessAnthologyPreview: components["schemas"]["ApiSuccessEnvelope"] & {
+            data?: components["schemas"]["AnthologyPreview"];
         };
         ApiSuccessGenerationTask: components["schemas"]["ApiSuccessEnvelope"] & {
             data?: components["schemas"]["GenerationTask"];
@@ -2101,6 +2129,25 @@ export interface components {
             /** @default 720 */
             width_hint_px: number;
             items: components["schemas"]["LayoutPreviewItem"][];
+        };
+        AnthologyPreviewChapter: {
+            /** Format: uuid */
+            episode_id: string;
+            /** @description 0-based episode position within the project. */
+            position: number;
+            title: string;
+            /** @description True when the episode has a vertical-strip layout with slots. */
+            ready: boolean;
+            /** @description Set when ready is false; null when ready. */
+            skip_reason: ("no_layout" | "empty_slots") | null;
+            preview: components["schemas"]["LayoutPreview"] | null;
+        };
+        AnthologyPreview: {
+            /** Format: uuid */
+            project_id: string;
+            /** @constant */
+            kind: "anthology_preview";
+            chapters: components["schemas"]["AnthologyPreviewChapter"][];
         };
         ExportResult: {
             /** Format: uuid */
@@ -3662,6 +3709,34 @@ export interface operations {
             };
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
+            422: components["responses"]["ValidationError"];
+            default: components["responses"]["UnexpectedError"];
+        };
+    };
+    getProjectAnthologyPreview: {
+        parameters: {
+            query: {
+                /** @description Ordered episode UUIDs to preview (1–40). Foreign or unknown IDs yield 422. */
+                episode_ids: string[];
+            };
+            header?: never;
+            path: {
+                project_id: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Anthology preview chapters in request order */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiSuccessAnthologyPreview"];
+                };
+            };
+            404: components["responses"]["NotFound"];
             422: components["responses"]["ValidationError"];
             default: components["responses"]["UnexpectedError"];
         };
