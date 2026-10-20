@@ -23,7 +23,7 @@
 - 导出：本话「制作导出」长图/分页 ZIP/制作资料；成稿排版「导出成稿」PNG/ZIP/PDF（PUBLISH-01）；作品总览「导出合集」（ZIP/PDF，EXP-02）。
 - 连载：第 N 话生成分镜前须有第 N-1 话非空摘要（409）。
 - **产品方向**：面向个人连载漫画作者的静态图片创作工作台，竖条漫优先；路线、市场观察与阶段门槛见 `docs/product/roadmap-complete-comic.md`。
-- **需求门禁**：`PAGE-01…03` / `LETTER-01…03` / `PUBLISH-01` 已确认、实现并手验（仓库内）；`COLLECT-PREVIEW-01` 已实现并手验（`0041`）；`PUBLISH-02` 仍 `proposed`；`INFRA-02` 已切流。
+- **需求门禁**：`PAGE-01…03` / `LETTER-01…03` / `PUBLISH-01` 已确认、实现并手验（仓库内）；`COLLECT-PREVIEW-01` 已实现并手验（`0041`）；总览成稿入口抬升已收口（`0042`）；`PUBLISH-02` 仍 `proposed`；`INFRA-02` 已切流。
 
 ## 阶段与进度
 
@@ -50,3 +50,4 @@
 1. **阶段 B 余量**：DRAFT-RESUME 仍后置。勿开 PUBLISH-02；勿默认解冻生产。
 2. **SaaS（0021）**：COS 正式镜像与密钥轮换可并行运维，不抢产品主线。
 3. **模型测评（0031）**：脚手架已落；live 对照在 `var/model-eval/runs/`；再决定默认后端是否动。
+4. **UIUX 余量**（未开 plan）：预览/导出命名收束；Studio「做完一话」轻引导；成稿清洁提示；可选 layout 就绪徽标。

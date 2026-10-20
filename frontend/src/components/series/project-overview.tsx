@@ -530,6 +530,15 @@ function EpisodeRowActions({
         <PenLine data-icon="inline-start" />
         工作室
       </Button>
+      <Button
+        size="sm"
+        variant="outline"
+        title="竖条布局与导出成稿"
+        onClick={() => navigate(`/projects/${projectId}/layout/${episodeId}`)}
+      >
+        <LayoutTemplate data-icon="inline-start" />
+        成稿排版
+      </Button>
       <Button size="sm" variant="outline" disabled={busy} onClick={() => void onGenerateSummary()}>
         {busy ? (
           <Loader2 data-icon="inline-start" className="animate-spin" />
@@ -567,19 +576,7 @@ function EpisodeRowActions({
               }}
             >
               <BookOpen className="size-4 text-muted-foreground" aria-hidden />
-              阅读
-            </button>
-            <button
-              type="button"
-              role="menuitem"
-              className="flex w-full items-center gap-2 rounded-sm px-2 py-2 text-left text-sm hover:bg-accent"
-              onClick={() => {
-                setMoreOpen(false);
-                navigate(`/projects/${projectId}/layout/${episodeId}`);
-              }}
-            >
-              <LayoutTemplate className="size-4 text-muted-foreground" aria-hidden />
-              成稿排版
+              分镜阅读
             </button>
           </div>
         ) : null}
