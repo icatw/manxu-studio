@@ -24,11 +24,7 @@ def test_parse_planned_chapters_roundtrip() -> None:
 
 
 def test_resolve_prefers_planned_over_project_copy() -> None:
-    world = (
-        "## 规划话大纲（尚未开作）\n\n"
-        "### 第2话：完美算法\n"
-        "黑客竞赛与苏青登场。\n"
-    )
+    world = "## 规划话大纲（尚未开作）\n\n### 第2话：完美算法\n黑客竞赛与苏青登场。\n"
     title, synopsis = resolve_episode_seed(
         episode_number=2,
         title="第 2 话",
@@ -53,11 +49,7 @@ def test_resolve_without_plan_rejects_project_copy() -> None:
 
 
 def test_resolve_keeps_author_synopsis() -> None:
-    world = (
-        "## 规划话大纲（尚未开作）\n\n"
-        "### 第2话：完美算法\n"
-        "规划原文。\n"
-    )
+    world = "## 规划话大纲（尚未开作）\n\n### 第2话：完美算法\n规划原文。\n"
     title, synopsis = resolve_episode_seed(
         episode_number=2,
         title="我的第2话",

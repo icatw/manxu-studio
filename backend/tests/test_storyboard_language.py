@@ -77,9 +77,7 @@ def test_assert_allows_english_image_prompt_only() -> None:
         StoryboardGenerationOutput(
             panels=[
                 _panel(
-                    image_prompt=(
-                        "close-up of young man with glitching HUD, neon blue, no text"
-                    )
+                    image_prompt=("close-up of young man with glitching HUD, neon blue, no text")
                 )
             ]
         )

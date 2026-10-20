@@ -18,12 +18,8 @@ def test_single_short_line_top_center_band() -> None:
 
 
 def test_multi_bubble_uses_dialogue_lr_geometry() -> None:
-    first = default_seed_bubble_geometry(
-        bubble_index=0, text="先说。", bubble_count=2
-    )
-    second = default_seed_bubble_geometry(
-        bubble_index=1, text="后说。", bubble_count=2
-    )
+    first = default_seed_bubble_geometry(bubble_index=0, text="先说。", bubble_count=2)
+    second = default_seed_bubble_geometry(bubble_index=1, text="后说。", bubble_count=2)
     assert first.x_pct == 8.0
     assert second.x_pct == 48.0
     assert first.y_pct < second.y_pct

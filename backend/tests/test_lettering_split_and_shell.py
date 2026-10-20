@@ -40,7 +40,7 @@ def test_split_dialogue_keeps_single_line() -> None:
 
 
 def test_split_merges_speaker_only_line_with_next() -> None:
-    text = 'Eve:\n“移除旧表？理性评估：此举象征意义大于实用价值。”'
+    text = "Eve:\n“移除旧表？理性评估：此举象征意义大于实用价值。”"
     parts = split_dialogue_for_bubbles(text)
     assert len(parts) == 1
     assert parts[0].startswith("Eve:")
@@ -48,10 +48,7 @@ def test_split_merges_speaker_only_line_with_next() -> None:
 
 
 def test_split_eve_lin_sample_two_speakers() -> None:
-    text = (
-        "Eve: “移除旧表？理性评估：此举象征意义大于实用价值。” "
-        "林深: “闭上嘴。过去结束了。”"
-    )
+    text = "Eve: “移除旧表？理性评估：此举象征意义大于实用价值。” 林深: “闭上嘴。过去结束了。”"
     parts = split_dialogue_for_bubbles(text)
     assert len(parts) == 2
     assert parts[0].startswith("Eve:")
@@ -61,10 +58,7 @@ def test_split_eve_lin_sample_two_speakers() -> None:
 
 
 def test_prepare_seed_strips_speakers_and_skips_shell() -> None:
-    text = (
-        "Eve: “移除旧表？理性评估：此举象征意义大于实用价值。” "
-        "林深: “闭上嘴。过去结束了。”"
-    )
+    text = "Eve: “移除旧表？理性评估：此举象征意义大于实用价值。” 林深: “闭上嘴。过去结束了。”"
     prepared = prepare_seed_bubble_texts(text)
     assert len(prepared) == 2
     bodies = [body for _, body in prepared]

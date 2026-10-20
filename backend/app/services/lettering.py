@@ -259,9 +259,7 @@ def split_dialogue_for_bubbles(dialogue: str) -> list[str]:
             return parts
 
     matches = [
-        match
-        for match in _SPEAKER_TURN.finditer(raw)
-        if match.group(1) not in _SPEAKER_BLOCKLIST
+        match for match in _SPEAKER_TURN.finditer(raw) if match.group(1) not in _SPEAKER_BLOCKLIST
     ]
     if len(matches) >= 2:
         chunks: list[str] = []

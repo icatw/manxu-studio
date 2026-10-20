@@ -509,9 +509,7 @@ def render_anthology_zip(
     wrote = 0
     with zipfile.ZipFile(archive, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
         for episode_index, (title, panels, lettering_by_panel) in enumerate(episodes, start=1):
-            pages = render_episode_pages(
-                title, panels, lettering_by_panel=lettering_by_panel
-            )
+            pages = render_episode_pages(title, panels, lettering_by_panel=lettering_by_panel)
             if not pages:
                 continue
             safe = re.sub(r'[\\/:*?"<>|\r\n]+', "_", (title or "").strip()) or "episode"
@@ -531,9 +529,7 @@ def render_anthology_pdf(
     images: list[Image.Image] = []
     try:
         for title, panels, lettering_by_panel in episodes:
-            for png in render_episode_pages(
-                title, panels, lettering_by_panel=lettering_by_panel
-            ):
+            for png in render_episode_pages(title, panels, lettering_by_panel=lettering_by_panel):
                 images.append(Image.open(io.BytesIO(png)).convert("RGB"))
         if not images:
             raise ValueError("所选故事单元没有可导出的分镜画面")
