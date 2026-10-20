@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import unicodedata
+from collections.abc import Sequence
 from typing import Protocol
 from uuid import UUID
 
@@ -18,7 +19,7 @@ def normalize_cast_name(name: str) -> str:
 
 
 def resolve_panel_character_ids(
-    characters: list[NamedCastMember],
+    characters: Sequence[NamedCastMember],
     *,
     explicit_names: list[str] | None = None,
     haystack: str = "",

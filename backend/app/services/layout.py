@@ -231,10 +231,10 @@ async def sync_episode_layout(
             for slot in slots:
                 if not slot.follow_current_version:
                     continue
-                panel = panel_by_id.get(slot.panel_id)
-                if panel is None:
+                follow_panel = panel_by_id.get(slot.panel_id)
+                if follow_panel is None:
                     continue
-                slot.image_version_id = await _current_version_id_for_panel(session, panel)
+                slot.image_version_id = await _current_version_id_for_panel(session, follow_panel)
 
     # Compact positions per page.
     await session.flush()
