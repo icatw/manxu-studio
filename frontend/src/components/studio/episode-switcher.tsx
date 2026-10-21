@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { resolveContinueNext } from "@/lib/episode-frontier";
 import { cn } from "@/lib/utils";
-import { createEpisode, listEpisodes } from "@/services/workspace-api";
+import { continueEpisodeGeneration, listEpisodes } from "@/services/workspace-api";
 import { useStudio } from "./studio-provider";
 
 export function EpisodeSwitcher() {
@@ -25,15 +25,12 @@ export function EpisodeSwitcher() {
       if (decision.kind === "stay" || decision.kind === "studio") {
         return decision;
       }
-      const nextNumber = list.length + 1;
-      // Server fills title/synopsis from 「规划话大纲」 when present (EP2-OUTLINE-01).
-      // Never copy the current episode / project premise into the next episode.
-      const episode = await createEpisode(projectId, {
-        title: `第 ${nextNumber} 话`,
-        synopsis: "待补充本话梗概",
-        panel_count: project.story.panelCount || 8,
+      // SERIAL-AGENT-01: durable continue task (create only; overview can also generate storyboard).
+      const result = await continueEpisodeGeneration(projectId, {
+        generateStoryboard: false,
+        panelCount: project.story.panelCount || 8,
       });
-      return { kind: "created" as const, episode };
+      return { kind: "created" as const, episodeId: result.episodeId };
     },
     onSuccess: async (result) => {
       await queryClient.invalidateQueries({ queryKey: ["episodes", projectId] });
@@ -44,11 +41,11 @@ export function EpisodeSwitcher() {
         }
         return;
       }
-      navigate(`/projects/${projectId}/studio?episodeId=${result.episode.id}`);
-      toast.success(`已新建${result.episode.title}`);
+      navigate(`/projects/${projectId}/studio?episodeId=${result.episodeId}`);
+      toast.success("已续写下一话");
     },
     onError: (error) => {
-      toast.error("新建失败", { description: error instanceof Error ? error.message : undefined });
+      toast.error("续写失败", { description: error instanceof Error ? error.message : undefined });
     },
   });
 
@@ -60,7 +57,7 @@ export function EpisodeSwitcher() {
           variant="ghost"
           size="icon-sm"
           aria-label="续写下一话"
-          title="续写下一话（须先完成更早话摘要）"
+          title="续写下一话（服务端建话；须先完成更早话摘要）"
           disabled={create.isPending || episodes.isPending}
           onClick={() => create.mutate()}
         >

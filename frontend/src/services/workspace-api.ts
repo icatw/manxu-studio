@@ -281,6 +281,49 @@ export async function waitForTask(
   return waitForGenerationTask(queryClient, taskId, { onProgress, signal });
 }
 
+/** SERIAL-AGENT-01: create next episode (+ optional storyboard) via durable task. */
+export async function continueEpisodeGeneration(
+  projectId: string,
+  options: {
+    generateStoryboard?: boolean;
+    panelCount?: number;
+    signal?: AbortSignal;
+  } = {},
+) {
+  const { data, error } = await api.POST("/projects/{project_id}/continue-episode-generations", {
+    params: { path: { project_id: projectId } },
+    body: {
+      generate_storyboard: options.generateStoryboard === true,
+      panel_count: options.panelCount ?? 8,
+      use_continuity: true,
+    },
+  });
+  const task = await waitForTask(required(data, error).id, undefined, options.signal);
+  if (task.status === "failed") {
+    throw new Error(
+      typeof task.error?.message === "string" ? task.error.message : "续写编排失败",
+    );
+  }
+  const result = task.result;
+  if (
+    !result ||
+    !("episode_id" in result) ||
+    typeof result.episode_id !== "string" ||
+    !("generate_storyboard" in result)
+  ) {
+    throw new Error("续写任务未返回故事单元");
+  }
+  return {
+    episodeId: result.episode_id,
+    created: "created" in result ? Boolean(result.created) : true,
+    panelIds:
+      "panel_ids" in result && Array.isArray(result.panel_ids)
+        ? result.panel_ids.filter((id): id is string => typeof id === "string")
+        : [],
+    warnings: taskWarnings(task),
+  };
+}
+
 export async function generateStoryAssets(
   projectId: string,
   episodeId: string,

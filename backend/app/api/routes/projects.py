@@ -7,9 +7,11 @@ from app.api.routes.workspace_common import SessionDep, create_workspace_router
 from app.core.security import require_episode_owner, require_project_owner_dependency
 from app.schemas.workspace import (
     AnthologyPreview,
+    ContinueEpisodeRequest,
     Episode,
     EpisodeCreate,
     EpisodePatch,
+    GenerationTask,
     Project,
     ProjectCreate,
     ProjectPage,
@@ -18,6 +20,7 @@ from app.schemas.workspace import (
 )
 from app.services import anthology as anthology_service
 from app.services import projects as projects_service
+from app.services import storyboard as storyboard_service
 
 router = create_workspace_router(tags=["Projects", "Episodes"])
 
@@ -109,6 +112,27 @@ async def get_project_anthology_preview(
 )
 async def create_episode(project_id: UUID, body: EpisodeCreate, session: SessionDep) -> Episode:
     return await projects_service.create_episode(session, project_id, body)
+
+
+@router.post(
+    "/projects/{project_id}/continue-episode-generations",
+    operation_id="continueEpisodeGeneration",
+    response_model=GenerationTask,
+    status_code=202,
+    dependencies=[Depends(require_project_owner_dependency)],
+)
+async def continue_episode_generation(
+    project_id: UUID,
+    body: ContinueEpisodeRequest,
+    request: Request,
+    session: SessionDep,
+) -> GenerationTask:
+    return await storyboard_service.continue_episode_generation(
+        session,
+        project_id=project_id,
+        owner_id=request.state.account_id,
+        body=body,
+    )
 
 
 @router.patch(

@@ -604,6 +604,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/projects/{project_id}/continue-episode-generations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Continue-serial orchestration (create next episode, optionally draft storyboard)
+         * @description SERIAL-AGENT-01. No chat UI. Creates the next episode when every existing episode has a non-empty summary (same frontier as SERIAL-03 create_next). Optional storyboard draft reuses the project cast. Does not generate images or lettering. Durable per-stage checkpoints; resume-safe after worker restart.
+         */
+        post: operations["continueEpisodeGeneration"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/projects/{project_id}/story-generations": {
         parameters: {
             query?: never;
@@ -1757,6 +1779,33 @@ export interface components {
              */
             use_continuity: boolean;
         };
+        ContinueEpisodeRequest: {
+            /**
+             * @description When true, draft storyboard panels after creating the episode (cast reuse).
+             * @default false
+             */
+            generate_storyboard: boolean;
+            /**
+             * @description Used when generate_storyboard is true; also stored on the new episode shell.
+             * @default 8
+             */
+            panel_count: number;
+            /**
+             * @description Inject prior-episode summaries and open threads into storyboard draft.
+             * @default true
+             */
+            use_continuity: boolean;
+        };
+        ContinueEpisodeResult: {
+            /** Format: uuid */
+            episode_id: string;
+            /** @description True when this run created the episode (false if resumed from checkpoint). */
+            created: boolean;
+            /** @description Empty when generate_storyboard is false or storyboard stage not run. */
+            panel_ids: string[];
+            generate_storyboard: boolean;
+            warnings?: string[];
+        };
         StoryPipelineRequest: {
             /** Format: uuid */
             episode_id: string;
@@ -1902,11 +1951,11 @@ export interface components {
             /** Format: uuid */
             panel_id?: string | null;
             /** @enum {string} */
-            task_type: "character_draft" | "character_reference_images" | "scene_draft" | "scene_reference_images" | "storyboard_draft" | "story_pipeline" | "panel_image" | "panel_image_edit" | "export";
+            task_type: "character_draft" | "character_reference_images" | "scene_draft" | "scene_reference_images" | "storyboard_draft" | "story_pipeline" | "continue_episode" | "panel_image" | "panel_image_edit" | "export";
             /** @enum {string} */
             status: "queued" | "running" | "succeeded" | "failed";
             progress?: number | null;
-            result?: components["schemas"]["SceneGenerationResult"] | components["schemas"]["CharacterGenerationResult"] | components["schemas"]["StoryboardGenerationResult"] | components["schemas"]["StoryPipelineResult"] | components["schemas"]["PanelImageGenerationResult"] | components["schemas"]["ExportResult"] | null;
+            result?: components["schemas"]["SceneGenerationResult"] | components["schemas"]["CharacterGenerationResult"] | components["schemas"]["StoryboardGenerationResult"] | components["schemas"]["StoryPipelineResult"] | components["schemas"]["ContinueEpisodeResult"] | components["schemas"]["PanelImageGenerationResult"] | components["schemas"]["ExportResult"] | null;
             error?: components["schemas"]["Problem"] | null;
             /** Format: uuid */
             retry_of_task_id?: string | null;
@@ -3276,6 +3325,38 @@ export interface operations {
         };
         responses: {
             /** @description Generation task accepted */
+            202: {
+                headers: {
+                    /** @description URL of the generation task */
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiSuccessGenerationTask"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["ValidationError"];
+            default: components["responses"]["UnexpectedError"];
+        };
+    };
+    continueEpisodeGeneration: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ContinueEpisodeRequest"];
+            };
+        };
+        responses: {
+            /** @description Continue-episode task accepted */
             202: {
                 headers: {
                     /** @description URL of the generation task */

@@ -15,7 +15,7 @@ import { resolveContinueNext } from "@/lib/episode-frontier";
 import { waitForGenerationTask } from "@/lib/generation-task";
 import { queryClient as appQueryClient } from "@/lib/query-client";
 import {
-  createEpisode,
+  continueEpisodeGeneration,
   deleteProject,
   listCharacters,
   listEpisodes,
@@ -356,22 +356,46 @@ function ChapterList({
   const [exportOpen, setExportOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const rowRefs = useRef<Record<string, HTMLLIElement | null>>({});
+  const [continueMenuOpen, setContinueMenuOpen] = useState(false);
+  const continueMenuId = useId();
+  const continueWrapRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!continueMenuOpen) return;
+    const onPointerDown = (event: MouseEvent) => {
+      if (!continueWrapRef.current?.contains(event.target as Node)) setContinueMenuOpen(false);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setContinueMenuOpen(false);
+    };
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [continueMenuOpen]);
+
   const continueNext = useMutation({
-    mutationFn: async (): Promise<
+    mutationFn: async (
+      generateStoryboard: boolean,
+    ): Promise<
       | { kind: "stay"; episodeId: string; toast: string }
       | { kind: "studio"; episodeId: string; toast: string }
-      | { kind: "created"; episodeId: string }
+      | { kind: "created"; episodeId: string; withStoryboard: boolean; panelCount: number }
     > => {
       const decision = resolveContinueNext(episodes);
       if (decision.kind !== "create_next") return decision;
-      const next = episodes.length + 1;
-      // Server prefills from 「规划话大纲」 when present (EP2-OUTLINE-01).
-      const created = await createEpisode(projectId, {
-        title: `第 ${next} 话`,
-        synopsis: "待补充本话梗概",
-        panel_count: 8,
+      const result = await continueEpisodeGeneration(projectId, {
+        generateStoryboard,
+        panelCount: 8,
       });
-      return { kind: "created", episodeId: created.id };
+      return {
+        kind: "created",
+        episodeId: result.episodeId,
+        withStoryboard: generateStoryboard,
+        panelCount: result.panelIds.length,
+      };
     },
     onSuccess: (result) => {
       onChanged();
@@ -382,8 +406,10 @@ function ChapterList({
       }
       if (result.kind === "studio") {
         toast.message(result.toast);
+      } else if (result.withStoryboard) {
+        toast.success(`已续写并生成 ${result.panelCount} 格分镜`);
       } else {
-        toast.success("已创建下一话");
+        toast.success("已续写下一话");
       }
       navigate(`/projects/${projectId}/studio?episodeId=${result.episodeId}`);
     },
@@ -421,10 +447,71 @@ function ChapterList({
             <Files data-icon="inline-start" />
             合集下载
           </Button>
-          <Button size="sm" onClick={() => continueNext.mutate()} disabled={continueNext.isPending}>
-            {continueNext.isPending ? <Loader2 className="animate-spin" data-icon="inline-start" /> : <Plus data-icon="inline-start" />}
-            续写下一话
-          </Button>
+          <div className="relative" ref={continueWrapRef}>
+            <div className="flex">
+              <Button
+                size="sm"
+                className="rounded-r-none"
+                disabled={continueNext.isPending}
+                title="续写下一话（建话；可选并生成分镜）"
+                onClick={() => continueNext.mutate(false)}
+              >
+                {continueNext.isPending ? (
+                  <Loader2 className="animate-spin" data-icon="inline-start" />
+                ) : (
+                  <Plus data-icon="inline-start" />
+                )}
+                续写下一话
+              </Button>
+              <Button
+                size="sm"
+                variant="default"
+                className="rounded-l-none border-l border-primary-foreground/20 px-2"
+                aria-label="续写选项"
+                aria-haspopup="menu"
+                aria-expanded={continueMenuOpen}
+                aria-controls={continueMenuId}
+                disabled={continueNext.isPending}
+                onClick={() => setContinueMenuOpen((open) => !open)}
+              >
+                <ChevronDown className={cn("size-3.5", continueMenuOpen && "rotate-180")} aria-hidden />
+              </Button>
+            </div>
+            {continueMenuOpen ? (
+              <div
+                id={continueMenuId}
+                role="menu"
+                aria-label="续写选项"
+                className="absolute right-0 z-40 mt-1 w-56 rounded-md border bg-popover p-1 text-popover-foreground shadow-md"
+              >
+                <p className="px-2 py-1.5 text-[11px] text-muted-foreground">服务端编排 · 无聊天 · 默认不出图</p>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="flex w-full rounded-sm px-2 py-2 text-left text-sm hover:bg-accent"
+                  disabled={continueNext.isPending}
+                  onClick={() => {
+                    setContinueMenuOpen(false);
+                    continueNext.mutate(false);
+                  }}
+                >
+                  仅建话（改梗概后再出分镜）
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="flex w-full rounded-sm px-2 py-2 text-left text-sm hover:bg-accent"
+                  disabled={continueNext.isPending}
+                  onClick={() => {
+                    setContinueMenuOpen(false);
+                    continueNext.mutate(true);
+                  }}
+                >
+                  建话并生成分镜脚本
+                </button>
+              </div>
+            ) : null}
+          </div>
         </div>
       </div>
       {previewOpen ? (

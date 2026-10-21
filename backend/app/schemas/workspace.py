@@ -320,6 +320,18 @@ class StoryPipelineRequest(APIModel):
     use_continuity: bool = True
 
 
+class ContinueEpisodeRequest(APIModel):
+    generate_storyboard: bool = False
+    panel_count: int = Field(default=8, ge=1, le=60)
+    use_continuity: bool = True
+
+
+class ContinueEpisodeRequest(APIModel):
+    generate_storyboard: bool = False
+    panel_count: int = Field(default=8, ge=1, le=60)
+    use_continuity: bool = True
+
+
 class PanelFields(APIModel):
     scene_description: str = Field(default="", max_length=4000)
     shot: str = Field(default="中景", max_length=240)
@@ -531,6 +543,7 @@ class GenerationTask(APIModel):
         "scene_reference_images",
         "storyboard_draft",
         "story_pipeline",
+        "continue_episode",
         "panel_image",
         "panel_image_edit",
         "export",

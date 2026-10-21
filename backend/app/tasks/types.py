@@ -9,6 +9,7 @@ class TaskType(StrEnum):
     SCENE_REFERENCE_IMAGES = "scene_reference_images"
     STORYBOARD_DRAFT = "storyboard_draft"
     STORY_PIPELINE = "story_pipeline"
+    CONTINUE_EPISODE = "continue_episode"
     PANEL_IMAGE = "panel_image"
     PANEL_IMAGE_EDIT = "panel_image_edit"
     EXPORT = "export"

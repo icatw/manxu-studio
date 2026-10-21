@@ -2,6 +2,7 @@
 
 from app.tasks.handlers import (  # noqa: F401
     characters,
+    continue_episode,
     export,
     panel_image,
     scenes,
@@ -11,6 +12,7 @@ from app.tasks.handlers import (  # noqa: F401
 
 __all__ = [
     "characters",
+    "continue_episode",
     "export",
     "panel_image",
     "scenes",

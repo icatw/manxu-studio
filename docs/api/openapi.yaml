@@ -919,6 +919,47 @@ paths:
         default:
           $ref: '#/components/responses/UnexpectedError'
 
+  /projects/{project_id}/continue-episode-generations:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+    post:
+      tags: [Projects, Generations]
+      operationId: continueEpisodeGeneration
+      summary: Continue-serial orchestration (create next episode, optionally draft storyboard)
+      description: >
+        SERIAL-AGENT-01. No chat UI. Creates the next episode when every existing episode
+        has a non-empty summary (same frontier as SERIAL-03 create_next). Optional
+        storyboard draft reuses the project cast. Does not generate images or lettering.
+        Durable per-stage checkpoints; resume-safe after worker restart.
+      x-requirement-ids: [SERIAL-AGENT-01, SERIAL-03, EP2-OUTLINE-01]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContinueEpisodeRequest'
+      responses:
+        '202':
+          description: Continue-episode task accepted
+          headers:
+            Location:
+              schema:
+                type: string
+                format: uri-reference
+              description: URL of the generation task
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccessGenerationTask'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        default:
+          $ref: '#/components/responses/UnexpectedError'
+
   /projects/{project_id}/story-generations:
     parameters:
       - $ref: '#/components/parameters/ProjectId'
@@ -2891,6 +2932,47 @@ components:
           type: boolean
           default: true
           description: Inject previous episode summaries and open plot threads
+    ContinueEpisodeRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        generate_storyboard:
+          type: boolean
+          default: false
+          description: When true, draft storyboard panels after creating the episode (cast reuse).
+        panel_count:
+          type: integer
+          minimum: 1
+          maximum: 60
+          default: 8
+          description: Used when generate_storyboard is true; also stored on the new episode shell.
+        use_continuity:
+          type: boolean
+          default: true
+          description: Inject prior-episode summaries and open threads into storyboard draft.
+    ContinueEpisodeResult:
+      type: object
+      additionalProperties: false
+      required: [episode_id, created, panel_ids, generate_storyboard]
+      properties:
+        episode_id:
+          type: string
+          format: uuid
+        created:
+          type: boolean
+          description: True when this run created the episode (false if resumed from checkpoint).
+        panel_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+          description: Empty when generate_storyboard is false or storyboard stage not run.
+        generate_storyboard:
+          type: boolean
+        warnings:
+          type: array
+          items:
+            type: string
     StoryPipelineRequest:
       type: object
       additionalProperties: false
@@ -3168,7 +3250,7 @@ components:
           format: uuid
         task_type:
           type: string
-          enum: [character_draft, character_reference_images, scene_draft, scene_reference_images, storyboard_draft, story_pipeline, panel_image, panel_image_edit, export]
+          enum: [character_draft, character_reference_images, scene_draft, scene_reference_images, storyboard_draft, story_pipeline, continue_episode, panel_image, panel_image_edit, export]
         status:
           type: string
           enum: [queued, running, succeeded, failed]
@@ -3182,6 +3264,7 @@ components:
             - $ref: '#/components/schemas/CharacterGenerationResult'
             - $ref: '#/components/schemas/StoryboardGenerationResult'
             - $ref: '#/components/schemas/StoryPipelineResult'
+            - $ref: '#/components/schemas/ContinueEpisodeResult'
             - $ref: '#/components/schemas/PanelImageGenerationResult'
             - $ref: '#/components/schemas/ExportResult'
             - type: 'null'

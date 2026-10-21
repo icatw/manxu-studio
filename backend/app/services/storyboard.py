@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.api_responses import ApiError
 from app.db.models import CharacterRecord, EpisodeRecord, ImageVersionRecord, PanelRecord
 from app.schemas.workspace import (
+    ContinueEpisodeRequest,
     GenerationTask,
     PanelImageGenerationRequest,
     PanelImageVersion,
@@ -21,6 +22,11 @@ from app.schemas.workspace import (
     StoryPipelineRequest,
 )
 from app.services.continuity_gate import require_previous_episode_summary
+from app.services.episode_frontier import (
+    FrontierCreateNext,
+    list_project_episodes_ordered,
+    resolve_continue_next,
+)
 from app.services.generations import create_task as _create_task
 
 
@@ -115,6 +121,37 @@ async def generate_story_pipeline(
         project_id=project_id,
         episode_id=episode.id,
         task_type="story_pipeline",
+        request_data=body.model_dump(mode="json"),
+    )
+
+
+async def continue_episode_generation(
+    session: AsyncSession,
+    *,
+    project_id: UUID,
+    owner_id: UUID,
+    body: ContinueEpisodeRequest,
+) -> GenerationTask:
+    """SERIAL-AGENT-01: enqueue continue orchestration when frontier allows create_next."""
+    from app.db.models import ProjectRecord
+
+    project = await session.get(ProjectRecord, project_id)
+    if project is None:
+        raise _not_found("项目")
+    episodes = await list_project_episodes_ordered(session, project_id)
+    decision = resolve_continue_next(episodes)
+    if not isinstance(decision, FrontierCreateNext):
+        raise ApiError(
+            "CONTINUE_FRONTIER",
+            decision.message,
+            status_code=409,
+        )
+    return await _create_task(
+        session,
+        owner_id=owner_id,
+        project_id=project_id,
+        episode_id=None,
+        task_type="continue_episode",
         request_data=body.model_dump(mode="json"),
     )
 
