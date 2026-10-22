@@ -1,6 +1,6 @@
 # 用量账本与请求关联（Phase 0 / 1）
 
-> 更新：2026-10-20。支撑 SaaS 准备清单中的「用量与失败重试可追踪」；**无公开查询 API、无 Studio UI、无 OTel**。
+> 更新：2026-10-22。支撑 SaaS 准备清单中的「用量与失败重试可追踪」；Phase 0/1 无独立用量 API；试用额度强制见计划 `0046`。
 
 ## 目标
 
@@ -46,13 +46,19 @@ Worker 进程启动时调用与 API 相同的 `configure_api_logging`，保证 J
 - **自动恢复重试**若再次成功 → 再记一条可计费成功（反映真实供应商消耗）。
 - 用户显式重试创建新 `generation_task` 时，成功调用同样各自记账。
 
-后续产品额度规则可在此语义上聚合；本切片不实现配额强制或预估用量。
+后续产品额度规则可在此语义上聚合。**试用额度强制**见 PRD `QUOTA-01` 与计划 `0046`（本文件 Phase 0/1 不实现强制）。
+
+## 后续 / `0046` 进度
+
+- `billing_source`（`platform` \| `byok`）已落库；worker 从任务 `request_data.billing_source` 绑定 correlation。
+- `platform` 模式入队前强制 Asia/Shanghai 自然日额度（文本次数 + 图像 `image_units`）；BYOK 只记账。
+- `GET /model-config.quota` 为 UI 剩余额度视图（非第二套真相源）。
 
 ## 非目标
 
-- 用量查询 HTTP API / OpenAPI / 前端展示
+- 独立用量查询 HTTP API / Studio 用量页（设置页内嵌 `quota` 除外，见 `0046`）
 - OpenTelemetry / Sentry / Prometheus
-- 平台代付结算与套餐 SKU
+- 平台代付结算与套餐 SKU（试用额度 ≠ 收费）
 
 ## 实现入口
 

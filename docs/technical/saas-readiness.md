@@ -1,6 +1,6 @@
 # SaaS 准备清单（现状对齐）
 
-> 更新：2026-10-17。对照里程碑 `v0.1.0-storyboard` 与当前仓库实现。  
+> 更新：2026-10-22。对照里程碑 `v0.1.0-storyboard` 与当前仓库实现。  
 > **生产部署**：该 tag 之后默认冻结向 `manxu.icatw.site` 推送应用更新，见 `.harness/status.md`。
 
 ## 结论
@@ -15,6 +15,7 @@
 | 账户与会话 | 完成 | 邮箱验证码 + GitHub OAuth；HttpOnly Cookie + CSRF；Bearer 会话边界见契约 |
 | 资源所有权 | 完成 | `current_account` + 项目/子资源归属；跨账户统一 404；双账户测试存在 |
 | 模型 BYOK | 完成 | 账户级文本/图像配置，Key 加密存储、不回显 |
+| 平台默认 + 试用额度 | 已手验 | PRD/契约/`0046`；playground API+设置页 UI 已过；待提交归档 |
 | 异步任务 | 完成 | Redis + ARQ worker；任务归属与恢复路径已接入（非 FastAPI BackgroundTasks 主路径） |
 | 图像存储 INFRA-02 | 完成（生产已切流） | `ObjectStore` local\|s3；腾讯 COS；鉴权后 API 代理读；里程碑已迁 89 张图 |
 | 连载创作主路径 | 完成 | 作品/话、设定、分镜、画格、EXP 制作导出（见 PRD `confirmed`） |
@@ -38,7 +39,7 @@
 ### 挡「平台代付或公开收费」
 
 - 文本/图像操作的估算与实际消耗账本；失败/重试计费规则可读。  
-  **进度**：实际消耗账本与失败/重试语义已落地（`usage_events`，见 [usage-ledger.md](usage-ledger.md)）；操作前估算、公开查询 API、额度强制仍缺。
+  **进度**：实际消耗账本与失败/重试语义已落地（`usage_events`，见 [usage-ledger.md](usage-ledger.md)）；`MODEL-04`/`QUOTA-01` 已确认并写入契约，额度强制待 `0046` 实现；操作前估算与独立用量查询 API 仍后置。
 - 速率、并发、日任务量、存储配额的强制边界与观测。
 - 备份恢复演练：库 + COS；恢复后作品与图像可读。
 

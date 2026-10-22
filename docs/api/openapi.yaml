@@ -500,7 +500,7 @@ paths:
       tags: [ModelSettings]
       operationId: getModelConfig
       summary: Read the current account's model settings without secrets
-      x-requirement-ids: [MODEL-01, MODEL-02, MODEL-03]
+      x-requirement-ids: [MODEL-01, MODEL-02, MODEL-03, MODEL-04, QUOTA-01]
       responses:
         '200':
           description: Configured models and integration status
@@ -514,7 +514,7 @@ paths:
       tags: [ModelSettings]
       operationId: updateModelConfig
       summary: Update the current account's model settings
-      x-requirement-ids: [MODEL-01, MODEL-02, MODEL-03]
+      x-requirement-ids: [MODEL-01, MODEL-02, MODEL-03, MODEL-04]
       requestBody:
         required: true
         content:
@@ -2206,38 +2206,60 @@ components:
         verified:
           type: boolean
           description: GitHub identities are verified after OAuth; email identities are verified after a successful email code.
+    ModelMode:
+      type: string
+      enum: [platform, byok_qwen, byok_agnes]
+      description: >-
+        Account model credential mode (MODEL-04). Text and image share one mode.
+        `platform` uses operator-hosted Agnes credentials; BYOK modes use the
+        account's encrypted keys. New accounts default to `platform` when the
+        server has platform credentials configured.
     ModelConfigUpdate:
       type: object
       additionalProperties: false
-      required: [text_model, text_base_url, image_model, image_backend]
+      required: [model_mode]
       properties:
-        text_model: { type: string, minLength: 1, maxLength: 160 }
-        text_base_url: { type: string, format: uri, pattern: '^https://' }
+        model_mode:
+          $ref: '#/components/schemas/ModelMode'
+        text_model:
+          type: string
+          minLength: 1
+          maxLength: 160
+          description: Required when model_mode is byok_*; ignored for platform (server preset).
+        text_base_url:
+          type: string
+          format: uri
+          pattern: '^https://'
+          description: Required when model_mode is byok_*; ignored for platform.
         text_api_key:
           type: [string, 'null']
           minLength: 1
           maxLength: 4096
-          description: Omit to keep the existing key, null to clear it, or provide a replacement.
+          description: >-
+            BYOK only. Omit to keep the existing key, null to clear it, or provide
+            a replacement. Ignored for platform (never stores the platform key on the account).
         image_backend:
           type: string
           enum: [qwen_async, openai_images]
-          description: Image provider protocol; models must be allowlisted for this backend.
+          description: >-
+            BYOK only; must match mode (byok_qwen → qwen_async, byok_agnes → openai_images).
+            Ignored for platform.
         image_model:
           type: string
           minLength: 1
           maxLength: 80
-          description: Must be one of the allowlisted image model IDs for the selected image_backend.
+          description: BYOK only; must be allowlisted for image_backend. Ignored for platform.
         image_base_url:
           type: [string, 'null']
           format: uri
           pattern: '^https://'
           maxLength: 2048
-          description: Omit or set null to keep the existing address, or provide an image API base URL.
+          description: BYOK only. Omit or null to keep existing; ignored for platform.
         image_api_key:
           type: [string, 'null']
           minLength: 1
           maxLength: 4096
-          description: Omit to keep the existing key, null to clear it, or provide a replacement.
+          description: BYOK only. Omit to keep, null to clear, or replace. Ignored for platform.
     ModelConnectionTest:
       type: object
       additionalProperties: false
@@ -2246,10 +2268,34 @@ components:
         success: { type: boolean }
         message: { type: string }
         latency_ms: { type: [integer, 'null'], minimum: 0 }
+    ModelQuotaStatus:
+      type: object
+      additionalProperties: false
+      required: [applies, exhausted]
+      properties:
+        applies:
+          type: boolean
+          description: True when model_mode is platform and platform trial quota is enforced (QUOTA-01).
+        text_remaining:
+          type: [integer, 'null']
+          minimum: 0
+          description: Remaining billable text calls in the current window; null when not applicable.
+        image_remaining:
+          type: [integer, 'null']
+          minimum: 0
+          description: Remaining billable image units in the current window; null when not applicable.
+        exhausted:
+          type: boolean
+          description: True when platform mode has no remaining quota for the next generation.
+        message:
+          type: [string, 'null']
+          description: Short operator-facing hint (e.g. switch to BYOK); null when unused.
     ModelConfig:
       type: object
       additionalProperties: false
       required:
+        - model_mode
+        - platform_available
         - text_provider
         - text_model
         - text_base_url
@@ -2266,11 +2312,23 @@ components:
         - image_models
         - image_backends
         - system_presets
+        - quota
       properties:
+        model_mode:
+          $ref: '#/components/schemas/ModelMode'
+        platform_available:
+          type: boolean
+          description: >-
+            True when the server has operator Agnes credentials configured.
+            When false, clients must not offer platform mode as selectable.
         text_provider: { type: string }
         text_model: { type: string }
         text_base_url: { type: string }
-        text_api_key_configured: { type: boolean }
+        text_api_key_configured:
+          type: boolean
+          description: >-
+            For platform: true when platform text credentials are available.
+            For BYOK: true when the account has a stored text API key.
         text_status: { type: string, enum: [not_configured, configured, connected, error] }
         image_provider:
           type: string
@@ -2280,7 +2338,11 @@ components:
           enum: [qwen_async, openai_images]
         image_model: { type: string }
         image_base_url: { type: string }
-        image_api_key_configured: { type: boolean }
+        image_api_key_configured:
+          type: boolean
+          description: >-
+            For platform: true when platform image credentials are available.
+            For BYOK: true when the account has a stored image API key.
         image_concurrency:
           type: integer
           minimum: 1
@@ -2301,6 +2363,8 @@ components:
         system_presets:
           type: array
           items: { $ref: '#/components/schemas/ModelPreset' }
+        quota:
+          $ref: '#/components/schemas/ModelQuotaStatus'
     ImageBackendOption:
       type: object
       additionalProperties: false

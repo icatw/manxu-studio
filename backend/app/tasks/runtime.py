@@ -161,11 +161,17 @@ async def run_generation_task(task_id: UUID) -> None:
                     task.updated_at = datetime.now(UTC)
                     await session.commit()
                     return
+                billing = None
+                if isinstance(task.request_data, dict):
+                    raw_billing = task.request_data.get("billing_source")
+                    if isinstance(raw_billing, str) and raw_billing in {"platform", "byok"}:
+                        billing = raw_billing
                 bind_correlation(
                     request_id=correlation_from_request_data(task.request_data),
                     account_id=task.owner_id,
                     project_id=task.project_id,
                     generation_task_id=task.id,
+                    billing_source=billing,
                 )
                 task.status = "running"
                 # Preserve progress across worker timeouts / requeues.

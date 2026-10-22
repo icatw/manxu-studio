@@ -7,6 +7,7 @@ from uuid import UUID
 
 from app.core.correlation import (
     get_account_id,
+    get_billing_source,
     get_generation_task_id,
     get_project_id,
     get_request_id,
@@ -43,6 +44,8 @@ async def record_usage_event(
         generation_task_id if generation_task_id is not None else get_generation_task_id()
     )
     resolved_request = request_id if request_id is not None else get_request_id()
+    raw_billing = get_billing_source()
+    billing_source = raw_billing if raw_billing in {"platform", "byok"} else "byok"
     billable = outcome == "success"
 
     log_extra = {
@@ -59,6 +62,7 @@ async def record_usage_event(
         "total_tokens": total_tokens,
         "image_units": image_units,
         "billable": billable,
+        "billing_source": billing_source,
         "latency_ms": latency_ms,
         "outcome": outcome,
         "error_code": error_code,
@@ -81,6 +85,7 @@ async def record_usage_event(
         image_units=image_units,
         outcome=outcome,
         billable=billable,
+        billing_source=billing_source,
         latency_ms=latency_ms,
         error_code=error_code,
     )

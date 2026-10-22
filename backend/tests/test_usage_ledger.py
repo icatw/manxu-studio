@@ -77,6 +77,14 @@ async def test_create_task_stamps_correlation(monkeypatch: pytest.MonkeyPatch) -
         async def scalar(self, query: object) -> object | None:
             return None
 
+        async def get(self, model: type[object], record_id: object) -> object | None:
+            del model, record_id
+            return SimpleNamespace(model_mode="byok_qwen")
+
+        async def scalars(self, query: object) -> SimpleNamespace:
+            del query
+            return SimpleNamespace(all=lambda: [])
+
         def add(self, obj: object) -> None:
             if isinstance(obj, GenerationTaskRecord):
                 if obj.id is None:
@@ -105,6 +113,7 @@ async def test_create_task_stamps_correlation(monkeypatch: pytest.MonkeyPatch) -
     )
     assert len(added) == 1
     assert added[0].request_data["_correlation"] == {"request_id": "create-req-1"}
+    assert added[0].request_data["billing_source"] == "byok"
     assert view.id == added[0].id
     clear_correlation()
 

@@ -74,6 +74,17 @@ class Settings(BaseSettings):
     read_rate_limit_per_minute: int = 120
     # Playground/Compose only: allow http://fake-llm and other private base URLs.
     allow_private_model_base_urls: bool = False
+    # Operator-hosted Agnes (MODEL-04 platform mode). Empty key → platform unavailable.
+    platform_agnes_api_key: str = ""
+    platform_agnes_text_base_url: str = "https://apihub.agnes-ai.com/v1"
+    platform_agnes_image_base_url: str = "https://apihub.agnes-ai.com/v1"
+    platform_agnes_text_model: str = "agnes-3.0-flash"
+    platform_agnes_image_model: str = "agnes-image-2.5-flash"
+    # QUOTA-01: per-account daily caps for platform billing_source (Asia/Shanghai day).
+    platform_quota_text_per_day: int = Field(default=40, ge=0, le=100_000)
+    platform_quota_image_per_day: int = Field(default=30, ge=0, le=100_000)
+    # Soft global cap on concurrent generation tasks that use platform credentials.
+    platform_max_running_tasks: int = Field(default=8, ge=1, le=256)
 
     model_config = SettingsConfigDict(env_file="../.env", extra="ignore")
 
@@ -143,6 +154,10 @@ class Settings(BaseSettings):
             return self.model_preset_image_model
         allowlist = self.image_model_allowlist_values
         return allowlist[0] if allowlist else DEFAULT_IMAGE_MODEL
+
+    @property
+    def platform_available(self) -> bool:
+        return bool(self.platform_agnes_api_key.strip())
 
 
 @lru_cache

@@ -291,7 +291,9 @@ async def verify_email_code(
         session.add(identity)
         session.add(
             AccountModelConfigRecord(
-                account_id=account.id, image_base_url=settings.qwen_image_base_url
+                account_id=account.id,
+                model_mode="platform" if settings.platform_available else "byok_qwen",
+                image_base_url=settings.qwen_image_base_url,
             )
         )
     else:
@@ -415,7 +417,9 @@ async def github_callback(
         )
         session.add(
             AccountModelConfigRecord(
-                account_id=account.id, image_base_url=settings.qwen_image_base_url
+                account_id=account.id,
+                model_mode="platform" if settings.platform_available else "byok_qwen",
+                image_base_url=settings.qwen_image_base_url,
             )
         )
     else:

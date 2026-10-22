@@ -20,6 +20,13 @@ x-playground-backend-env: &playground-backend-env
   EMAIL_CODE_PEPPER: playground-email-pepper
   CORS_ORIGINS: http://localhost:15174
   ALLOW_PRIVATE_MODEL_BASE_URLS: "true"
+  PLATFORM_AGNES_API_KEY: playground-platform-key
+  PLATFORM_AGNES_TEXT_BASE_URL: http://fake-llm:8080/v1
+  PLATFORM_AGNES_IMAGE_BASE_URL: http://fake-llm:8080/v1
+  PLATFORM_AGNES_TEXT_MODEL: fake-text
+  PLATFORM_AGNES_IMAGE_MODEL: agnes-image-2.5-flash
+  PLATFORM_QUOTA_TEXT_PER_DAY: "200"
+  PLATFORM_QUOTA_IMAGE_PER_DAY: "100"
 
 services:
   postgres:

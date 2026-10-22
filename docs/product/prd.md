@@ -30,9 +30,15 @@
 - **AUTH-04** (`confirmed`)：验证码短时有效、一次性使用、限制错误次数和发送频率；请求验证码时不暴露邮箱是否已注册，验证码只以带 pepper 的摘要保存。
 - **AUTH-05** (`confirmed`)：账户可查看邮箱和 GitHub 登录身份；只有保留至少一种其他登录方式时才可解除身份。不同 provider 的身份不得仅凭相同邮箱自动合并。
 - **AUTH-06** (`confirmed`)：浏览器认证使用 HttpOnly Cookie 会话与 CSRF 校验；服务端兼容 opaque Bearer session，浏览器不将 token 持久化到 localStorage。
-- **MODEL-01** (`confirmed`)：用户可以配置 OpenAI 兼容文本模型的公网 HTTPS Base URL、模型 ID 与 API Key，并测试连通性；API Key 在服务端加密保存且永不回显。
-- **MODEL-02** (`confirmed`)：用户可以选择账户级图像后端与其允许的模型 ID 并发起图像生成。支持 `qwen_async`（百炼异步 Image API，任务可轮询恢复）与 `openai_images`（OpenAI 风格 `/images/generations`，如 Agnes Image）。结果经服务端持久对象存储保存（见 INFRA-02）。可用后端、模型列表与系统预设由服务端配置下发，前端不得硬编码供应商型号。
-- **MODEL-03** (`confirmed`)：用户可按账户配置图像 API Base URL 与图像后端类型；服务端限制为公网 HTTPS，并按所选后端提交（异步轮询或同步出图）。
+- **MODEL-01** (`confirmed`)：在 **BYOK 模式**下，用户可以配置 OpenAI 兼容文本模型的公网 HTTPS Base URL、模型 ID 与 API Key，并测试连通性；API Key 在服务端加密保存且永不回显。平台默认模式不要求用户填写文本 Key。
+- **MODEL-02** (`confirmed`)：用户可以选择账户级图像后端与其允许的模型 ID 并发起图像生成。支持 `qwen_async`（百炼异步 Image API，任务可轮询恢复）与 `openai_images`（OpenAI 风格 `/images/generations`，如 Agnes Image）。结果经服务端持久对象存储保存（见 INFRA-02）。可用后端、模型列表与系统预设由服务端配置下发，前端不得硬编码供应商型号。平台默认模式使用服务端托管的 Agnes 图像配置，不要求用户填写图像 Key。
+- **MODEL-03** (`confirmed`)：在 **BYOK 模式**下，用户可按账户配置图像 API Base URL 与图像后端类型；服务端限制为公网 HTTPS，并按所选后端提交（异步轮询或同步出图）。
+- **MODEL-04** (`confirmed`)：账户级模型工作台提供三种互斥模式（文本与图像绑定同一模式，避免混用）：
+  1. **`platform`（默认）**：使用运营方托管的 Agnes 文本 + Agnes Image；用户不填、不看见平台 API Key；新账户默认此模式（当服务端已配置平台密钥时）。
+  2. **`byok_qwen`**：用户自备通义百炼 Key；填入 `dashscope` 类预设（文本兼容模式 + `qwen_async` 出图）。
+  3. **`byok_agnes`**：用户自备 Agnes Key；填入 Agnes 预设（文本 + `openai_images`）；**不**消耗平台试用额度。
+  切换模式须显式保存；BYOK 模式未配置有效 Key 时拒绝生成并引导补全。平台密钥仅存服务端环境/密钥管理，永不回显、不下发浏览器。任意 OpenAI 兼容「高级自定义」可后置为 BYOK 折叠项，不作为主路径。
+- **QUOTA-01** (`confirmed`)：仅 **`platform` 模式**消耗平台试用额度。服务端在入队/提交生成前强制校验；超额返回明确错误并引导切换至 `byok_qwen` / `byok_agnes`（或后续付费档）。额度计数以 `usage_events` 中 `billable=true` 的成功调用为真相源（文本请求与图像张数可分项或折算，实现时在计划中钉死）。BYOK 模式只记账、不扣平台额度。设置页或生成失败态须可读展示剩余额度（或「已用尽」）。全站另设对上游 Agnes 的并发/RPM 护栏，避免打爆运营方 Token Plan。
 
 ### SaaS 身份认证方向（待契约确认）
 
@@ -250,7 +256,7 @@
 
 - **AUTH-07** (`deferred`)：设置页主动绑定身份；禁止仅凭同邮箱静默合并。
 - 存储以 **INFRA-02** 为准；成稿导出契约另立，不扩大 INFRA-02 切片。
-- 收费前：成本可见、额度/限流、失败重试计费、备份恢复、账户数据导出与删除。
+- 收费前：成本可见、失败重试计费、备份恢复、账户数据导出与删除；试用额度强制见 **QUOTA-01**（`confirmed`，实现见计划 `0046`）。
 
 ### 长期成功信号
 

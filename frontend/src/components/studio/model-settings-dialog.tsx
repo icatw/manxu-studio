@@ -6,11 +6,18 @@ import { Input } from '@/components/ui/input'
 import { api, toApiError } from '@/lib/api/client'
 import type { components } from '@/lib/api/schema'
 
-type ImageBackend = components['schemas']['ModelConfigUpdate']['image_backend']
-type ModelPreset = components['schemas']['ModelPreset']
+type ModelMode = components['schemas']['ModelMode']
+type ImageBackend = NonNullable<components['schemas']['ModelConfigUpdate']['image_backend']>
+
+const MODE_OPTIONS: { id: ModelMode; label: string; hint: string }[] = [
+  { id: 'platform', label: '默认（平台 Agnes）', hint: '使用漫序托管模型，消耗试用额度；无需填写密钥。' },
+  { id: 'byok_qwen', label: '自备通义百炼', hint: '使用你的百炼 API Key（文本 + Qwen Image）。' },
+  { id: 'byok_agnes', label: '自备 Agnes', hint: '使用你自己的 Agnes API Key；不扣平台额度。' },
+]
 
 export function ModelSettingsPanel() {
   const queryClient = useQueryClient()
+  const [modelMode, setModelMode] = useState<ModelMode>('platform')
   const [textModel, setTextModel] = useState('')
   const [textBaseUrl, setTextBaseUrl] = useState('')
   const [textKey, setTextKey] = useState('')
@@ -33,6 +40,7 @@ export function ModelSettingsPanel() {
 
   useEffect(() => {
     if (!query.data) return
+    setModelMode(query.data.model_mode)
     setTextModel(query.data.text_model)
     setTextBaseUrl(query.data.text_base_url)
     setImageBackend(query.data.image_backend)
@@ -44,6 +52,7 @@ export function ModelSettingsPanel() {
     setClearImageKey(false)
   }, [query.data])
 
+  const isByok = modelMode === 'byok_qwen' || modelMode === 'byok_agnes'
   const modelsForBackend = useMemo(() => {
     const backends = query.data?.image_backends ?? []
     const match = backends.find((item) => item.id === imageBackend)
@@ -51,25 +60,31 @@ export function ModelSettingsPanel() {
   }, [query.data, imageBackend])
 
   useEffect(() => {
-    if (!modelsForBackend.length) return
+    if (!isByok || !modelsForBackend.length) return
     if (!modelsForBackend.includes(imageModel)) {
       setImageModel(modelsForBackend[0] ?? '')
     }
-  }, [modelsForBackend, imageModel])
+  }, [modelsForBackend, imageModel, isByok])
+
+  useEffect(() => {
+    if (modelMode === 'byok_qwen') setImageBackend('qwen_async')
+    if (modelMode === 'byok_agnes') setImageBackend('openai_images')
+  }, [modelMode])
 
   const saveMutation = useMutation({
     mutationFn: async () => {
-      const body: components['schemas']['ModelConfigUpdate'] = {
-        text_model: textModel.trim(),
-        text_base_url: textBaseUrl.trim(),
-        image_backend: imageBackend,
-        image_model: imageModel,
-        image_base_url: imageBaseUrl.trim(),
+      const body: components['schemas']['ModelConfigUpdate'] = { model_mode: modelMode }
+      if (isByok) {
+        body.text_model = textModel.trim()
+        body.text_base_url = textBaseUrl.trim()
+        body.image_backend = imageBackend
+        body.image_model = imageModel
+        body.image_base_url = imageBaseUrl.trim()
+        if (textKey.trim()) body.text_api_key = textKey
+        else if (clearTextKey) body.text_api_key = null
+        if (imageKey.trim()) body.image_api_key = imageKey
+        else if (clearImageKey) body.image_api_key = null
       }
-      if (textKey.trim()) body.text_api_key = textKey
-      else if (clearTextKey) body.text_api_key = null
-      if (imageKey.trim()) body.image_api_key = imageKey
-      else if (clearImageKey) body.image_api_key = null
       const { data, error } = await api.PUT('/model-config', { body })
       if (error || !data) throw toApiError(error, '保存模型配置失败，请检查填写内容')
       return data
@@ -119,16 +134,26 @@ export function ModelSettingsPanel() {
     saveMutation.mutate()
   }
 
-  function applyPreset(preset: ModelPreset) {
-    setTextModel(preset.text_model)
-    setTextBaseUrl(preset.text_base_url)
-    setImageBackend(preset.image_backend)
-    setImageModel(preset.image_model)
-    setImageBaseUrl(preset.image_base_url)
-    setNotice({ success: true, message: `已填入预设「${preset.label}」，请补充密钥后保存` })
+  function selectMode(mode: ModelMode) {
+    if (mode === 'platform' && query.data && !query.data.platform_available) {
+      setNotice({ success: false, message: '平台默认模型未启用，请选择自备通义或 Agnes' })
+      return
+    }
+    setModelMode(mode)
+    const preset = query.data?.system_presets.find((item) =>
+      mode === 'byok_qwen' ? item.id === 'dashscope-default' : mode === 'byok_agnes' ? item.id === 'agnes-default' : false,
+    )
+    if (preset) {
+      setTextModel(preset.text_model)
+      setTextBaseUrl(preset.text_base_url)
+      setImageBackend(preset.image_backend)
+      setImageModel(preset.image_model)
+      setImageBaseUrl(preset.image_base_url)
+    }
   }
 
   const config = query.data
+  const quota = config?.quota
   const backendHelp =
     imageBackend === 'openai_images'
       ? '当前后端使用 OpenAI 风格 `/images/generations`（同步出图）。'
@@ -140,85 +165,113 @@ export function ModelSettingsPanel() {
       {query.isError && <p role="alert" className="text-sm text-destructive">{query.error.message}</p>}
       {config && (
         <>
-          {config.system_presets.length > 0 && (
-            <section className="space-y-2">
-              <h3 className="flex items-center gap-2 text-sm font-semibold">
-                <Sparkles className="size-4" aria-hidden />
-                系统预设
-              </h3>
-              <div className="flex flex-wrap gap-2">
-                {config.system_presets.map((preset) => (
-                  <Button key={preset.id} type="button" variant="outline" size="sm" onClick={() => applyPreset(preset)}>
-                    {preset.label}
-                  </Button>
-                ))}
-              </div>
-              <p className="text-xs text-muted-foreground">预设由服务端配置下发；填入后仍需保存本账户 API Key。</p>
-            </section>
+          <section className="space-y-3">
+            <h3 className="flex items-center gap-2 text-sm font-semibold">
+              <Sparkles className="size-4" aria-hidden />
+              模型模式
+            </h3>
+            <div className="grid gap-2" role="radiogroup" aria-label="模型模式">
+              {MODE_OPTIONS.map((option) => {
+                const disabled = option.id === 'platform' && !config.platform_available
+                const selected = modelMode === option.id
+                return (
+                  <button
+                    key={option.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={selected}
+                    disabled={disabled}
+                    onClick={() => selectMode(option.id)}
+                    className={`rounded-md border px-3 py-2 text-left text-sm transition-colors ${
+                      selected ? 'border-primary bg-primary/5' : 'border-border hover:bg-muted/40'
+                    } ${disabled ? 'cursor-not-allowed opacity-50' : ''}`}
+                  >
+                    <span className="font-medium">{option.label}</span>
+                    <p className="mt-0.5 text-xs text-muted-foreground">{option.hint}</p>
+                  </button>
+                )
+              })}
+            </div>
+            {quota?.applies && (
+              <p className="rounded-md border border-border/80 bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+                今日剩余：文本 {quota.text_remaining ?? '不限'} 次 · 图像 {quota.image_remaining ?? '不限'} 张
+                {quota.exhausted ? ' · 已用尽，请改用自备模型' : ''}
+              </p>
+            )}
+          </section>
+
+          {modelMode === 'platform' && (
+            <p className="text-sm text-muted-foreground">
+              当前使用平台 Agnes（{config.text_model} / {config.image_model}）。密钥由服务端托管，不会显示或下载到浏览器。
+            </p>
           )}
 
-          <section className="space-y-4">
-            <h3 className="flex items-center gap-2 text-sm font-semibold">
-              <ScrollText className="size-4" aria-hidden />
-              文本模型 · OpenAI 兼容
-            </h3>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="Base URL">
-                <Input required type="url" placeholder="https://api.example.com/v1" value={textBaseUrl} onChange={(event) => setTextBaseUrl(event.target.value)} />
-              </Field>
-              <Field label="模型 ID">
-                <Input required maxLength={160} placeholder="模型 ID" value={textModel} onChange={(event) => setTextModel(event.target.value)} />
-              </Field>
-              <Field label="API Key">
-                <SecretInput configured={config.text_api_key_configured} value={textKey} onChange={setTextKey} clear={clearTextKey} onClearChange={setClearTextKey} />
-              </Field>
-              <Status label="连接状态" value={statusLabel(config.text_status)} configured={config.text_status === 'connected'} />
-            </div>
-            <p className="text-xs text-muted-foreground">文本请求会发送到此地址的 `/chat/completions` 接口；仅允许公网 HTTPS 地址。</p>
-          </section>
+          {isByok && (
+            <>
+              <section className="space-y-4">
+                <h3 className="flex items-center gap-2 text-sm font-semibold">
+                  <ScrollText className="size-4" aria-hidden />
+                  文本模型 · OpenAI 兼容
+                </h3>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Field label="Base URL">
+                    <Input required type="url" placeholder="https://api.example.com/v1" value={textBaseUrl} onChange={(event) => setTextBaseUrl(event.target.value)} />
+                  </Field>
+                  <Field label="模型 ID">
+                    <Input required maxLength={160} placeholder="模型 ID" value={textModel} onChange={(event) => setTextModel(event.target.value)} />
+                  </Field>
+                  <Field label="API Key">
+                    <SecretInput configured={config.text_api_key_configured} value={textKey} onChange={setTextKey} clear={clearTextKey} onClearChange={setClearTextKey} />
+                  </Field>
+                  <Status label="连接状态" value={statusLabel(config.text_status)} configured={config.text_status === 'connected'} />
+                </div>
+              </section>
 
-          <section className="space-y-4 border-t pt-5">
-            <h3 className="flex items-center gap-2 text-sm font-semibold">
-              <ImageIcon className="size-4" aria-hidden />
-              图像模型
-            </h3>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="图像后端">
-                <select
-                  className="h-8 w-full rounded-md border border-input bg-background px-2 text-sm"
-                  value={imageBackend}
-                  onChange={(event) => setImageBackend(event.target.value as ImageBackend)}
-                >
-                  {config.image_backends.map((backend) => (
-                    <option key={backend.id} value={backend.id}>
-                      {backend.label}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-              <Field label="模型版本">
-                <select
-                  className="h-8 w-full rounded-md border border-input bg-background px-2 text-sm"
-                  value={imageModel}
-                  onChange={(event) => setImageModel(event.target.value)}
-                >
-                  {modelsForBackend.map((model) => (
-                    <option key={model} value={model}>
-                      {model}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-              <Field label="图像服务 Base URL">
-                <Input required type="url" maxLength={2048} placeholder="https://api.example.com/v1" value={imageBaseUrl} onChange={(event) => setImageBaseUrl(event.target.value)} />
-              </Field>
-              <Field label="图像 API Key">
-                <SecretInput configured={config.image_api_key_configured} value={imageKey} onChange={setImageKey} clear={clearImageKey} onClearChange={setClearImageKey} />
-              </Field>
-              <Status label="配置状态" value={statusLabel(config.image_status)} configured={config.image_status === 'connected'} />
-            </div>
-            <p className="text-xs leading-5 text-muted-foreground">{backendHelp}</p>
-          </section>
+              <section className="space-y-4 border-t pt-5">
+                <h3 className="flex items-center gap-2 text-sm font-semibold">
+                  <ImageIcon className="size-4" aria-hidden />
+                  图像模型
+                </h3>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Field label="图像后端">
+                    <select
+                      className="h-8 w-full rounded-md border border-input bg-background px-2 text-sm"
+                      value={imageBackend}
+                      disabled
+                      onChange={(event) => setImageBackend(event.target.value as ImageBackend)}
+                    >
+                      {config.image_backends.map((backend) => (
+                        <option key={backend.id} value={backend.id}>
+                          {backend.label}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field label="模型版本">
+                    <select
+                      className="h-8 w-full rounded-md border border-input bg-background px-2 text-sm"
+                      value={imageModel}
+                      onChange={(event) => setImageModel(event.target.value)}
+                    >
+                      {modelsForBackend.map((model) => (
+                        <option key={model} value={model}>
+                          {model}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field label="图像服务 Base URL">
+                    <Input required type="url" maxLength={2048} placeholder="https://api.example.com/v1" value={imageBaseUrl} onChange={(event) => setImageBaseUrl(event.target.value)} />
+                  </Field>
+                  <Field label="图像 API Key">
+                    <SecretInput configured={config.image_api_key_configured} value={imageKey} onChange={setImageKey} clear={clearImageKey} onClearChange={setClearImageKey} />
+                  </Field>
+                  <Status label="配置状态" value={statusLabel(config.image_status)} configured={config.image_status === 'connected'} />
+                </div>
+                <p className="text-xs leading-5 text-muted-foreground">{backendHelp}</p>
+              </section>
+            </>
+          )}
         </>
       )}
       {notice && (

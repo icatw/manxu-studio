@@ -1345,25 +1345,35 @@ export interface components {
             /** @description GitHub identities are verified after OAuth; email identities are verified after a successful email code. */
             verified: boolean;
         };
+        /**
+         * @description Account model credential mode (MODEL-04). Text and image share one mode. `platform` uses operator-hosted Agnes credentials; BYOK modes use the account's encrypted keys. New accounts default to `platform` when the server has platform credentials configured.
+         * @enum {string}
+         */
+        ModelMode: "platform" | "byok_qwen" | "byok_agnes";
         ModelConfigUpdate: {
-            text_model: string;
-            /** Format: uri */
-            text_base_url: string;
-            /** @description Omit to keep the existing key, null to clear it, or provide a replacement. */
-            text_api_key?: string | null;
-            /**
-             * @description Image provider protocol; models must be allowlisted for this backend.
-             * @enum {string}
-             */
-            image_backend: "qwen_async" | "openai_images";
-            /** @description Must be one of the allowlisted image model IDs for the selected image_backend. */
-            image_model: string;
+            model_mode: components["schemas"]["ModelMode"];
+            /** @description Required when model_mode is byok_*; ignored for platform (server preset). */
+            text_model?: string;
             /**
              * Format: uri
-             * @description Omit or set null to keep the existing address, or provide an image API base URL.
+             * @description Required when model_mode is byok_*; ignored for platform.
+             */
+            text_base_url?: string;
+            /** @description BYOK only. Omit to keep the existing key, null to clear it, or provide a replacement. Ignored for platform (never stores the platform key on the account). */
+            text_api_key?: string | null;
+            /**
+             * @description BYOK only; must match mode (byok_qwen → qwen_async, byok_agnes → openai_images). Ignored for platform.
+             * @enum {string}
+             */
+            image_backend?: "qwen_async" | "openai_images";
+            /** @description BYOK only; must be allowlisted for image_backend. Ignored for platform. */
+            image_model?: string;
+            /**
+             * Format: uri
+             * @description BYOK only. Omit or null to keep existing; ignored for platform.
              */
             image_base_url?: string | null;
-            /** @description Omit to keep the existing key, null to clear it, or provide a replacement. */
+            /** @description BYOK only. Omit to keep, null to clear, or replace. Ignored for platform. */
             image_api_key?: string | null;
         };
         ModelConnectionTest: {
@@ -1371,10 +1381,26 @@ export interface components {
             message: string;
             latency_ms?: number | null;
         };
+        ModelQuotaStatus: {
+            /** @description True when model_mode is platform and platform trial quota is enforced (QUOTA-01). */
+            applies: boolean;
+            /** @description Remaining billable text calls in the current window; null when not applicable. */
+            text_remaining?: number | null;
+            /** @description Remaining billable image units in the current window; null when not applicable. */
+            image_remaining?: number | null;
+            /** @description True when platform mode has no remaining quota for the next generation. */
+            exhausted: boolean;
+            /** @description Short operator-facing hint (e.g. switch to BYOK); null when unused. */
+            message?: string | null;
+        };
         ModelConfig: {
+            model_mode: components["schemas"]["ModelMode"];
+            /** @description True when the server has operator Agnes credentials configured. When false, clients must not offer platform mode as selectable. */
+            platform_available: boolean;
             text_provider: string;
             text_model: string;
             text_base_url: string;
+            /** @description For platform: true when platform text credentials are available. For BYOK: true when the account has a stored text API key. */
             text_api_key_configured: boolean;
             /** @enum {string} */
             text_status: "not_configured" | "configured" | "connected" | "error";
@@ -1384,6 +1410,7 @@ export interface components {
             image_backend: "qwen_async" | "openai_images";
             image_model: string;
             image_base_url: string;
+            /** @description For platform: true when platform image credentials are available. For BYOK: true when the account has a stored image API key. */
             image_api_key_configured: boolean;
             /** @description Server-configured parallel image job limit (IMAGE_MODEL_CONCURRENCY). Controls ARQ worker max_jobs and the studio batch concurrency hint; not editable via PUT /model-config. */
             image_concurrency: number;
@@ -1394,6 +1421,7 @@ export interface components {
             image_models: string[];
             image_backends: components["schemas"]["ImageBackendOption"][];
             system_presets: components["schemas"]["ModelPreset"][];
+            quota: components["schemas"]["ModelQuotaStatus"];
         };
         ImageBackendOption: {
             /** @enum {string} */

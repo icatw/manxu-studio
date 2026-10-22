@@ -55,9 +55,11 @@ def test_settings_image_models_for_backend() -> None:
     assert settings.image_models_for_backend("openai_images") == ["agnes-x"]
 
 
-def test_config_view_exposes_backend_options() -> None:
+@pytest.mark.asyncio
+async def test_config_view_exposes_backend_options() -> None:
     record = AccountModelConfigRecord(
         account_id=uuid4(),
+        model_mode="byok_qwen",
         text_model="qwen-plus",
         text_base_url="https://example.com/v1",
         text_status="not_configured",
@@ -66,8 +68,15 @@ def test_config_view_exposes_backend_options() -> None:
         image_base_url="https://dashscope.aliyuncs.com/api/v1",
         image_status="not_configured",
     )
-    view = config_view(record)
+
+    class FakeSession:
+        async def scalar(self, _query: object) -> int:
+            return 0
+
+    view = await config_view(FakeSession(), record)  # type: ignore[arg-type]
+    assert view.model_mode == "byok_qwen"
     assert view.image_backend == "qwen_async"
     assert view.image_provider == "qwen_async"
+    assert view.quota.applies is False
     assert any(item.id == "openai_images" for item in view.image_backends)
     assert any(item.id == "agnes-default" for item in view.system_presets)

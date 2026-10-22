@@ -1,4 +1,5 @@
 from datetime import UTC, datetime
+from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
@@ -26,8 +27,12 @@ class FakeSession:
     async def scalar(self, _query: object) -> GenerationTaskRecord | None:
         return self.existing
 
+    async def get(self, _model: type[object], _record_id: object) -> object | None:
+        return SimpleNamespace(model_mode="byok_qwen")
+
     async def scalars(self, _query: object) -> _FakeResult:
-        return _FakeResult(self.existing)
+        # Active-task scan for platform concurrency returns empty.
+        return _FakeResult(None)
 
     def add(self, item: GenerationTaskRecord) -> None:
         if getattr(item, "id", None) is None:

@@ -77,6 +77,17 @@ async def create_task(
                 await session.flush()
             else:
                 return task_view(existing)
+    from app.core.model_modes import billing_source_for_mode, normalize_model_mode
+    from app.db.models import AccountModelConfigRecord
+    from app.services.platform_quota import (
+        enforce_platform_quota_before_enqueue,
+        stamp_billing_source,
+    )
+
+    await enforce_platform_quota_before_enqueue(session, owner_id)
+    config = await session.get(AccountModelConfigRecord, owner_id)
+    mode = normalize_model_mode(getattr(config, "model_mode", None) if config else None)
+    stamped = stamp_billing_source(request_data, billing_source_for_mode(mode))
     set_account_id(owner_id)
     set_project_id(project_id)
     task = GenerationTaskRecord(
@@ -87,7 +98,7 @@ async def create_task(
         task_type=task_type,
         status="queued",
         progress=0,
-        request_data=stamp_request_correlation(request_data),
+        request_data=stamp_request_correlation(stamped),
         retry_of_task_id=retry_of_task_id,
         idempotency_key=idempotency_key,
     )

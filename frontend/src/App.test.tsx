@@ -12,6 +12,7 @@ vi.mock("./lib/api/client", () => ({
         ? { data: [{ id: "identity-1", provider: "github", email: null, verified: true }] }
       : path === "/model-config"
         ? { data: {
+            model_mode: "byok_qwen", platform_available: false,
             text_provider: "openai-compatible", text_model: "qwen-plus", text_base_url: "https://example.com/v1",
             text_api_key_configured: false, text_status: "not_configured",
             image_provider: "qwen_async", image_backend: "qwen_async",
@@ -20,6 +21,7 @@ vi.mock("./lib/api/client", () => ({
             image_status: "not_configured", image_models: ["qwen-image-3.0-pro"],
             image_backends: [{ id: "qwen_async", label: "Qwen Image（异步）", models: ["qwen-image-3.0-pro"] }],
             system_presets: [],
+            quota: { applies: false, text_remaining: null, image_remaining: null, exhausted: false, message: null },
           } }
         : { data: { items: [], next_cursor: null } })),
     PATCH: vi.fn(),

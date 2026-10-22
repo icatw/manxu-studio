@@ -294,6 +294,7 @@ class UsageEventRecord(Base):
     image_units: Mapped[int | None] = mapped_column(Integer)
     outcome: Mapped[str] = mapped_column(String(16), nullable=False)
     billable: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    billing_source: Mapped[str] = mapped_column(String(16), nullable=False, default="byok")
     latency_ms: Mapped[int | None] = mapped_column(Integer)
     error_code: Mapped[str | None] = mapped_column(String(64))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
@@ -399,6 +400,7 @@ class AccountModelConfigRecord(Base):
     account_id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("accounts.id", ondelete="CASCADE"), primary_key=True
     )
+    model_mode: Mapped[str] = mapped_column(String(24), nullable=False, default="byok_qwen")
     text_model: Mapped[str] = mapped_column(String(160), nullable=False, default="")
     text_base_url: Mapped[str] = mapped_column(Text, nullable=False, default="")
     text_api_key_encrypted: Mapped[bytes | None] = mapped_column(LargeBinary)

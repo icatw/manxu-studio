@@ -56,6 +56,28 @@ def _summary_payload() -> dict[str, object]:
     }
 
 
+def _storyboard_payload(panel_count: int) -> dict[str, object]:
+    panels = [
+        {
+            "shot": f"第{index}格中景",
+            "scene_description": f"雾港灯塔附近，角色推进冲突的第{index}个瞬间。",
+            "composition": "主体居中，前景留白引导视线",
+            "character_actions": "主角停步回望，同伴指向远方光源",
+            "emotion": "紧张而克制",
+            "dialogue": "先别出声，跟我来。" if index == 1 else "",
+            "story_purpose": f"推进本话第{index}拍，承接前情并埋下下一拍动机。",
+            "image_prompt": (
+                f"cinematic comic panel {index}, foggy harbor lighthouse, "
+                "two characters in mid shot, moody lighting, no text"
+            ),
+            "scene_name": "雾港灯塔",
+            "character_names": ["阿澜", "汐"] if index % 2 else ["阿澜"],
+        }
+        for index in range(1, panel_count + 1)
+    ]
+    return {"panels": panels}
+
+
 def _character_draft_payload() -> dict[str, object]:
     return {
         "characters": [
@@ -92,8 +114,25 @@ def _extract_chapter_count(text: str) -> int:
     return 3
 
 
+def _extract_panel_count(text: str) -> int:
+    match = re.search(r"分镜数[：:]\s*(\d+)", text)
+    if match:
+        return max(1, min(60, int(match.group(1))))
+    return 4
+
+
 def _completion_content(system_prompt: str, user_prompt: str) -> str:
     combined = f"{system_prompt}\n{user_prompt}"
+    # Storyboard must win over summary: continuity blocks embed 前情摘要/summary.
+    if (
+        '"panels"' in combined
+        or "分镜数" in combined
+        or "scene_description" in combined
+        or "image_prompt" in combined
+    ):
+        return json.dumps(
+            _storyboard_payload(_extract_panel_count(combined)), ensure_ascii=False
+        )
     if "季策划" in combined or "world_setting" in combined or "chapters" in combined:
         return json.dumps(_plan_payload(_extract_chapter_count(combined)), ensure_ascii=False)
     if "摘要" in combined or "summary" in combined.lower():
