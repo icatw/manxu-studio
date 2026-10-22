@@ -2,8 +2,8 @@
 
 - 更新时间：2026-10-22
 - 里程碑 tag：`v0.1.0-storyboard`（commit `310d85e`）— 分镜/画格工作台 + 生产 COS 切流快照
-- **生产部署冻结**：tag 之后默认**不**向 `manxu.icatw.site` 推送应用更新，直至产品规划与对外表述对齐、并明确解除冻结。线上继续跑该里程碑对应能力；仅紧急热修（安全/数据损坏）可破例，且须单独记录。
-- 当前阶段：公网演示保持 tag 态；**A1–A3 已交付**；**A′ 已收口**（`0028`）；阶段 B：**IMPACT-CAST/BIBLE 已收口**（`0030` completed；发现 `0029`）；PUBLISH-02 仍 `proposed`；生产仍冻结
+- **生产部署冻结**：tag 之后默认**不**向 `manxu.icatw.site` 推送应用更新。**破例（2026-10-22）**：为公网「注册即可用」启用 `MODEL-04`/`QUOTA-01`（platform Agnes + 日额度），已部署含 `PLATFORM_AGNES_*` 的应用栈；密钥仅在服务器 `.env.prod`（勿入库）。此后仍默认冻结，直至产品明确全面解冻。
+- 当前阶段：公网可注册试用 platform 模式；**A1–A3 已交付**；**A′ 已收口**（`0028`）；阶段 B：**IMPACT-CAST/BIBLE 已收口**（`0030` completed；发现 `0029`）；PUBLISH-02 仍 `proposed`；生产默认仍冻结（本破例已记录）
 - 代码阶段：邮箱/GitHub 登录、资源隔离、Redis/ARQ、providers/tasks 分层、应用服务层、定妆锁定、多话壳、连载层、Playwright E2E、playground、生成归属收口、多人角色参考图、VPS nginx overlay、合集导出与摘要门禁已接入
 
 ## 当前事实
