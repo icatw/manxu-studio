@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class GeneratedCharacter(BaseModel):
@@ -42,6 +42,18 @@ class GeneratedPanel(BaseModel):
     scene_name: str = Field(default="", max_length=120)
     # Names from the project cast that appear in this panel (SB-01 / F04).
     character_names: list[str] = Field(default_factory=list, max_length=8)
+
+    @field_validator("shot", mode="before")
+    @classmethod
+    def coerce_shot_to_str(cls, value: object) -> object:
+        # Some providers return panel index / shot code as a number.
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, int):
+            return str(value)
+        if isinstance(value, float) and value.is_integer():
+            return str(int(value))
+        return value
 
 
 class StoryboardGenerationOutput(BaseModel):

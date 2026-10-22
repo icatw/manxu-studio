@@ -82,3 +82,33 @@ def test_assert_allows_english_image_prompt_only() -> None:
             ]
         )
     )
+
+
+def test_generated_panel_coerces_numeric_shot() -> None:
+    panel = GeneratedPanel(
+        shot=1,  # type: ignore[arg-type]
+        scene_description="宿舍夜色。",
+        composition="人物居中。",
+        character_actions="林深抬头。",
+        emotion="紧张",
+        dialogue="",
+        story_purpose="建立危机。",
+        image_prompt="cyberpunk dorm",
+    )
+    assert panel.shot == "1"
+    output = StoryboardGenerationOutput(
+        panels=[
+            GeneratedPanel(
+                shot=i,  # type: ignore[arg-type]
+                scene_description="场景。",
+                composition="构图。",
+                character_actions="动作。",
+                emotion="平静",
+                dialogue="",
+                story_purpose="推进。",
+                image_prompt="panel",
+            )
+            for i in range(1, 9)
+        ]
+    )
+    assert [panel.shot for panel in output.panels] == [str(i) for i in range(1, 9)]
